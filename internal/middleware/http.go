@@ -351,3 +351,35 @@ func writeJSONError(w http.ResponseWriter, status int, message string) {
 		"message": message,
 	})
 }
+
+// UserIDFromContext returns the authenticated user ID from a net/http request context.
+func UserIDFromContext(ctx context.Context) (uuid.UUID, bool) {
+	v, ok := ctx.Value(ctxKeyUserID).(uuid.UUID)
+	return v, ok && v != uuid.Nil
+}
+
+// OrganizationIDFromContext returns the organization ID from a net/http request context.
+func OrganizationIDFromContext(ctx context.Context) (uuid.UUID, bool) {
+	v, ok := ctx.Value(ctxKeyOrganizationID).(uuid.UUID)
+	return v, ok && v != uuid.Nil
+}
+
+// WithUserID attaches a user ID to a context (tests / native handlers).
+func WithUserID(ctx context.Context, id uuid.UUID) context.Context {
+	return context.WithValue(ctx, ctxKeyUserID, id)
+}
+
+// WithOrganizationID attaches an organization ID to a context (tests / native handlers).
+func WithOrganizationID(ctx context.Context, id uuid.UUID) context.Context {
+	return context.WithValue(ctx, ctxKeyOrganizationID, id)
+}
+
+// WithRoleID attaches a role ID to a context.
+func WithRoleID(ctx context.Context, id uuid.UUID) context.Context {
+	return context.WithValue(ctx, ctxKeyRoleID, id)
+}
+
+// WithIsSuperAdmin attaches the super-admin flag to a context.
+func WithIsSuperAdmin(ctx context.Context, v bool) context.Context {
+	return context.WithValue(ctx, ctxKeyIsSuperAdmin, v)
+}

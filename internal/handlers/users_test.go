@@ -596,15 +596,14 @@ func TestApp_GetCurrentUser(t *testing.T) {
 		req := testutil.NewGETRequest(t)
 		testutil.SetAuthContext(req, org.ID, user.ID)
 
-		err := app.GetCurrentUser(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.GetCurrentUser, req)
 		assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 		var resp struct {
 			Status string                `json:"status"`
 			Data   handlers.UserResponse `json:"data"`
 		}
-		err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+		err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 		require.NoError(t, err)
 
 		assert.Equal(t, "success", resp.Status)
@@ -627,14 +626,13 @@ func TestApp_GetCurrentUser(t *testing.T) {
 		req := testutil.NewGETRequest(t)
 		testutil.SetAuthContext(req, org.ID, user.ID)
 
-		err := app.GetCurrentUser(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.GetCurrentUser, req)
 		assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 		var resp struct {
 			Data handlers.UserResponse `json:"data"`
 		}
-		err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+		err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 		require.NoError(t, err)
 
 		assert.NotNil(t, resp.Data.Role)
@@ -648,8 +646,7 @@ func TestApp_GetCurrentUser(t *testing.T) {
 		req := testutil.NewGETRequest(t)
 		// Do not set auth context -- no user_id
 
-		err := app.GetCurrentUser(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.GetCurrentUser, req)
 		assert.Equal(t, fasthttp.StatusUnauthorized, testutil.GetResponseStatusCode(req))
 	})
 }
@@ -676,8 +673,7 @@ func TestApp_UpdateAvailability(t *testing.T) {
 		req := testutil.NewJSONRequest(t, reqBody)
 		testutil.SetAuthContext(req, org.ID, user.ID)
 
-		err := app.UpdateAvailability(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.UpdateAvailability, req)
 		assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 		var resp struct {
@@ -687,7 +683,7 @@ func TestApp_UpdateAvailability(t *testing.T) {
 				Status      string `json:"status"`
 			} `json:"data"`
 		}
-		err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+		err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 		require.NoError(t, err)
 
 		assert.Equal(t, "Availability updated successfully", resp.Data.Message)
@@ -717,8 +713,7 @@ func TestApp_UpdateAvailability(t *testing.T) {
 		req := testutil.NewJSONRequest(t, reqBody)
 		testutil.SetAuthContext(req, org.ID, user.ID)
 
-		err := app.UpdateAvailability(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.UpdateAvailability, req)
 		assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 		var resp struct {
@@ -728,7 +723,7 @@ func TestApp_UpdateAvailability(t *testing.T) {
 				Status      string `json:"status"`
 			} `json:"data"`
 		}
-		err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+		err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 		require.NoError(t, err)
 
 		assert.Equal(t, "Availability updated successfully", resp.Data.Message)
@@ -755,8 +750,7 @@ func TestApp_UpdateAvailability(t *testing.T) {
 		req := testutil.NewJSONRequest(t, reqBody)
 		testutil.SetAuthContext(req, org.ID, user.ID)
 
-		err := app.UpdateAvailability(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.UpdateAvailability, req)
 		assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 		// Verify availability log was created
@@ -777,8 +771,7 @@ func TestApp_UpdateAvailability(t *testing.T) {
 		req := testutil.NewJSONRequest(t, reqBody)
 		// Do not set auth context
 
-		err := app.UpdateAvailability(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.UpdateAvailability, req)
 		assert.Equal(t, fasthttp.StatusUnauthorized, testutil.GetResponseStatusCode(req))
 	})
 }
@@ -805,8 +798,7 @@ func TestApp_ChangePassword(t *testing.T) {
 		req := testutil.NewJSONRequest(t, reqBody)
 		testutil.SetAuthContext(req, org.ID, user.ID)
 
-		err := app.ChangePassword(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.ChangePassword, req)
 		assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 		var resp struct {
@@ -814,7 +806,7 @@ func TestApp_ChangePassword(t *testing.T) {
 				Message string `json:"message"`
 			} `json:"data"`
 		}
-		err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+		err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 		require.NoError(t, err)
 		assert.Equal(t, "Password changed successfully", resp.Data.Message)
 
@@ -841,8 +833,7 @@ func TestApp_ChangePassword(t *testing.T) {
 		req := testutil.NewJSONRequest(t, reqBody)
 		testutil.SetAuthContext(req, org.ID, user.ID)
 
-		err := app.ChangePassword(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.ChangePassword, req)
 		assert.Equal(t, fasthttp.StatusBadRequest, testutil.GetResponseStatusCode(req))
 	})
 
@@ -861,8 +852,7 @@ func TestApp_ChangePassword(t *testing.T) {
 		req := testutil.NewJSONRequest(t, reqBody)
 		testutil.SetAuthContext(req, org.ID, user.ID)
 
-		err := app.ChangePassword(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.ChangePassword, req)
 		assert.Equal(t, fasthttp.StatusBadRequest, testutil.GetResponseStatusCode(req))
 	})
 
@@ -882,8 +872,7 @@ func TestApp_ChangePassword(t *testing.T) {
 		req := testutil.NewJSONRequest(t, reqBody)
 		testutil.SetAuthContext(req, org.ID, user.ID)
 
-		err := app.ChangePassword(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.ChangePassword, req)
 		assert.Equal(t, fasthttp.StatusBadRequest, testutil.GetResponseStatusCode(req))
 	})
 
@@ -904,8 +893,7 @@ func TestApp_ChangePassword(t *testing.T) {
 		req := testutil.NewJSONRequest(t, reqBody)
 		testutil.SetAuthContext(req, org.ID, user.ID)
 
-		err := app.ChangePassword(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.ChangePassword, req)
 		assert.Equal(t, fasthttp.StatusBadRequest, testutil.GetResponseStatusCode(req))
 	})
 
@@ -921,8 +909,7 @@ func TestApp_ChangePassword(t *testing.T) {
 		req := testutil.NewJSONRequest(t, reqBody)
 		// Do not set auth context
 
-		err := app.ChangePassword(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.ChangePassword, req)
 		assert.Equal(t, fasthttp.StatusUnauthorized, testutil.GetResponseStatusCode(req))
 	})
 }
@@ -949,8 +936,7 @@ func TestApp_UpdateCurrentUserSettings(t *testing.T) {
 		req := testutil.NewJSONRequest(t, reqBody)
 		testutil.SetAuthContext(req, org.ID, user.ID)
 
-		err := app.UpdateCurrentUserSettings(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.UpdateCurrentUserSettings, req)
 		assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 		var resp struct {
@@ -959,7 +945,7 @@ func TestApp_UpdateCurrentUserSettings(t *testing.T) {
 				Settings map[string]any `json:"settings"`
 			} `json:"data"`
 		}
-		err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+		err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 		require.NoError(t, err)
 
 		assert.Equal(t, "Settings updated successfully", resp.Data.Message)
@@ -985,8 +971,7 @@ func TestApp_UpdateCurrentUserSettings(t *testing.T) {
 		req := testutil.NewJSONRequest(t, reqBody)
 		testutil.SetAuthContext(req, org.ID, user.ID)
 
-		err := app.UpdateCurrentUserSettings(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.UpdateCurrentUserSettings, req)
 		assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 		// Verify in DB
@@ -1013,8 +998,7 @@ func TestApp_UpdateCurrentUserSettings(t *testing.T) {
 		}
 		req1 := testutil.NewJSONRequest(t, reqBody1)
 		testutil.SetAuthContext(req1, org.ID, user.ID)
-		err := app.UpdateCurrentUserSettings(req1)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.UpdateCurrentUserSettings, req1)
 		assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req1))
 
 		// Second update with different values
@@ -1025,8 +1009,7 @@ func TestApp_UpdateCurrentUserSettings(t *testing.T) {
 		}
 		req2 := testutil.NewJSONRequest(t, reqBody2)
 		testutil.SetAuthContext(req2, org.ID, user.ID)
-		err = app.UpdateCurrentUserSettings(req2)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.UpdateCurrentUserSettings, req2)
 		assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req2))
 
 		var resp struct {
@@ -1034,7 +1017,7 @@ func TestApp_UpdateCurrentUserSettings(t *testing.T) {
 				Settings map[string]any `json:"settings"`
 			} `json:"data"`
 		}
-		err = json.Unmarshal(testutil.GetResponseBody(req2), &resp)
+		err := json.Unmarshal(testutil.GetResponseBody(req2), &resp)
 		require.NoError(t, err)
 
 		assert.Equal(t, false, resp.Data.Settings["email_notifications"])
@@ -1055,8 +1038,7 @@ func TestApp_UpdateCurrentUserSettings(t *testing.T) {
 		req := testutil.NewJSONRequest(t, reqBody)
 		// Do not set auth context
 
-		err := app.UpdateCurrentUserSettings(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.UpdateCurrentUserSettings, req)
 		assert.Equal(t, fasthttp.StatusUnauthorized, testutil.GetResponseStatusCode(req))
 	})
 }
@@ -1500,8 +1482,7 @@ func TestApp_GetCurrentUser_NotFound(t *testing.T) {
 	req := testutil.NewGETRequest(t)
 	testutil.SetAuthContext(req, org.ID, uuid.New()) // non-existent user
 
-	err := app.GetCurrentUser(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.GetCurrentUser, req)
 	assert.Equal(t, fasthttp.StatusNotFound, testutil.GetResponseStatusCode(req))
 }
 
@@ -1522,8 +1503,7 @@ func TestApp_UpdateAvailability_NoChangeNoNewLog(t *testing.T) {
 	req := testutil.NewJSONRequest(t, reqBody)
 	testutil.SetAuthContext(req, org.ID, user.ID)
 
-	err := app.UpdateAvailability(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.UpdateAvailability, req)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	// No availability log should be created for same status
@@ -1592,8 +1572,7 @@ func TestApp_ChangePassword_OldPasswordStopsWorking(t *testing.T) {
 	req := testutil.NewJSONRequest(t, reqBody)
 	testutil.SetAuthContext(req, org.ID, user.ID)
 
-	err := app.ChangePassword(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.ChangePassword, req)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	// Now try to change password again using the old password -- should fail
@@ -1605,8 +1584,7 @@ func TestApp_ChangePassword_OldPasswordStopsWorking(t *testing.T) {
 	req2 := testutil.NewJSONRequest(t, reqBody2)
 	testutil.SetAuthContext(req2, org.ID, user.ID)
 
-	err = app.ChangePassword(req2)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.ChangePassword, req2)
 	assert.Equal(t, fasthttp.StatusBadRequest, testutil.GetResponseStatusCode(req2))
 }
 

@@ -3,6 +3,7 @@ package handlers
 import (
 	"crypto/rand"
 	"encoding/base64"
+	"net/http"
 
 	"github.com/valyala/fasthttp"
 	"github.com/zerodha/fastglue"
@@ -14,13 +15,12 @@ const (
 	cookieCSRFName    = "whm_csrf"
 )
 
-// setAuthCookies sets httpOnly auth cookies and a JS-readable CSRF cookie.
+// setAuthCookies sets httpOnly auth cookies and a JS-readable CSRF cookie (legacy fasthttp).
 func (a *App) setAuthCookies(r *fastglue.Request, accessToken, refreshToken string) {
 	secure := a.Config.Cookie.Secure
 	domain := a.Config.Cookie.Domain
 	bp := a.Config.Server.BasePath // e.g. "/whatomate" or ""
 
-	// Access token cookie — httpOnly, scoped to basePath/api
 	ac := fasthttp.AcquireCookie()
 	ac.SetKey(cookieAccessName)
 	ac.SetValue(accessToken)
@@ -35,7 +35,6 @@ func (a *App) setAuthCookies(r *fastglue.Request, accessToken, refreshToken stri
 	r.RequestCtx.Response.Header.SetCookie(ac)
 	fasthttp.ReleaseCookie(ac)
 
-	// Refresh token cookie — httpOnly, narrow path
 	rc := fasthttp.AcquireCookie()
 	rc.SetKey(cookieRefreshName)
 	rc.SetValue(refreshToken)
@@ -50,7 +49,6 @@ func (a *App) setAuthCookies(r *fastglue.Request, accessToken, refreshToken stri
 	r.RequestCtx.Response.Header.SetCookie(rc)
 	fasthttp.ReleaseCookie(rc)
 
-	// CSRF token cookie — NOT httpOnly (JS-readable), broad path
 	csrfToken := generateCSRFToken()
 	cc := fasthttp.AcquireCookie()
 	cc.SetKey(cookieCSRFName)
@@ -67,10 +65,9 @@ func (a *App) setAuthCookies(r *fastglue.Request, accessToken, refreshToken stri
 	fasthttp.ReleaseCookie(cc)
 }
 
-// clearAuthCookies expires all auth cookies.
+// clearAuthCookies expires all auth cookies (legacy fasthttp).
 func (a *App) clearAuthCookies(r *fastglue.Request) {
 	domain := a.Config.Cookie.Domain
-
 	bp := a.Config.Server.BasePath
 	for _, name := range []string{cookieAccessName, cookieRefreshName, cookieCSRFName} {
 		c := fasthttp.AcquireCookie()
@@ -93,6 +90,73 @@ func (a *App) clearAuthCookies(r *fastglue.Request) {
 		}
 		r.RequestCtx.Response.Header.SetCookie(c)
 		fasthttp.ReleaseCookie(c)
+	}
+}
+
+// setAuthCookiesHTTP sets httpOnly auth cookies and a JS-readable CSRF cookie (net/http).
+func (a *App) setAuthCookiesHTTP(w http.ResponseWriter, accessToken, refreshToken string) {
+	secure := a.Config.Cookie.Secure
+	domain := a.Config.Cookie.Domain
+	bp := a.Config.Server.BasePath
+
+	http.SetCookie(w, &http.Cookie{
+		Name:     cookieAccessName,
+		Value:    accessToken,
+		Path:     bp + "/api",
+		Domain:   domain,
+		MaxAge:   a.Config.JWT.AccessExpiryMins * 60,
+		HttpOnly: true,
+		Secure:   secure,
+		SameSite: http.SameSiteLaxMode,
+	})
+	http.SetCookie(w, &http.Cookie{
+		Name:     cookieRefreshName,
+		Value:    refreshToken,
+		Path:     bp + "/api/auth/refresh",
+		Domain:   domain,
+		MaxAge:   a.Config.JWT.RefreshExpiryDays * 86400,
+		HttpOnly: true,
+		Secure:   secure,
+		SameSite: http.SameSiteLaxMode,
+	})
+	http.SetCookie(w, &http.Cookie{
+		Name:     cookieCSRFName,
+		Value:    generateCSRFToken(),
+		Path:     bp + "/",
+		Domain:   domain,
+		MaxAge:   a.Config.JWT.RefreshExpiryDays * 86400,
+		HttpOnly: false,
+		Secure:   secure,
+		SameSite: http.SameSiteLaxMode,
+	})
+}
+
+// clearAuthCookiesHTTP expires all auth cookies (net/http).
+func (a *App) clearAuthCookiesHTTP(w http.ResponseWriter) {
+	domain := a.Config.Cookie.Domain
+	bp := a.Config.Server.BasePath
+	secure := a.Config.Cookie.Secure
+	for _, name := range []string{cookieAccessName, cookieRefreshName, cookieCSRFName} {
+		path := bp + "/"
+		httpOnly := true
+		switch name {
+		case cookieAccessName:
+			path = bp + "/api"
+		case cookieRefreshName:
+			path = bp + "/api/auth/refresh"
+		default:
+			httpOnly = false
+		}
+		http.SetCookie(w, &http.Cookie{
+			Name:     name,
+			Value:    "",
+			Path:     path,
+			Domain:   domain,
+			MaxAge:   -1,
+			HttpOnly: httpOnly,
+			Secure:   secure,
+			SameSite: http.SameSiteLaxMode,
+		})
 	}
 }
 

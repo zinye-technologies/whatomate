@@ -102,34 +102,35 @@ func (a *App) getOrgID(r *fastglue.Request) (uuid.UUID, error) {
 	return defaultOrgID, nil
 }
 
-// HealthCheck returns server health status
-func (a *App) HealthCheck(r *fastglue.Request) error {
-	return r.SendEnvelope(map[string]string{
+// HealthCheck returns server health status (native net/http).
+func (a *App) HealthCheck(w http.ResponseWriter, r *http.Request) {
+	SendEnvelope(w, map[string]string{
 		"status":  "ok",
 		"service": "whatomate",
 	})
 }
 
-// ReadyCheck returns server readiness status
-func (a *App) ReadyCheck(r *fastglue.Request) error {
-	// Check database connection
+// ReadyCheck returns server readiness status (native net/http).
+func (a *App) ReadyCheck(w http.ResponseWriter, r *http.Request) {
 	sqlDB, err := a.DB.DB()
 	if err != nil {
 		a.Log.Error("Database connection error", "error", err)
-		return r.SendErrorEnvelope(500, "Database connection error", nil, "")
+		SendErrorEnvelope(w, http.StatusInternalServerError, "Database connection error", nil, "")
+		return
 	}
 	if err := sqlDB.Ping(); err != nil {
 		a.Log.Error("Database ping failed", "error", err)
-		return r.SendErrorEnvelope(500, "Database ping failed", nil, "")
+		SendErrorEnvelope(w, http.StatusInternalServerError, "Database ping failed", nil, "")
+		return
 	}
 
-	// Check Redis connection
-	if err := a.Redis.Ping(r.RequestCtx).Err(); err != nil {
+	if err := a.Redis.Ping(r.Context()).Err(); err != nil {
 		a.Log.Error("Redis connection error", "error", err)
-		return r.SendErrorEnvelope(500, "Redis connection error", nil, "")
+		SendErrorEnvelope(w, http.StatusInternalServerError, "Redis connection error", nil, "")
+		return
 	}
 
-	return r.SendEnvelope(map[string]string{
+	SendEnvelope(w, map[string]string{
 		"status": "ready",
 	})
 }

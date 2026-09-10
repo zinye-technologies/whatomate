@@ -10,8 +10,8 @@ import (
 )
 
 // mountRoutes registers public and authenticated routes on the chi router.
-// Most handlers remain fastglue.FastRequestHandler values wrapped by Wrap;
-// WebSocket and the embedded SPA are native net/http handlers.
+// Health/ready, auth session, and /api/me (+ current org) are native net/http.
+	// Remaining handlers still use Wrap(fastglue); WebSocket + SPA are native.
 func mountRoutes(r chi.Router, d Deps) {
 	app := d.App
 	lo := d.Log
@@ -19,8 +19,8 @@ func mountRoutes(r chi.Router, d Deps) {
 	rdb := d.Redis
 
 	// --- Public routes (no auth) ---
-	r.Get("/health", Wrap(app.HealthCheck))
-	r.Get("/ready", Wrap(app.ReadyCheck))
+	r.Get("/health", app.HealthCheck)
+	r.Get("/ready", app.ReadyCheck)
 	r.Get("/api/embedded-signup/config", Wrap(app.GetEmbeddedSignupConfig))
 
 	// Auth routes (public, optionally rate-limited)
@@ -35,19 +35,19 @@ func mountRoutes(r chi.Router, d Deps) {
 
 		r.With(middleware.RateLimitHTTP(middleware.RateLimitOpts{
 			Redis: rdb, Log: lo, Max: cfg.RateLimit.LoginMaxAttempts, Window: window, KeyPrefix: "login", TrustProxy: cfg.RateLimit.TrustProxy,
-		})).Post("/api/auth/login", Wrap(app.Login))
+		})).Post("/api/auth/login", app.Login)
 		r.With(middleware.RateLimitHTTP(middleware.RateLimitOpts{
 			Redis: rdb, Log: lo, Max: cfg.RateLimit.RegisterMaxAttempts, Window: window, KeyPrefix: "register", TrustProxy: cfg.RateLimit.TrustProxy,
-		})).Post("/api/auth/register", Wrap(app.Register))
+		})).Post("/api/auth/register", app.Register)
 		r.With(middleware.RateLimitHTTP(middleware.RateLimitOpts{
 			Redis: rdb, Log: lo, Max: cfg.RateLimit.RefreshMaxAttempts, Window: window, KeyPrefix: "refresh", TrustProxy: cfg.RateLimit.TrustProxy,
-		})).Post("/api/auth/refresh", Wrap(app.RefreshToken))
+		})).Post("/api/auth/refresh", app.RefreshToken)
 	} else {
-		r.Post("/api/auth/login", Wrap(app.Login))
-		r.Post("/api/auth/register", Wrap(app.Register))
-		r.Post("/api/auth/refresh", Wrap(app.RefreshToken))
+		r.Post("/api/auth/login", app.Login)
+		r.Post("/api/auth/register", app.Register)
+		r.Post("/api/auth/refresh", app.RefreshToken)
 	}
-	r.Post("/api/auth/logout", Wrap(app.Logout))
+	r.Post("/api/auth/logout", app.Logout)
 
 	// SSO routes
 	r.Get("/api/auth/sso/providers", Wrap(app.GetPublicSSOProviders))
@@ -110,13 +110,13 @@ func mountRoutes(r chi.Router, d Deps) {
 }
 
 func mountAuthenticatedAPI(r chi.Router, app *handlers.App) {
-	r.Post("/api/auth/switch-org", Wrap(app.SwitchOrg))
-	r.Get("/api/auth/ws-token", Wrap(app.GetWSToken))
-	r.Get("/api/me", Wrap(app.GetCurrentUser))
-	r.Put("/api/me/settings", Wrap(app.UpdateCurrentUserSettings))
-	r.Put("/api/me/password", Wrap(app.ChangePassword))
-	r.Put("/api/me/availability", Wrap(app.UpdateAvailability))
-	r.Get("/api/me/organizations", Wrap(app.ListMyOrganizations))
+	r.Post("/api/auth/switch-org", app.SwitchOrg)
+	r.Get("/api/auth/ws-token", app.GetWSToken)
+	r.Get("/api/me", app.GetCurrentUser)
+	r.Put("/api/me/settings", app.UpdateCurrentUserSettings)
+	r.Put("/api/me/password", app.ChangePassword)
+	r.Put("/api/me/availability", app.UpdateAvailability)
+	r.Get("/api/me/organizations", app.ListMyOrganizations)
 	r.Get("/api/users", Wrap(app.ListUsers))
 	r.Post("/api/users", Wrap(app.CreateUser))
 	r.Get("/api/users/{id}", Wrap(app.GetUser))
@@ -270,7 +270,7 @@ func mountAuthenticatedAPI(r chi.Router, app *handlers.App) {
 	r.Post("/api/org/audio", Wrap(app.UploadOrgAudio))
 	r.Get("/api/organizations", Wrap(app.ListOrganizations))
 	r.Post("/api/organizations", Wrap(app.CreateOrganization))
-	r.Get("/api/organizations/current", Wrap(app.GetCurrentOrganization))
+	r.Get("/api/organizations/current", app.GetCurrentOrganization)
 	r.Get("/api/organizations/members", Wrap(app.ListOrganizationMembers))
 	r.Post("/api/organizations/members", Wrap(app.AddOrganizationMember))
 	r.Put("/api/organizations/members/{member_id}", Wrap(app.UpdateOrganizationMemberRole))

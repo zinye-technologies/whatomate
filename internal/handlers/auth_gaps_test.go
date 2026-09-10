@@ -60,7 +60,7 @@ func TestApp_SwitchOrg_AccessTokenCarriesUserOrgRole(t *testing.T) {
 	})
 	testutil.SetPathParam(req, "user_id", user.ID)
 
-	require.NoError(t, app.SwitchOrg(req))
+	testutil.InvokeHTTP(t, app.SwitchOrg, req)
 	require.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	accessTokenStr := testutil.GetResponseCookie(req, "whm_access")
@@ -87,7 +87,7 @@ func TestApp_SwitchOrg_InvalidJSON(t *testing.T) {
 	req.RequestCtx.Request.Header.SetContentType("application/json")
 	testutil.SetPathParam(req, "user_id", user.ID)
 
-	require.NoError(t, app.SwitchOrg(req))
+	testutil.InvokeHTTP(t, app.SwitchOrg, req)
 	assert.Equal(t, fasthttp.StatusBadRequest, testutil.GetResponseStatusCode(req))
 }
 
@@ -97,7 +97,7 @@ func TestApp_Logout_ClearsCookiesAndReturnsOK(t *testing.T) {
 	app := newTestApp(t)
 
 	req := testutil.NewJSONRequest(t, map[string]string{})
-	require.NoError(t, app.Logout(req))
+	testutil.InvokeHTTP(t, app.Logout, req)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	for _, name := range []string{"whm_access", "whm_refresh", "whm_csrf"} {
@@ -124,7 +124,7 @@ func TestApp_Logout_RevokesRefreshTokenJTI(t *testing.T) {
 	token := generateRefreshTokenWithJTI(t, testutil.TestJWTSecret, user, jti, time.Hour)
 
 	req := testutil.NewJSONRequest(t, map[string]string{"refresh_token": token})
-	require.NoError(t, app.Logout(req))
+	testutil.InvokeHTTP(t, app.Logout, req)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	exists, err := app.Redis.Exists(ctx, "refresh:"+jti).Result()
@@ -136,7 +136,7 @@ func TestApp_Logout_NoTokenStillSucceeds(t *testing.T) {
 	app := newTestApp(t)
 
 	req := testutil.NewJSONRequest(t, map[string]string{})
-	require.NoError(t, app.Logout(req))
+	testutil.InvokeHTTP(t, app.Logout, req)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 }
 
@@ -144,7 +144,7 @@ func TestApp_Logout_GarbageRefreshTokenStillSucceeds(t *testing.T) {
 	app := newTestApp(t)
 
 	req := testutil.NewJSONRequest(t, map[string]string{"refresh_token": "garbage.not.a.jwt"})
-	require.NoError(t, app.Logout(req))
+	testutil.InvokeHTTP(t, app.Logout, req)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 }
 
@@ -164,7 +164,7 @@ func TestApp_Logout_FromCookie(t *testing.T) {
 	req.RequestCtx.Request.Header.SetCookie("whm_refresh", token)
 	req.RequestCtx.Request.Header.SetContentType("application/json")
 
-	require.NoError(t, app.Logout(req))
+	testutil.InvokeHTTP(t, app.Logout, req)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	exists, err := app.Redis.Exists(ctx, "refresh:"+jti).Result()
@@ -182,7 +182,7 @@ func TestApp_GetWSToken_Success(t *testing.T) {
 	req := testutil.NewGETRequest(t)
 	testutil.SetAuthContext(req, org.ID, user.ID)
 
-	require.NoError(t, app.GetWSToken(req))
+	testutil.InvokeHTTP(t, app.GetWSToken, req)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	var resp struct {
@@ -218,7 +218,7 @@ func TestApp_GetWSToken_MissingUserID(t *testing.T) {
 	req := testutil.NewGETRequest(t)
 	req.RequestCtx.SetUserValue("organization_id", org.ID)
 
-	require.NoError(t, app.GetWSToken(req))
+	testutil.InvokeHTTP(t, app.GetWSToken, req)
 	testutil.AssertErrorResponse(t, req, fasthttp.StatusUnauthorized, "Unauthorized")
 }
 
@@ -228,7 +228,7 @@ func TestApp_GetWSToken_MissingOrgID(t *testing.T) {
 	req := testutil.NewGETRequest(t)
 	req.RequestCtx.SetUserValue("user_id", uuid.New())
 
-	require.NoError(t, app.GetWSToken(req))
+	testutil.InvokeHTTP(t, app.GetWSToken, req)
 	testutil.AssertErrorResponse(t, req, fasthttp.StatusUnauthorized, "Unauthorized")
 }
 
@@ -244,7 +244,7 @@ func TestApp_RefreshToken_RevokedJTI(t *testing.T) {
 	token := generateRefreshTokenWithJTI(t, testutil.TestJWTSecret, user, jti, time.Hour)
 
 	req := testutil.NewJSONRequest(t, map[string]string{"refresh_token": token})
-	require.NoError(t, app.RefreshToken(req))
+	testutil.InvokeHTTP(t, app.RefreshToken, req)
 	testutil.AssertErrorResponse(t, req, fasthttp.StatusUnauthorized, "revoked")
 }
 
@@ -262,12 +262,12 @@ func TestApp_RefreshToken_RotatesJTI_ReplayFails(t *testing.T) {
 
 	// First refresh consumes the JTI.
 	req1 := testutil.NewJSONRequest(t, map[string]string{"refresh_token": token})
-	require.NoError(t, app.RefreshToken(req1))
+	testutil.InvokeHTTP(t, app.RefreshToken, req1)
 	require.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req1))
 
 	// Replay must fail.
 	req2 := testutil.NewJSONRequest(t, map[string]string{"refresh_token": token})
-	require.NoError(t, app.RefreshToken(req2))
+	testutil.InvokeHTTP(t, app.RefreshToken, req2)
 	testutil.AssertErrorResponse(t, req2, fasthttp.StatusUnauthorized, "revoked")
 
 	// Rotated refresh token must have a different JTI.
@@ -298,6 +298,6 @@ func TestApp_RefreshToken_FromCookie(t *testing.T) {
 	req.RequestCtx.Request.Header.SetCookie("whm_refresh", token)
 	req.RequestCtx.Request.Header.SetContentType("application/json")
 
-	require.NoError(t, app.RefreshToken(req))
+	testutil.InvokeHTTP(t, app.RefreshToken, req)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 }

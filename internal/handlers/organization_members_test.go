@@ -474,8 +474,7 @@ func TestApp_ListMyOrganizations_Success(t *testing.T) {
 	req := testutil.NewGETRequest(t)
 	testutil.SetPathParam(req, "user_id", user.ID)
 
-	err := app.ListMyOrganizations(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.ListMyOrganizations, req)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	var resp struct {
@@ -488,7 +487,7 @@ func TestApp_ListMyOrganizations_Success(t *testing.T) {
 			} `json:"organizations"`
 		} `json:"data"`
 	}
-	err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+	err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 	require.NoError(t, err)
 
 	assert.Len(t, resp.Data.Organizations, 2)
@@ -513,8 +512,7 @@ func TestApp_ListMyOrganizations_SingleOrg(t *testing.T) {
 	req := testutil.NewGETRequest(t)
 	testutil.SetPathParam(req, "user_id", user.ID)
 
-	err := app.ListMyOrganizations(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.ListMyOrganizations, req)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	var resp struct {
@@ -524,7 +522,7 @@ func TestApp_ListMyOrganizations_SingleOrg(t *testing.T) {
 			} `json:"organizations"`
 		} `json:"data"`
 	}
-	err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+	err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 	require.NoError(t, err)
 
 	assert.Len(t, resp.Data.Organizations, 1)
@@ -539,8 +537,7 @@ func TestApp_ListMyOrganizations_Unauthorized(t *testing.T) {
 	req := testutil.NewGETRequest(t)
 	// No user_id set
 
-	err := app.ListMyOrganizations(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.ListMyOrganizations, req)
 	assert.Equal(t, fasthttp.StatusUnauthorized, testutil.GetResponseStatusCode(req))
 }
 
@@ -568,8 +565,7 @@ func TestApp_SwitchOrg_Success(t *testing.T) {
 	})
 	testutil.SetPathParam(req, "user_id", user.ID)
 
-	err := app.SwitchOrg(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.SwitchOrg, req)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	// Tokens are now in httpOnly cookies, not in the response body
@@ -583,7 +579,7 @@ func TestApp_SwitchOrg_Success(t *testing.T) {
 			ExpiresIn int `json:"expires_in"`
 		} `json:"data"`
 	}
-	err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+	err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 	require.NoError(t, err)
 	assert.Greater(t, resp.Data.ExpiresIn, 0)
 }
@@ -602,8 +598,7 @@ func TestApp_SwitchOrg_SuperAdmin(t *testing.T) {
 	})
 	testutil.SetPathParam(req, "user_id", superAdmin.ID)
 
-	err := app.SwitchOrg(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.SwitchOrg, req)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 }
 
@@ -621,8 +616,7 @@ func TestApp_SwitchOrg_NotMember(t *testing.T) {
 	})
 	testutil.SetPathParam(req, "user_id", user.ID)
 
-	err := app.SwitchOrg(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.SwitchOrg, req)
 	assert.Equal(t, fasthttp.StatusForbidden, testutil.GetResponseStatusCode(req))
 }
 
@@ -638,8 +632,7 @@ func TestApp_SwitchOrg_OrgNotFound(t *testing.T) {
 	})
 	testutil.SetPathParam(req, "user_id", user.ID)
 
-	err := app.SwitchOrg(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.SwitchOrg, req)
 	assert.Equal(t, fasthttp.StatusNotFound, testutil.GetResponseStatusCode(req))
 }
 
@@ -653,8 +646,7 @@ func TestApp_SwitchOrg_MissingOrgID(t *testing.T) {
 	req := testutil.NewJSONRequest(t, map[string]any{})
 	testutil.SetPathParam(req, "user_id", user.ID)
 
-	err := app.SwitchOrg(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.SwitchOrg, req)
 	assert.Equal(t, fasthttp.StatusBadRequest, testutil.GetResponseStatusCode(req))
 }
 
@@ -667,7 +659,6 @@ func TestApp_SwitchOrg_Unauthorized(t *testing.T) {
 		"organization_id": uuid.New().String(),
 	})
 
-	err := app.SwitchOrg(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.SwitchOrg, req)
 	assert.Equal(t, fasthttp.StatusUnauthorized, testutil.GetResponseStatusCode(req))
 }

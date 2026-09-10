@@ -10,75 +10,74 @@ Replace `github.com/zerodha/fastglue` + `github.com/valyala/fasthttp` with Go's 
 
 | Area | Paths | Role today |
 |------|--------|------------|
-| Server bootstrap | `cmd/whatomate/main.go` | `fastglue.NewGlue()`, `fasthttp.Server`, CORS wrapper, route table, auth/rate-limit `Before` hooks |
-| Handlers | `internal/handlers/*.go` (~60+ files) | `func(*fastglue.Request) error`; path params / auth via `RequestCtx.UserValue`; envelopes via `SendEnvelope` / `SendErrorEnvelope` |
-| Middleware | `internal/middleware/{middleware,csrf,ratelimit}.go` | `fastglue.FastMiddleware` (`func(*Request) *Request`); Auth, CSRF, CORS, Recovery, SecurityHeaders, RateLimit |
-| Tests | `test/testutil/http.go`, `internal/handlers/*_test.go`, `internal/middleware/*_test.go` | Build `*fastglue.Request` on a bare `fasthttp.RequestCtx` |
-| Frontend | `internal/frontend/embed.go` | Already implements `http.Handler`; wraps with `fasthttpadaptor` for the fasthttp server |
-| WebSocket | `internal/handlers/websocket.go`, `internal/websocket/client.go` | `github.com/fasthttp/websocket` — package also exports net/http `Upgrader` (same `Conn`) |
+| Server bootstrap | `cmd/whatomate/main.go` | Uses `internal/httpapi` (`net/http` + chi) |
+| Handlers | `internal/handlers/*.go` (~60+ files) | Mix of native `http.HandlerFunc` and legacy `func(*fastglue.Request) error` behind `httpapi.Wrap` |
+| Middleware | `internal/middleware/{middleware,csrf,ratelimit,http}.go` | Parallel fasthttp + stdlib middleware |
+| Tests | `test/testutil/http.go`, `internal/handlers/*_test.go` | Legacy fasthttp builders; native handlers via `testutil.InvokeHTTP` |
+| Frontend | `internal/frontend/embed.go` | Native `http.Handler` |
+| WebSocket | `internal/handlers/websocket.go` | Native `WebSocketHTTP` on chi |
 | Other | `pkg/whatsapp`, calling media paths | Occasional fasthttp types; not the HTTP server surface |
 
-Calling / IVR features are **not** in scope for deletion; they keep working through the same handlers behind the adapter.
+Calling / IVR features are **not** in scope for deletion; they keep working through wrapped handlers.
 
-## Strategy chosen: **adapter layer** (not big-bang)
+## Strategy: adapter layer (not big-bang)
 
-We introduce chi + `net/http` at the edge and keep existing fastglue handlers compiling behind a temporary shim:
+1. **`internal/httpapi`** owns the chi router and route mounting.
+2. **`httpapi.Wrap`** adapts remaining fastglue handlers → `http.Handler`.
+3. **Native slices** (no Wrap): health/ready, auth session, `/api/me*`, current org, WebSocket, SPA.
 
-1. **`internal/httpapi`** owns the chi router, global stdlib middleware, and route mounting.
-2. **`httpapi.Wrap`** adapts `fastglue.FastRequestHandler` → `http.Handler` by projecting `*http.Request` into a `fasthttp.RequestCtx`, copying chi URL params and auth context into `UserValue`, invoking the handler, then copying status/headers/body (including `Set-Cookie`) back to `http.ResponseWriter`.
-3. **Middleware** gains parallel `func(http.Handler) http.Handler` implementations used by chi. Legacy `fastglue.FastMiddleware` variants remain so unit tests and any leftover fasthttp paths keep compiling.
-4. **Thin native slices** (no shim): health/readiness are trivial; WebSocket upgrades via net/http `Upgrader`; frontend serves via `frontend.HTTPHandler`.
+## Progress
 
-**Why not big-bang?** Hundreds of handler/test call sites depend on `*fastglue.Request` and envelope helpers. Converting them all in one PR is high risk and blocks shipping a working server. The adapter is honest tech debt with a clear deletion criteria (see phases).
+### Phase 0 — done
 
-## Phased plan
+Chi edge, Wrap shim, stdlib middleware, native WebSocket + SPA.
 
-### Phase 0 — this PR (`feat/chi-migration`)
+### Phase 1 — helpers (partial)
 
-- Document inventory + approach (this file).
-- Add chi; introduce `internal/httpapi`.
-- Switch `cmd/whatomate` server bootstrap to `net/http` + chi.
-- Stdlib middleware: RequestID, Recover, SecurityHeaders, CORS, CSRF, Auth, rate limits.
-- Shim all existing API handlers; convert WebSocket + frontend to native net/http.
-- Keep `fastglue` / `fasthttp` in `go.mod` while handlers still reference them.
-- `go test ./...` green (or failures documented).
+- `internal/handlers/http.go`: `SendEnvelope`, `SendErrorEnvelope`, `DecodeJSON`, `getOrgIDHTTP`, `requireAuthHTTP`, …
+- Middleware: `UserIDFromContext`, `OrganizationIDFromContext`, `WithUserID`, …
+- Cookies: `setAuthCookiesHTTP` / `clearAuthCookiesHTTP` (fasthttp variants kept for SSO).
+- `testutil.InvokeHTTP` for existing unit tests.
 
-### Phase 1 — helpers & auth surface
+### Phase 2 batch 1 — native (no Wrap)
 
-- Introduce `internal/httpapi` request helpers (`DecodeJSON`, `SendEnvelope`, path UUID, pagination) on `net/http`.
-- Migrate `helpers.go` / `app.go` auth helpers to accept either adapter context or `*http.Request`.
-- Update `test/testutil` with net/http / `httptest` helpers.
+| Route(s) | Handler | Status |
+|----------|---------|--------|
+| `GET /health` | `HealthCheck` | **native** |
+| `GET /ready` | `ReadyCheck` | **native** |
+| `POST /api/auth/login` | `Login` | **native** |
+| `POST /api/auth/register` | `Register` | **native** |
+| `POST /api/auth/refresh` | `RefreshToken` | **native** |
+| `POST /api/auth/logout` | `Logout` | **native** |
+| `POST /api/auth/switch-org` | `SwitchOrg` | **native** |
+| `GET /api/auth/ws-token` | `GetWSToken` | **native** |
+| `GET /api/me` | `GetCurrentUser` | **native** |
+| `PUT /api/me/settings` | `UpdateCurrentUserSettings` | **native** |
+| `PUT /api/me/password` | `ChangePassword` | **native** |
+| `PUT /api/me/availability` | `UpdateAvailability` | **native** |
+| `GET /api/me/organizations` | `ListMyOrganizations` | **native** |
+| `GET /api/organizations/current` | `GetCurrentOrganization` | **native** |
+| `GET /ws` | `WebSocketHTTP` | **native** (phase 0) |
+| SPA `/`, `/*` | `frontend.HTTPHandler` | **native** (phase 0) |
 
-### Phase 2 — handler batches (suggested order)
+### Leftovers from batch 1 (still Wrap)
 
-1. **Auth + health + org/me** — `auth.go`, `app.go`, `organization.go`, `sso.go`
-2. **Users / roles / API keys** — `users.go`, `roles.go`, `apikeys.go`
-3. **Accounts / contacts / tags / notes** — `accounts.go`, `contacts.go`, `tags.go`, `conversation_notes.go`
-4. **Messages / media / templates / flows** — `messages.go`, `media.go`, `templates.go`, `flows.go`
-5. **Campaigns / chatbot / transfers** — `campaigns.go`, `chatbot*.go`, `agent_transfers.go`
-6. **Analytics / widgets / webhooks / custom actions** — remaining CRUD
-7. **Calling / IVR / call logs / transfers / outgoing** — keep feature-complete; migrate last among APIs so regressions are obvious
+- **SSO**: `GetPublicSSOProviders`, `InitSSO`, `CallbackSSO` (still use fasthttp `setAuthCookies`).
+- **Org admin CRUD**: `ListOrganizations`, `CreateOrganization`, members, settings, audio upload.
+- All other API groups (users CRUD, roles, accounts, messages, campaigns, calling/IVR, …).
 
-Each batch: convert signatures to `http.HandlerFunc` (or chi-style), drop `Wrap`, extend tests to use `httptest`.
+### Next
 
-### Phase 3 — delete the shim
-
-- Remove `httpapi.Wrap` and fasthttp projections.
-- Remove `fastglue` from `go.mod`; drop fasthttp where unused (may remain briefly for websocket fork if still imported — prefer consolidating on one websocket stack).
-- Delete legacy `fastglue.FastMiddleware` implementations once tests are ported.
-- Optional: module path rename to `github.com/zinye-technologies/whatomate`.
+Batch 2: users / roles / API keys → … → calling/IVR last → Phase 3 delete Wrap.
 
 ## Non-goals / constraints
 
 - Do **not** change LICENSE away from AGPL-3.0.
 - Do **not** delete calling/IVR.
-- Prefer boring incremental PRs over a rewrite.
-- Prefer chi idioms (`r.Route`, middleware groups) over global path-string auth checks once handlers are native.
+- Prefer incremental PRs; prefer chi route groups once handlers are native.
 
 ## Deletion criteria for the adapter
 
-The shim may be removed when:
-
 1. No production handler still has signature `func(*fastglue.Request) error`.
 2. `test/testutil` no longer constructs `fasthttp.RequestCtx` for HTTP tests.
-3. `go mod why github.com/zerodha/fastglue` reports nothing (or only transitive leftovers we intentionally drop).
+3. `go mod why github.com/zerodha/fastglue` reports nothing (or only intentional leftovers).

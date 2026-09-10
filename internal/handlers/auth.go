@@ -2,15 +2,15 @@ package handlers
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"net/http"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 	"github.com/shridarpatil/whatomate/internal/middleware"
 	"github.com/shridarpatil/whatomate/internal/models"
-	"github.com/valyala/fasthttp"
-	"github.com/zerodha/fastglue"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -40,22 +40,20 @@ type RefreshRequest struct {
 	RefreshToken string `json:"refresh_token"`
 }
 
-// Login authenticates a user and returns tokens
-func (a *App) Login(r *fastglue.Request) error {
+// Login authenticates a user and returns tokens (native net/http).
+func (a *App) Login(w http.ResponseWriter, r *http.Request) {
 	var req LoginRequest
-	if err := a.decodeRequest(r, &req); err != nil {
-		return nil
+	if err := a.decodeRequestHTTP(w, r, &req); err != nil {
+		return
 	}
 
-	// Find user by email with role preloaded
 	var user models.User
 	if err := a.DB.Preload("Role").Where("email = ?", req.Email).First(&user).Error; err != nil {
-		// Run dummy bcrypt to prevent timing-based account enumeration
 		_ = bcrypt.CompareHashAndPassword([]byte("$2a$10$xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"), []byte(req.Password))
-		return r.SendErrorEnvelope(fasthttp.StatusUnauthorized, "Invalid credentials", nil, "")
+		SendErrorEnvelope(w, http.StatusUnauthorized, "Invalid credentials", nil, "")
+		return
 	}
 
-	// Load permissions from cache
 	if user.Role != nil && user.RoleID != nil {
 		cachedPerms, err := a.GetRolePermissionsCached(*user.RoleID)
 		if err == nil {
@@ -75,86 +73,86 @@ func (a *App) Login(r *fastglue.Request) error {
 		}
 	}
 
-	// Check if user is active
 	if !user.IsActive {
-		return r.SendErrorEnvelope(fasthttp.StatusUnauthorized, "Account is disabled", nil, "")
+		SendErrorEnvelope(w, http.StatusUnauthorized, "Account is disabled", nil, "")
+		return
 	}
 
-	// Verify password
 	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(req.Password)); err != nil {
-		return r.SendErrorEnvelope(fasthttp.StatusUnauthorized, "Invalid credentials", nil, "")
+		SendErrorEnvelope(w, http.StatusUnauthorized, "Invalid credentials", nil, "")
+		return
 	}
 
-	// Generate tokens
 	accessToken, err := a.generateAccessToken(&user)
 	if err != nil {
 		a.Log.Error("Failed to generate access token", "error", err)
-		return r.SendErrorEnvelope(fasthttp.StatusInternalServerError, "Failed to generate token", nil, "")
+		SendErrorEnvelope(w, http.StatusInternalServerError, "Failed to generate token", nil, "")
+		return
 	}
 
 	refreshToken, err := a.generateRefreshToken(&user)
 	if err != nil {
 		a.Log.Error("Failed to generate refresh token", "error", err)
-		return r.SendErrorEnvelope(fasthttp.StatusInternalServerError, "Failed to generate token", nil, "")
+		SendErrorEnvelope(w, http.StatusInternalServerError, "Failed to generate token", nil, "")
+		return
 	}
 
-	a.setAuthCookies(r, accessToken, refreshToken)
+	a.setAuthCookiesHTTP(w, accessToken, refreshToken)
 
-	return r.SendEnvelope(CookieAuthResponse{
+	SendEnvelope(w, CookieAuthResponse{
 		ExpiresIn: a.Config.JWT.AccessExpiryMins * 60,
 		User:      user,
 	})
 }
 
-// Register creates a new user in an existing organization
-func (a *App) Register(r *fastglue.Request) error {
+// Register creates a new user in an existing organization (native net/http).
+func (a *App) Register(w http.ResponseWriter, r *http.Request) {
 	var req RegisterRequest
-	if err := a.decodeRequest(r, &req); err != nil {
-		return nil
+	if err := a.decodeRequestHTTP(w, r, &req); err != nil {
+		return
 	}
 
 	if req.OrganizationID == uuid.Nil {
-		return r.SendErrorEnvelope(fasthttp.StatusBadRequest, "organization_id is required", nil, "")
+		SendErrorEnvelope(w, http.StatusBadRequest, "organization_id is required", nil, "")
+		return
 	}
 
-	// Validate the organization exists
 	var org models.Organization
 	if err := a.DB.Where("id = ?", req.OrganizationID).First(&org).Error; err != nil {
-		return r.SendErrorEnvelope(fasthttp.StatusNotFound, "Organization not found", nil, "")
+		SendErrorEnvelope(w, http.StatusNotFound, "Organization not found", nil, "")
+		return
 	}
 
-	// Get the org's default role
 	var defaultRole models.CustomRole
 	if err := a.DB.Where("organization_id = ? AND is_default = ?", req.OrganizationID, true).First(&defaultRole).Error; err != nil {
 		if err := a.DB.Where("organization_id = ? AND name = ? AND is_system = ?", req.OrganizationID, "agent", true).First(&defaultRole).Error; err != nil {
 			a.Log.Error("Failed to find default role", "error", err)
-			return r.SendErrorEnvelope(fasthttp.StatusInternalServerError, "Failed to find default role", nil, "")
+			SendErrorEnvelope(w, http.StatusInternalServerError, "Failed to find default role", nil, "")
+			return
 		}
 	}
 
-	// Check if email already exists
 	var existingUser models.User
 	if err := a.DB.Where("email = ?", req.Email).First(&existingUser).Error; err == nil {
-		// User exists — verify password and add to this org
 		if err := bcrypt.CompareHashAndPassword([]byte(existingUser.PasswordHash), []byte(req.Password)); err != nil {
-			return r.SendErrorEnvelope(fasthttp.StatusConflict, "An account with this email already exists. Please sign in and ask your organization admin to add you.", nil, "")
+			SendErrorEnvelope(w, http.StatusConflict, "An account with this email already exists. Please sign in and ask your organization admin to add you.", nil, "")
+			return
 		}
 
-		// Check if user account is disabled
 		if !existingUser.IsActive {
-			return r.SendErrorEnvelope(fasthttp.StatusUnauthorized, "Account is disabled", nil, "")
+			SendErrorEnvelope(w, http.StatusUnauthorized, "Account is disabled", nil, "")
+			return
 		}
 
-		// Check if already a member of this org
 		var count int64
 		a.DB.Model(&models.UserOrganization{}).
 			Where("user_id = ? AND organization_id = ?", existingUser.ID, req.OrganizationID).
 			Count(&count)
 		if count > 0 {
-			return r.SendErrorEnvelope(fasthttp.StatusConflict, "You are already a member of this organization", nil, "")
+			SendErrorEnvelope(w, http.StatusConflict, "You are already a member of this organization", nil, "")
+			return
 		}
 
-		// Add as member with default role
 		userOrg := models.UserOrganization{
 			UserID:         existingUser.ID,
 			OrganizationID: req.OrganizationID,
@@ -163,12 +161,12 @@ func (a *App) Register(r *fastglue.Request) error {
 		}
 		if err := a.DB.Create(&userOrg).Error; err != nil {
 			a.Log.Error("Failed to add existing user to organization", "error", err)
-			return r.SendErrorEnvelope(fasthttp.StatusInternalServerError, "Failed to join organization", nil, "")
+			SendErrorEnvelope(w, http.StatusInternalServerError, "Failed to join organization", nil, "")
+			return
 		}
 
 		a.Log.Info("Existing user joined organization", "user_id", existingUser.ID, "org_id", req.OrganizationID)
 
-		// Set org context to the new org for token generation
 		existingUser.OrganizationID = req.OrganizationID
 		existingUser.Role = &defaultRole
 		existingUser.RoleID = &defaultRole.ID
@@ -176,36 +174,39 @@ func (a *App) Register(r *fastglue.Request) error {
 		accessToken, err := a.generateAccessToken(&existingUser)
 		if err != nil {
 			a.Log.Error("Failed to generate access token", "error", err)
-			return r.SendErrorEnvelope(fasthttp.StatusInternalServerError, "Failed to generate token", nil, "")
+			SendErrorEnvelope(w, http.StatusInternalServerError, "Failed to generate token", nil, "")
+			return
 		}
 		refreshToken, err := a.generateRefreshToken(&existingUser)
 		if err != nil {
 			a.Log.Error("Failed to generate refresh token", "error", err)
-			return r.SendErrorEnvelope(fasthttp.StatusInternalServerError, "Failed to generate token", nil, "")
+			SendErrorEnvelope(w, http.StatusInternalServerError, "Failed to generate token", nil, "")
+			return
 		}
 
-		a.setAuthCookies(r, accessToken, refreshToken)
+		a.setAuthCookiesHTTP(w, accessToken, refreshToken)
 
-		return r.SendEnvelope(CookieAuthResponse{
+		SendEnvelope(w, CookieAuthResponse{
 			ExpiresIn: a.Config.JWT.AccessExpiryMins * 60,
 			User:      existingUser,
 		})
+		return
 	}
 
-	// New user — run dummy bcrypt to prevent timing-based account enumeration
 	_ = bcrypt.CompareHashAndPassword([]byte("$2a$10$xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"), []byte(req.Password))
 
-	// Create account
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
 	if err != nil {
 		a.Log.Error("Failed to hash password", "error", err)
-		return r.SendErrorEnvelope(fasthttp.StatusInternalServerError, "Failed to create account", nil, "")
+		SendErrorEnvelope(w, http.StatusInternalServerError, "Failed to create account", nil, "")
+		return
 	}
 
 	tx := a.DB.Begin()
 	if tx.Error != nil {
 		a.Log.Error("Failed to begin transaction", "error", tx.Error)
-		return r.SendErrorEnvelope(fasthttp.StatusInternalServerError, "Failed to create account", nil, "")
+		SendErrorEnvelope(w, http.StatusInternalServerError, "Failed to create account", nil, "")
+		return
 	}
 
 	user := models.User{
@@ -220,7 +221,8 @@ func (a *App) Register(r *fastglue.Request) error {
 	if err := tx.Create(&user).Error; err != nil {
 		tx.Rollback()
 		a.Log.Error("Failed to create user", "error", err, "email", req.Email, "org_id", req.OrganizationID)
-		return r.SendErrorEnvelope(fasthttp.StatusInternalServerError, "Failed to create account", nil, "")
+		SendErrorEnvelope(w, http.StatusInternalServerError, "Failed to create account", nil, "")
+		return
 	}
 
 	userOrg := models.UserOrganization{
@@ -232,12 +234,14 @@ func (a *App) Register(r *fastglue.Request) error {
 	if err := tx.Create(&userOrg).Error; err != nil {
 		tx.Rollback()
 		a.Log.Error("Failed to create user organization entry", "error", err)
-		return r.SendErrorEnvelope(fasthttp.StatusInternalServerError, "Failed to create account", nil, "")
+		SendErrorEnvelope(w, http.StatusInternalServerError, "Failed to create account", nil, "")
+		return
 	}
 
 	if err := tx.Commit().Error; err != nil {
 		a.Log.Error("Failed to commit transaction", "error", err)
-		return r.SendErrorEnvelope(fasthttp.StatusInternalServerError, "Failed to create account", nil, "")
+		SendErrorEnvelope(w, http.StatusInternalServerError, "Failed to create account", nil, "")
+		return
 	}
 
 	a.Log.Info("Registration completed", "user_id", user.ID, "org_id", req.OrganizationID)
@@ -247,89 +251,103 @@ func (a *App) Register(r *fastglue.Request) error {
 	accessToken, err := a.generateAccessToken(&user)
 	if err != nil {
 		a.Log.Error("Failed to generate access token", "error", err)
-		return r.SendErrorEnvelope(fasthttp.StatusInternalServerError, "Failed to generate token", nil, "")
+		SendErrorEnvelope(w, http.StatusInternalServerError, "Failed to generate token", nil, "")
+		return
 	}
 	refreshToken, err := a.generateRefreshToken(&user)
 	if err != nil {
 		a.Log.Error("Failed to generate refresh token", "error", err)
-		return r.SendErrorEnvelope(fasthttp.StatusInternalServerError, "Failed to generate token", nil, "")
+		SendErrorEnvelope(w, http.StatusInternalServerError, "Failed to generate token", nil, "")
+		return
 	}
 
-	a.setAuthCookies(r, accessToken, refreshToken)
+	a.setAuthCookiesHTTP(w, accessToken, refreshToken)
 
-	return r.SendEnvelope(CookieAuthResponse{
+	SendEnvelope(w, CookieAuthResponse{
 		ExpiresIn: a.Config.JWT.AccessExpiryMins * 60,
 		User:      user,
 	})
 }
 
-// RefreshToken refreshes access token using refresh token with rotation.
-// The old refresh token is invalidated (single-use) and a new one is issued.
-func (a *App) RefreshToken(r *fastglue.Request) error {
-	// Read refresh token from cookie first, fall back to JSON body.
-	refreshTokenStr := string(r.RequestCtx.Request.Header.Cookie(cookieRefreshName))
+// RefreshToken refreshes access token using refresh token with rotation (native net/http).
+func (a *App) RefreshToken(w http.ResponseWriter, r *http.Request) {
+	refreshTokenStr := ""
+	if c, err := r.Cookie(cookieRefreshName); err == nil {
+		refreshTokenStr = c.Value
+	}
 	if refreshTokenStr == "" {
 		var req RefreshRequest
-		_ = r.Decode(&req, "json")
+		_ = jsonDecodeSoft(r, &req)
 		refreshTokenStr = req.RefreshToken
 	}
 	if refreshTokenStr == "" {
-		return r.SendErrorEnvelope(fasthttp.StatusUnauthorized, "Missing refresh token", nil, "")
+		SendErrorEnvelope(w, http.StatusUnauthorized, "Missing refresh token", nil, "")
+		return
 	}
 
-	// Parse and validate refresh token
 	token, err := jwt.ParseWithClaims(refreshTokenStr, &middleware.JWTClaims{}, func(token *jwt.Token) (any, error) {
 		return []byte(a.Config.JWT.Secret), nil
 	})
 
 	if err != nil || !token.Valid {
-		return r.SendErrorEnvelope(fasthttp.StatusUnauthorized, "Invalid refresh token", nil, "")
+		SendErrorEnvelope(w, http.StatusUnauthorized, "Invalid refresh token", nil, "")
+		return
 	}
 
 	claims, ok := token.Claims.(*middleware.JWTClaims)
 	if !ok {
-		return r.SendErrorEnvelope(fasthttp.StatusUnauthorized, "Invalid token claims", nil, "")
+		SendErrorEnvelope(w, http.StatusUnauthorized, "Invalid token claims", nil, "")
+		return
 	}
 
-	// Validate JTI in Redis (single-use: delete on consumption)
 	if claims.ID != "" {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 		deleted, err := a.Redis.Del(ctx, refreshTokenKey(claims.ID)).Result()
 		if err != nil || deleted == 0 {
-			// Token was already used or revoked
-			return r.SendErrorEnvelope(fasthttp.StatusUnauthorized, "Refresh token has been revoked", nil, "")
+			SendErrorEnvelope(w, http.StatusUnauthorized, "Refresh token has been revoked", nil, "")
+			return
 		}
 	}
 
-	// Get user
 	var user models.User
 	if err := a.DB.Where("id = ?", claims.UserID).First(&user).Error; err != nil {
-		return r.SendErrorEnvelope(fasthttp.StatusUnauthorized, "User not found", nil, "")
+		SendErrorEnvelope(w, http.StatusUnauthorized, "User not found", nil, "")
+		return
 	}
 
 	if !user.IsActive {
-		return r.SendErrorEnvelope(fasthttp.StatusUnauthorized, "Account is disabled", nil, "")
+		SendErrorEnvelope(w, http.StatusUnauthorized, "Account is disabled", nil, "")
+		return
 	}
 
-	// Generate new tokens (rotation: new refresh token with new JTI)
 	accessToken, err := a.generateAccessToken(&user)
 	if err != nil {
 		a.Log.Error("Failed to generate access token", "error", err)
-		return r.SendErrorEnvelope(fasthttp.StatusInternalServerError, "Failed to generate token", nil, "")
+		SendErrorEnvelope(w, http.StatusInternalServerError, "Failed to generate token", nil, "")
+		return
 	}
 	newRefreshToken, err := a.generateRefreshToken(&user)
 	if err != nil {
 		a.Log.Error("Failed to generate refresh token", "error", err)
-		return r.SendErrorEnvelope(fasthttp.StatusInternalServerError, "Failed to generate token", nil, "")
+		SendErrorEnvelope(w, http.StatusInternalServerError, "Failed to generate token", nil, "")
+		return
 	}
 
-	a.setAuthCookies(r, accessToken, newRefreshToken)
+	a.setAuthCookiesHTTP(w, accessToken, newRefreshToken)
 
-	return r.SendEnvelope(CookieAuthResponse{
+	SendEnvelope(w, CookieAuthResponse{
 		ExpiresIn: a.Config.JWT.AccessExpiryMins * 60,
 		User:      user,
 	})
+}
+
+func jsonDecodeSoft(r *http.Request, v any) error {
+	if r.Body == nil {
+		return nil
+	}
+	dec := json.NewDecoder(r.Body)
+	return dec.Decode(v)
 }
 
 func (a *App) generateAccessToken(user *models.User) (string, error) {
@@ -374,7 +392,6 @@ func (a *App) generateRefreshToken(user *models.User) (string, error) {
 		return "", err
 	}
 
-	// Store JTI in Redis so it can be revoked
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	if err := a.Redis.Set(ctx, refreshTokenKey(jti), user.ID.String(), expiry).Err(); err != nil {
@@ -384,7 +401,6 @@ func (a *App) generateRefreshToken(user *models.User) (string, error) {
 	return signed, nil
 }
 
-// refreshTokenKey returns the Redis key for a refresh token JTI.
 func refreshTokenKey(jti string) string {
 	return fmt.Sprintf("refresh:%s", jti)
 }
@@ -394,50 +410,49 @@ type SwitchOrgRequest struct {
 	OrganizationID uuid.UUID `json:"organization_id"`
 }
 
-// SwitchOrg generates new tokens for a different organization the user belongs to
-func (a *App) SwitchOrg(r *fastglue.Request) error {
-	userID, ok := r.RequestCtx.UserValue("user_id").(uuid.UUID)
+// SwitchOrg generates new tokens for a different organization (native net/http).
+func (a *App) SwitchOrg(w http.ResponseWriter, r *http.Request) {
+	userID, ok := middleware.UserIDFromContext(r.Context())
 	if !ok {
-		return r.SendErrorEnvelope(fasthttp.StatusUnauthorized, "Unauthorized", nil, "")
+		SendErrorEnvelope(w, http.StatusUnauthorized, "Unauthorized", nil, "")
+		return
 	}
 
 	var req SwitchOrgRequest
-	if err := a.decodeRequest(r, &req); err != nil {
-		return nil
+	if err := a.decodeRequestHTTP(w, r, &req); err != nil {
+		return
 	}
 
 	if req.OrganizationID == uuid.Nil {
-		return r.SendErrorEnvelope(fasthttp.StatusBadRequest, "organization_id is required", nil, "")
+		SendErrorEnvelope(w, http.StatusBadRequest, "organization_id is required", nil, "")
+		return
 	}
 
-	// Verify the organization exists
 	var org models.Organization
 	if err := a.DB.Where("id = ?", req.OrganizationID).First(&org).Error; err != nil {
-		return r.SendErrorEnvelope(fasthttp.StatusNotFound, "Organization not found", nil, "")
+		SendErrorEnvelope(w, http.StatusNotFound, "Organization not found", nil, "")
+		return
 	}
 
-	// Get the user
 	var user models.User
 	if err := a.DB.Where("id = ?", userID).First(&user).Error; err != nil {
-		return r.SendErrorEnvelope(fasthttp.StatusNotFound, "User not found", nil, "")
+		SendErrorEnvelope(w, http.StatusNotFound, "User not found", nil, "")
+		return
 	}
 
-	// Super admins can switch to any org; others need membership
 	if !user.IsSuperAdmin {
 		var userOrg models.UserOrganization
 		if err := a.DB.Where("user_id = ? AND organization_id = ?", userID, req.OrganizationID).First(&userOrg).Error; err != nil {
-			return r.SendErrorEnvelope(fasthttp.StatusForbidden, "You are not a member of this organization", nil, "")
+			SendErrorEnvelope(w, http.StatusForbidden, "You are not a member of this organization", nil, "")
+			return
 		}
-		// Use the role from the user_organizations table for the target org
 		if userOrg.RoleID != nil {
 			user.RoleID = userOrg.RoleID
 		}
 	}
 
-	// Set the target org on the user for token generation
 	user.OrganizationID = req.OrganizationID
 
-	// Preload role with permissions for the response
 	if user.RoleID != nil {
 		var role models.CustomRole
 		if err := a.DB.Where("id = ?", *user.RoleID).First(&role).Error; err == nil {
@@ -459,22 +474,23 @@ func (a *App) SwitchOrg(r *fastglue.Request) error {
 		}
 	}
 
-	// Generate new tokens with the target org
 	accessToken, err := a.generateAccessToken(&user)
 	if err != nil {
 		a.Log.Error("Failed to generate access token", "error", err)
-		return r.SendErrorEnvelope(fasthttp.StatusInternalServerError, "Failed to generate token", nil, "")
+		SendErrorEnvelope(w, http.StatusInternalServerError, "Failed to generate token", nil, "")
+		return
 	}
 
 	refreshToken, err := a.generateRefreshToken(&user)
 	if err != nil {
 		a.Log.Error("Failed to generate refresh token", "error", err)
-		return r.SendErrorEnvelope(fasthttp.StatusInternalServerError, "Failed to generate token", nil, "")
+		SendErrorEnvelope(w, http.StatusInternalServerError, "Failed to generate token", nil, "")
+		return
 	}
 
-	a.setAuthCookies(r, accessToken, refreshToken)
+	a.setAuthCookiesHTTP(w, accessToken, refreshToken)
 
-	return r.SendEnvelope(CookieAuthResponse{
+	SendEnvelope(w, CookieAuthResponse{
 		ExpiresIn: a.Config.JWT.AccessExpiryMins * 60,
 		User:      user,
 	})
@@ -485,18 +501,19 @@ type LogoutRequest struct {
 	RefreshToken string `json:"refresh_token"`
 }
 
-// Logout invalidates the user's refresh token
-func (a *App) Logout(r *fastglue.Request) error {
-	// Read refresh token from cookie first, fall back to body.
-	refreshTokenStr := string(r.RequestCtx.Request.Header.Cookie(cookieRefreshName))
+// Logout invalidates the user's refresh token (native net/http).
+func (a *App) Logout(w http.ResponseWriter, r *http.Request) {
+	refreshTokenStr := ""
+	if c, err := r.Cookie(cookieRefreshName); err == nil {
+		refreshTokenStr = c.Value
+	}
 	if refreshTokenStr == "" {
 		var req LogoutRequest
-		_ = r.Decode(&req, "json")
+		_ = jsonDecodeSoft(r, &req)
 		refreshTokenStr = req.RefreshToken
 	}
 
 	if refreshTokenStr != "" {
-		// Parse the token to extract JTI (don't need to fully validate — just extract claims)
 		token, _ := jwt.ParseWithClaims(refreshTokenStr, &middleware.JWTClaims{}, func(token *jwt.Token) (any, error) {
 			return []byte(a.Config.JWT.Secret), nil
 		})
@@ -509,13 +526,12 @@ func (a *App) Logout(r *fastglue.Request) error {
 		}
 	}
 
-	a.clearAuthCookies(r)
+	a.clearAuthCookiesHTTP(w)
 
-	return r.SendEnvelope(map[string]string{"status": "logged_out"})
+	SendEnvelope(w, map[string]string{"status": "logged_out"})
 }
 
 func generateSlug(name string) string {
-	// Simple slug generation - in production, use a proper slugify library
 	slug := ""
 	for _, c := range name {
 		if (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') {
@@ -529,17 +545,17 @@ func generateSlug(name string) string {
 	return slug + "-" + uuid.New().String()[:8]
 }
 
-// GetWSToken returns a short-lived single-use JWT for WebSocket authentication.
-// This is needed because httpOnly cookies cannot be read by JavaScript to pass
-// as a query parameter to the WebSocket connection URL.
-func (a *App) GetWSToken(r *fastglue.Request) error {
-	userID, ok := r.RequestCtx.UserValue("user_id").(uuid.UUID)
+// GetWSToken returns a short-lived single-use JWT for WebSocket authentication (native net/http).
+func (a *App) GetWSToken(w http.ResponseWriter, r *http.Request) {
+	userID, ok := middleware.UserIDFromContext(r.Context())
 	if !ok {
-		return r.SendErrorEnvelope(fasthttp.StatusUnauthorized, "Unauthorized", nil, "")
+		SendErrorEnvelope(w, http.StatusUnauthorized, "Unauthorized", nil, "")
+		return
 	}
-	orgID, ok := r.RequestCtx.UserValue("organization_id").(uuid.UUID)
+	orgID, ok := middleware.OrganizationIDFromContext(r.Context())
 	if !ok {
-		return r.SendErrorEnvelope(fasthttp.StatusUnauthorized, "Unauthorized", nil, "")
+		SendErrorEnvelope(w, http.StatusUnauthorized, "Unauthorized", nil, "")
+		return
 	}
 
 	claims := middleware.JWTClaims{
@@ -557,8 +573,9 @@ func (a *App) GetWSToken(r *fastglue.Request) error {
 	signed, err := token.SignedString([]byte(a.Config.JWT.Secret))
 	if err != nil {
 		a.Log.Error("Failed to generate WS token", "error", err)
-		return r.SendErrorEnvelope(fasthttp.StatusInternalServerError, "Failed to generate token", nil, "")
+		SendErrorEnvelope(w, http.StatusInternalServerError, "Failed to generate token", nil, "")
+		return
 	}
 
-	return r.SendEnvelope(map[string]string{"token": signed})
+	SendEnvelope(w, map[string]string{"token": signed})
 }

@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"net/http"
 	"encoding/json"
 	"time"
 
@@ -369,19 +370,21 @@ func (a *App) ListOrganizations(r *fastglue.Request) error {
 	})
 }
 
-// GetCurrentOrganization returns the current user's organization details
-func (a *App) GetCurrentOrganization(r *fastglue.Request) error {
-	orgID, err := a.getOrgID(r)
+// GetCurrentOrganization returns the current user's organization details (native net/http).
+func (a *App) GetCurrentOrganization(w http.ResponseWriter, r *http.Request) {
+	orgID, err := a.getOrgIDHTTP(r)
 	if err != nil {
-		return r.SendErrorEnvelope(fasthttp.StatusUnauthorized, "Unauthorized", nil, "")
+		SendErrorEnvelope(w, http.StatusUnauthorized, "Unauthorized", nil, "")
+		return
 	}
 
 	var org models.Organization
 	if err := a.DB.Where("id = ?", orgID).First(&org).Error; err != nil {
-		return r.SendErrorEnvelope(fasthttp.StatusNotFound, "Organization not found", nil, "")
+		SendErrorEnvelope(w, http.StatusNotFound, "Organization not found", nil, "")
+		return
 	}
 
-	return r.SendEnvelope(OrganizationResponse{
+	SendEnvelope(w, OrganizationResponse{
 		ID:        org.ID,
 		Name:      org.Name,
 		Slug:      org.Slug,

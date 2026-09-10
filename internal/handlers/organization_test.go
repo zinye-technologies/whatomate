@@ -246,14 +246,13 @@ func TestApp_GetCurrentOrganization_Success(t *testing.T) {
 	req := testutil.NewGETRequest(t)
 	testutil.SetAuthContext(req, org.ID, user.ID)
 
-	err := app.GetCurrentOrganization(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.GetCurrentOrganization, req)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	var resp struct {
 		Data handlers.OrganizationResponse `json:"data"`
 	}
-	err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+	err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 	require.NoError(t, err)
 
 	assert.Equal(t, org.ID, resp.Data.ID)
@@ -270,8 +269,7 @@ func TestApp_GetCurrentOrganization_Unauthorized(t *testing.T) {
 	req := testutil.NewGETRequest(t)
 	// No auth context set
 
-	err := app.GetCurrentOrganization(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.GetCurrentOrganization, req)
 	assert.Equal(t, fasthttp.StatusUnauthorized, testutil.GetResponseStatusCode(req))
 }
 
@@ -286,8 +284,7 @@ func TestApp_GetCurrentOrganization_NotFound(t *testing.T) {
 	req := testutil.NewGETRequest(t)
 	testutil.SetAuthContext(req, uuid.New(), user.ID)
 
-	err := app.GetCurrentOrganization(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.GetCurrentOrganization, req)
 	assert.Equal(t, fasthttp.StatusNotFound, testutil.GetResponseStatusCode(req))
 }
 
