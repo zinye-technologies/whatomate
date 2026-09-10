@@ -34,99 +34,70 @@ var mimeTypes = map[string]string{
 //go:embed all:dist
 var distFS embed.FS
 
-// cachedIndexHTML stores the modified index.html with injected base path
-var cachedIndexHTML []byte
-
-// Handler returns a fasthttp handler that serves the embedded frontend files
-// basePath should be empty string for root deployment or "/subpath" for subdirectory
-// If frontend is not embedded, returns a handler that shows a helpful message
-func Handler(basePath string) fasthttp.RequestHandler {
-	// Normalize base path
+// HTTPHandler returns a net/http handler that serves the embedded frontend (SPA).
+// Prefer this during/after the chi migration; Handler() remains for fasthttp callers.
+func HTTPHandler(basePath string) http.Handler {
 	basePath = strings.TrimSuffix(basePath, "/")
 
-	// Get the dist subdirectory
 	distSubFS, err := fs.Sub(distFS, "dist")
 	if err != nil {
-		return notEmbeddedHandler("Frontend not embedded: " + err.Error())
+		return notEmbeddedHTTPHandler("Frontend not embedded: " + err.Error())
 	}
 
-	// Read and modify index.html to inject base path
 	indexContent, err := fs.ReadFile(distSubFS, "index.html")
 	if err != nil {
-		return notEmbeddedHandler("Frontend not embedded: index.html not found. Run 'make build-prod' to embed frontend.")
+		return notEmbeddedHTTPHandler("Frontend not embedded: index.html not found. Run 'make build-prod' to embed frontend.")
 	}
 
-	// Inject base tag right after <head> so it's processed before any relative URLs
-	// Base tag ensures relative URLs (./assets/...) resolve from basePath, not current page path
 	baseHref := basePath + "/"
 	if basePath == "" {
 		baseHref = "/"
 	}
 	baseTag := fmt.Sprintf(`<head><base href="%s">`, baseHref)
 	modifiedHTML := strings.Replace(string(indexContent), "<head>", baseTag, 1)
-
-	// Inject base path script before </head>
 	basePathScript := fmt.Sprintf(`<script>window.__BASE_PATH__ = "%s";</script></head>`, basePath)
-	cachedIndexHTML = []byte(strings.Replace(modifiedHTML, "</head>", basePathScript, 1))
+	indexHTML := []byte(strings.Replace(modifiedHTML, "</head>", basePathScript, 1))
 
-	// Create file server
 	fileServer := http.FileServer(http.FS(distSubFS))
 
-	// Wrap with SPA fallback and proper MIME types
-	spaHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		path := r.URL.Path
 
-		// Try to serve the file
 		if path != "/" && !strings.HasPrefix(path, "/api") {
-			// Check if file exists
 			filePath := strings.TrimPrefix(path, "/")
 			file, err := distSubFS.Open(filePath)
 			if err == nil {
 				defer func() { _ = file.Close() }()
-
-				// Get file info for size
 				stat, err := file.Stat()
 				if err != nil {
 					http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 					return
 				}
-
-				// Skip directories
 				if stat.IsDir() {
 					fileServer.ServeHTTP(w, r)
 					return
 				}
-
-				// Set correct Content-Type based on file extension
 				ext := strings.ToLower(filepath.Ext(filePath))
 				if mimeType, ok := mimeTypes[ext]; ok {
 					w.Header().Set("Content-Type", mimeType)
 				} else {
 					w.Header().Set("Content-Type", "application/octet-stream")
 				}
-
-				// Check Accept-Encoding and serve pre-compressed if available
 				acceptEncoding := r.Header.Get("Accept-Encoding")
 				var content []byte
 				var contentEncoding string
-
-				// Try Brotli first (better compression)
 				if strings.Contains(acceptEncoding, "br") {
 					if brContent, err := fs.ReadFile(distSubFS, filePath+".br"); err == nil {
 						content = brContent
 						contentEncoding = "br"
 					}
 				}
-
-				// Fall back to gzip
 				if content == nil && strings.Contains(acceptEncoding, "gzip") {
 					if gzContent, err := fs.ReadFile(distSubFS, filePath+".gz"); err == nil {
 						content = gzContent
 						contentEncoding = "gzip"
 					}
 				}
-
-				// Fall back to uncompressed
 				if content == nil {
 					content, err = fs.ReadFile(distSubFS, filePath)
 					if err != nil {
@@ -134,7 +105,6 @@ func Handler(basePath string) fasthttp.RequestHandler {
 						return
 					}
 				}
-
 				if contentEncoding != "" {
 					w.Header().Set("Content-Encoding", contentEncoding)
 				}
@@ -144,19 +114,27 @@ func Handler(basePath string) fasthttp.RequestHandler {
 			}
 		}
 
-		// For root or non-existent files (SPA routes), serve modified index.html
 		if path == "/" || (!strings.HasPrefix(path, "/api") && !strings.Contains(path, ".")) {
 			w.Header().Set("Content-Type", "text/html; charset=utf-8")
-			_, _ = w.Write(cachedIndexHTML)
+			_, _ = w.Write(indexHTML)
 			return
 		}
-
-		// Serve the actual file
 		fileServer.ServeHTTP(w, r)
 	})
+}
 
-	// Convert to fasthttp handler
-	return fasthttpadaptor.NewFastHTTPHandler(spaHandler)
+func notEmbeddedHTTPHandler(message string) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+		w.WriteHeader(http.StatusNotFound)
+		_, _ = w.Write([]byte(message))
+	})
+}
+
+// Handler returns a fasthttp handler that serves the embedded frontend files.
+// Deprecated for new code paths: prefer HTTPHandler and mount on net/http/chi.
+func Handler(basePath string) fasthttp.RequestHandler {
+	return fasthttpadaptor.NewFastHTTPHandler(HTTPHandler(basePath))
 }
 
 // IsEmbedded returns true if the frontend dist folder is embedded

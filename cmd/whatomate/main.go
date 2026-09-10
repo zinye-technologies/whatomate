@@ -10,22 +10,18 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/redis/go-redis/v9"
 	"github.com/shridarpatil/whatomate/internal/assignment"
 	"github.com/shridarpatil/whatomate/internal/calling"
 	"github.com/shridarpatil/whatomate/internal/config"
 	"github.com/shridarpatil/whatomate/internal/database"
-	"github.com/shridarpatil/whatomate/internal/frontend"
 	"github.com/shridarpatil/whatomate/internal/handlers"
-	"github.com/shridarpatil/whatomate/internal/middleware"
+	"github.com/shridarpatil/whatomate/internal/httpapi"
 	"github.com/shridarpatil/whatomate/internal/queue"
 	"github.com/shridarpatil/whatomate/internal/storage"
 	"github.com/shridarpatil/whatomate/internal/tts"
 	"github.com/shridarpatil/whatomate/internal/websocket"
 	"github.com/shridarpatil/whatomate/internal/worker"
 	"github.com/shridarpatil/whatomate/pkg/whatsapp"
-	"github.com/valyala/fasthttp"
-	"github.com/zerodha/fastglue"
 	"github.com/zerodha/logf"
 )
 
@@ -175,9 +171,6 @@ func runServer(args []string) {
 	jobQueue := queue.NewRedisQueue(rdb, lo)
 	lo.Info("Job queue initialized")
 
-	// Initialize Fastglue
-	g := fastglue.NewGlue()
-
 	// Initialize WhatsApp client
 	waClient := whatsapp.NewWithBaseURL(lo, cfg.WhatsApp.BaseURL)
 
@@ -246,32 +239,21 @@ func runServer(args []string) {
 		lo.Error("Failed to start campaign stats subscriber", "error", err)
 	}
 
-	// Parse allowed origins for CORS
-	allowedOrigins := middleware.ParseAllowedOrigins(cfg.Server.AllowedOrigins)
+	// Build chi router (net/http) with stdlib middleware + fastglue handler shim.
+	// See docs/chi-migration.md.
+	router := httpapi.NewRouter(httpapi.Deps{
+		App:    app,
+		Log:    lo,
+		Config: cfg,
+		Redis:  rdb,
+	})
 
-	// Setup middleware (CORS is handled by corsWrapper at fasthttp level)
-	g.Before(middleware.SecurityHeaders())
-	g.Before(middleware.RequestLogger(lo))
-	g.Before(middleware.Recovery(lo))
-	g.Before(middleware.CSRFProtection())
-
-	// Setup routes
-	setupRoutes(g, app, lo, cfg.Server.BasePath, rdb, cfg)
-
-	// Create server with CORS wrapper
-	server := &fasthttp.Server{
-		Handler:            corsWrapper(g.Handler(), allowedOrigins),
-		ReadTimeout:        time.Duration(cfg.Server.ReadTimeout) * time.Second,
-		WriteTimeout:       time.Duration(cfg.Server.WriteTimeout) * time.Second,
-		MaxRequestBodySize: 15 * 1024 * 1024,
-		Name:               "Whatomate",
-	}
-
-	// Start server in goroutine
 	addr := fmt.Sprintf("%s:%d", cfg.Server.Host, cfg.Server.Port)
+	server := httpapi.NewServer(addr, router, cfg)
+
 	go func() {
-		lo.Info("Server listening", "address", addr)
-		if err := server.ListenAndServe(addr); err != nil {
+		lo.Info("Server listening", "address", addr, "http_stack", "net/http+chi")
+		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			lo.Fatal("Server failed", "error", err)
 		}
 	}()
@@ -339,7 +321,9 @@ func runServer(args []string) {
 
 	// Then stop server
 	lo.Info("Stopping server...")
-	if err := server.Shutdown(); err != nil {
+	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer shutdownCancel()
+	if err := server.Shutdown(shutdownCtx); err != nil {
 		lo.Error("Server shutdown error", "error", err)
 	}
 	lo.Info("Server stopped")
@@ -444,480 +428,4 @@ func runWorker(args []string) {
 		}
 	}
 	lo.Info("Workers stopped")
-}
-
-// ============================================================================
-// ROUTES
-// ============================================================================
-
-func setupRoutes(g *fastglue.Fastglue, app *handlers.App, lo logf.Logger, basePath string, rdb *redis.Client, cfg *config.Config) {
-	// Health check
-	g.GET("/health", app.HealthCheck)
-	g.GET("/ready", app.ReadyCheck)
-
-	g.GET("/api/embedded-signup/config", app.GetEmbeddedSignupConfig)
-
-	// Auth routes (public, optionally rate-limited)
-	if cfg.RateLimit.Enabled {
-		window := time.Duration(cfg.RateLimit.WindowSeconds) * time.Second
-		lo.Info("Rate limiting enabled on auth endpoints",
-			"login_max", cfg.RateLimit.LoginMaxAttempts,
-			"register_max", cfg.RateLimit.RegisterMaxAttempts,
-			"refresh_max", cfg.RateLimit.RefreshMaxAttempts,
-			"sso_max", cfg.RateLimit.SSOMaxAttempts,
-			"window_seconds", cfg.RateLimit.WindowSeconds)
-
-		g.POST("/api/auth/login", withRateLimit(app.Login, middleware.RateLimitOpts{
-			Redis: rdb, Log: lo, Max: cfg.RateLimit.LoginMaxAttempts, Window: window, KeyPrefix: "login", TrustProxy: cfg.RateLimit.TrustProxy,
-		}))
-		g.POST("/api/auth/register", withRateLimit(app.Register, middleware.RateLimitOpts{
-			Redis: rdb, Log: lo, Max: cfg.RateLimit.RegisterMaxAttempts, Window: window, KeyPrefix: "register", TrustProxy: cfg.RateLimit.TrustProxy,
-		}))
-		g.POST("/api/auth/refresh", withRateLimit(app.RefreshToken, middleware.RateLimitOpts{
-			Redis: rdb, Log: lo, Max: cfg.RateLimit.RefreshMaxAttempts, Window: window, KeyPrefix: "refresh", TrustProxy: cfg.RateLimit.TrustProxy,
-		}))
-	} else {
-		g.POST("/api/auth/login", app.Login)
-		g.POST("/api/auth/register", app.Register)
-		g.POST("/api/auth/refresh", app.RefreshToken)
-	}
-	g.POST("/api/auth/logout", app.Logout)
-	g.POST("/api/auth/switch-org", app.SwitchOrg)
-	g.GET("/api/auth/ws-token", app.GetWSToken)
-
-	// SSO routes (public, optionally rate-limited)
-	g.GET("/api/auth/sso/providers", app.GetPublicSSOProviders)
-	if cfg.RateLimit.Enabled {
-		window := time.Duration(cfg.RateLimit.WindowSeconds) * time.Second
-		g.GET("/api/auth/sso/{provider}/init", withRateLimit(app.InitSSO, middleware.RateLimitOpts{
-			Redis: rdb, Log: lo, Max: cfg.RateLimit.SSOMaxAttempts, Window: window, KeyPrefix: "sso_init", TrustProxy: cfg.RateLimit.TrustProxy,
-		}))
-		g.GET("/api/auth/sso/{provider}/callback", withRateLimit(app.CallbackSSO, middleware.RateLimitOpts{
-			Redis: rdb, Log: lo, Max: cfg.RateLimit.SSOMaxAttempts, Window: window, KeyPrefix: "sso_callback", TrustProxy: cfg.RateLimit.TrustProxy,
-		}))
-	} else {
-		g.GET("/api/auth/sso/{provider}/init", app.InitSSO)
-		g.GET("/api/auth/sso/{provider}/callback", app.CallbackSSO)
-	}
-
-	// Webhook routes (public - for Meta)
-	g.GET("/api/webhook", app.WebhookVerify)
-	g.POST("/api/webhook", app.WebhookHandler)
-
-	// WebSocket route (auth via message-based flow after upgrade)
-	g.GET("/ws", app.WebSocketHandler)
-
-	// For protected routes, we'll use a path-based middleware approach
-	// Apply auth middleware globally but check path in the middleware
-	g.Before(func(r *fastglue.Request) *fastglue.Request {
-		// Skip auth for OPTIONS preflight requests (handled by CORS middleware)
-		if string(r.RequestCtx.Method()) == "OPTIONS" {
-			return r
-		}
-		path := string(r.RequestCtx.Path())
-		// Skip auth for public routes
-		if path == "/health" || path == "/ready" ||
-			path == "/api/auth/login" || path == "/api/auth/register" || path == "/api/auth/refresh" ||
-			path == "/api/auth/logout" || path == "/api/webhook" || path == "/ws" {
-			return r
-		}
-		// Skip auth for SSO routes (they handle their own auth via state tokens)
-		if len(path) >= 13 && path[:13] == "/api/auth/sso" {
-			return r
-		}
-		// Skip auth for custom action redirects (uses one-time token)
-		if len(path) >= 28 && path[:28] == "/api/custom-actions/redirect" {
-			return r
-		}
-		// Apply auth for all other /api routes (supports both JWT and API key)
-		if len(path) > 4 && path[:4] == "/api" {
-			return middleware.AuthWithDB(app.Config.JWT.Secret, app.DB)(r)
-		}
-		return r
-	})
-
-	// Global rate limit on all /api/ routes, keyed by user ID (or IP if unauthenticated).
-	// Runs after auth so the user identity is available.
-	if cfg.RateLimit.Enabled {
-		apiMax := cfg.RateLimit.APIMaxRequests
-		if apiMax == 0 {
-			apiMax = 200
-		}
-		apiWindow := cfg.RateLimit.APIWindowSeconds
-		if apiWindow == 0 {
-			apiWindow = 60
-		}
-		apiRL := middleware.UserAwareRateLimit(middleware.RateLimitOpts{
-			Redis:      rdb,
-			Log:        lo,
-			Max:        apiMax,
-			Window:     time.Duration(apiWindow) * time.Second,
-			KeyPrefix:  "api_global",
-			TrustProxy: cfg.RateLimit.TrustProxy,
-		})
-		g.Before(func(r *fastglue.Request) *fastglue.Request {
-			path := string(r.RequestCtx.Path())
-			if len(path) > 4 && path[:4] == "/api" {
-				return apiRL(r)
-			}
-			return r
-		})
-	}
-
-	// Role-based access control middleware
-	g.Before(func(r *fastglue.Request) *fastglue.Request {
-		method := string(r.RequestCtx.Method())
-
-		// Skip OPTIONS preflight requests
-		if method == "OPTIONS" {
-			return r
-		}
-
-		// Route-level permission checks are now handled at the handler level
-		// using the granular permission system (HasPermission checks)
-		return r
-	})
-
-	// Current User (all authenticated users)
-	g.GET("/api/me", app.GetCurrentUser)
-	g.PUT("/api/me/settings", app.UpdateCurrentUserSettings)
-	g.PUT("/api/me/password", app.ChangePassword)
-	g.PUT("/api/me/availability", app.UpdateAvailability)
-	g.GET("/api/me/organizations", app.ListMyOrganizations)
-
-	// User Management (admin only - enforced by middleware)
-	g.GET("/api/users", app.ListUsers)
-	g.POST("/api/users", app.CreateUser)
-	g.GET("/api/users/{id}", app.GetUser)
-	g.PUT("/api/users/{id}", app.UpdateUser)
-	g.DELETE("/api/users/{id}", app.DeleteUser)
-
-	// Roles & Permissions (admin only - enforced by middleware)
-	g.GET("/api/roles", app.ListRoles)
-	g.POST("/api/roles", app.CreateRole)
-	g.GET("/api/roles/{id}", app.GetRole)
-	g.PUT("/api/roles/{id}", app.UpdateRole)
-	g.DELETE("/api/roles/{id}", app.DeleteRole)
-	g.GET("/api/permissions", app.ListPermissions)
-
-	// API Keys (admin only - enforced by middleware)
-	g.GET("/api/api-keys", app.ListAPIKeys)
-	g.GET("/api/api-keys/{id}", app.GetAPIKey)
-	g.POST("/api/api-keys", app.CreateAPIKey)
-	g.PUT("/api/api-keys/{id}", app.UpdateAPIKey)
-	g.DELETE("/api/api-keys/{id}", app.DeleteAPIKey)
-
-	// Accounts
-	g.GET("/api/accounts", app.ListAccounts)
-	g.POST("/api/accounts", app.CreateAccount)
-	g.POST("/api/accounts/exchange-token", app.ExchangeToken) // Embedded signup
-	g.GET("/api/accounts/{id}", app.GetAccount)
-	g.PUT("/api/accounts/{id}", app.UpdateAccount)
-	g.DELETE("/api/accounts/{id}", app.DeleteAccount)
-	g.POST("/api/accounts/{id}/register", app.RegisterPhoneNumber) // Embedded signup manual/2fa registration
-	g.POST("/api/accounts/{id}/test", app.TestAccountConnection)
-	g.POST("/api/accounts/{id}/subscribe", app.SubscribeApp)
-	g.GET("/api/accounts/{id}/business_profile", app.GetBusinessProfile)
-	g.PUT("/api/accounts/{id}/business_profile", app.UpdateBusinessProfile)
-	g.POST("/api/accounts/{id}/business_profile/photo", app.UpdateProfilePicture)
-
-	// Contacts
-	g.GET("/api/contacts", app.ListContacts)
-	g.POST("/api/contacts", app.CreateContact)
-	g.GET("/api/contacts/{id}", app.GetContact)
-	g.PUT("/api/contacts/{id}", app.UpdateContact)
-	g.DELETE("/api/contacts/{id}", app.DeleteContact)
-	g.PUT("/api/contacts/{id}/assign", app.AssignContact)
-	g.PUT("/api/contacts/{id}/tags", app.UpdateContactTags)
-	g.GET("/api/contacts/{id}/session-data", app.GetContactSessionData)
-
-	// Generic Import/Export
-	g.POST("/api/export", app.ExportData)
-	g.POST("/api/import", app.ImportData)
-	g.GET("/api/export/{table}/config", app.GetExportConfig)
-	g.GET("/api/import/{table}/config", app.GetImportConfig)
-
-	// Tags
-	g.GET("/api/tags", app.ListTags)
-	g.POST("/api/tags", app.CreateTag)
-	g.PUT("/api/tags/{name}", app.UpdateTag)
-	g.DELETE("/api/tags/{name}", app.DeleteTag)
-
-	// Messages
-	g.GET("/api/contacts/{id}/messages", app.GetMessages)
-	g.POST("/api/contacts/{id}/messages", app.SendMessage)
-	g.POST("/api/contacts/{id}/mark-read", app.MarkContactRead)
-	g.POST("/api/contacts/{id}/messages/{message_id}/reaction", app.SendReaction)
-	g.POST("/api/messages", app.SendMessage) // Legacy route
-	g.POST("/api/messages/template", app.SendTemplateMessage)
-	g.POST("/api/messages/media", app.SendMediaMessage)
-	g.PUT("/api/messages/{id}/read", app.MarkMessageRead)
-
-	// Conversation Notes
-	g.GET("/api/contacts/{id}/notes", app.ListConversationNotes)
-	g.POST("/api/contacts/{id}/notes", app.CreateConversationNote)
-	g.PUT("/api/contacts/{id}/notes/{note_id}", app.UpdateConversationNote)
-	g.DELETE("/api/contacts/{id}/notes/{note_id}", app.DeleteConversationNote)
-
-	// Media (serves media files for messages, auth-protected)
-	g.GET("/api/media/{message_id}", app.ServeMedia)
-
-	// Templates
-	g.GET("/api/templates", app.ListTemplates)
-	g.POST("/api/templates", app.CreateTemplate)
-	g.GET("/api/templates/{id}", app.GetTemplate)
-	g.PUT("/api/templates/{id}", app.UpdateTemplate)
-	g.DELETE("/api/templates/{id}", app.DeleteTemplate)
-	g.POST("/api/templates/sync", app.SyncTemplates)
-	g.POST("/api/templates/{id}/publish", app.SubmitTemplate)
-	g.POST("/api/templates/upload-media", app.UploadTemplateMedia)
-
-	// WhatsApp Flows
-	g.GET("/api/flows", app.ListFlows)
-	g.POST("/api/flows", app.CreateFlow)
-	g.GET("/api/flows/{id}", app.GetFlow)
-	g.PUT("/api/flows/{id}", app.UpdateFlow)
-	g.DELETE("/api/flows/{id}", app.DeleteFlow)
-	g.POST("/api/flows/{id}/save-to-meta", app.SaveFlowToMeta)
-	g.POST("/api/flows/{id}/publish", app.PublishFlow)
-	g.POST("/api/flows/{id}/deprecate", app.DeprecateFlow)
-	g.POST("/api/flows/{id}/duplicate", app.DuplicateFlow)
-	g.POST("/api/flows/sync", app.SyncFlows)
-
-	// Bulk Campaigns
-	g.GET("/api/campaigns", app.ListCampaigns)
-	g.POST("/api/campaigns", app.CreateCampaign)
-	g.GET("/api/campaigns/{id}", app.GetCampaign)
-	g.PUT("/api/campaigns/{id}", app.UpdateCampaign)
-	g.DELETE("/api/campaigns/{id}", app.DeleteCampaign)
-	g.POST("/api/campaigns/{id}/start", app.StartCampaign)
-	g.POST("/api/campaigns/{id}/pause", app.PauseCampaign)
-	g.POST("/api/campaigns/{id}/cancel", app.CancelCampaign)
-	g.POST("/api/campaigns/{id}/retry-failed", app.RetryFailed)
-	g.GET("/api/campaigns/{id}/progress", app.GetCampaign)
-	g.POST("/api/campaigns/{id}/recipients/import", app.ImportRecipients)
-	g.GET("/api/campaigns/{id}/recipients", app.GetCampaignRecipients)
-	g.DELETE("/api/campaigns/{id}/recipients/{recipientId}", app.DeleteCampaignRecipient)
-	g.POST("/api/campaigns/{id}/media", app.UploadCampaignMedia)
-	g.GET("/api/campaigns/{id}/media", app.ServeCampaignMedia)
-
-	// Chatbot Settings
-	g.GET("/api/chatbot/settings", app.GetChatbotSettings)
-	g.PUT("/api/chatbot/settings", app.UpdateChatbotSettings)
-
-	// Keyword Rules
-	g.GET("/api/chatbot/keywords", app.ListKeywordRules)
-	g.POST("/api/chatbot/keywords", app.CreateKeywordRule)
-	g.GET("/api/chatbot/keywords/{id}", app.GetKeywordRule)
-	g.PUT("/api/chatbot/keywords/{id}", app.UpdateKeywordRule)
-	g.DELETE("/api/chatbot/keywords/{id}", app.DeleteKeywordRule)
-
-	// Chatbot Flows
-	g.GET("/api/chatbot/flows", app.ListChatbotFlows)
-	g.POST("/api/chatbot/flows", app.CreateChatbotFlow)
-	g.GET("/api/chatbot/flows/{id}", app.GetChatbotFlow)
-	g.PUT("/api/chatbot/flows/{id}", app.UpdateChatbotFlow)
-	g.DELETE("/api/chatbot/flows/{id}", app.DeleteChatbotFlow)
-
-	// AI Contexts
-	g.GET("/api/chatbot/ai-contexts", app.ListAIContexts)
-	g.POST("/api/chatbot/ai-contexts", app.CreateAIContext)
-	g.GET("/api/chatbot/ai-contexts/{id}", app.GetAIContext)
-	g.PUT("/api/chatbot/ai-contexts/{id}", app.UpdateAIContext)
-	g.DELETE("/api/chatbot/ai-contexts/{id}", app.DeleteAIContext)
-
-	// Agent Transfers
-	g.GET("/api/chatbot/transfers", app.ListAgentTransfers)
-	g.POST("/api/chatbot/transfers", app.CreateAgentTransfer)
-	g.POST("/api/chatbot/transfers/pick", app.PickNextTransfer)
-	g.PUT("/api/chatbot/transfers/{id}/resume", app.ResumeFromTransfer)
-	g.PUT("/api/chatbot/transfers/{id}/assign", app.AssignAgentTransfer)
-
-	// Teams (admin/manager - access control in handler)
-	g.GET("/api/teams", app.ListTeams)
-	g.POST("/api/teams", app.CreateTeam)
-	g.GET("/api/teams/{id}", app.GetTeam)
-	g.PUT("/api/teams/{id}", app.UpdateTeam)
-	g.DELETE("/api/teams/{id}", app.DeleteTeam)
-	g.GET("/api/teams/{id}/members", app.ListTeamMembers)
-	g.POST("/api/teams/{id}/members", app.AddTeamMember)
-	g.DELETE("/api/teams/{id}/members/{member_user_id}", app.RemoveTeamMember)
-
-	// Audit Logs
-	g.GET("/api/audit-logs", app.ListAuditLogs)
-	g.GET("/api/audit-logs/{id}", app.GetAuditLog)
-
-	// Canned Responses
-	g.GET("/api/canned-responses", app.ListCannedResponses)
-	g.POST("/api/canned-responses", app.CreateCannedResponse)
-	g.GET("/api/canned-responses/{id}", app.GetCannedResponse)
-	g.PUT("/api/canned-responses/{id}", app.UpdateCannedResponse)
-	g.DELETE("/api/canned-responses/{id}", app.DeleteCannedResponse)
-	g.POST("/api/canned-responses/{id}/use", app.IncrementCannedResponseUsage)
-
-	// Sessions (admin/debug)
-	g.GET("/api/chatbot/sessions", app.ListChatbotSessions)
-	g.GET("/api/chatbot/sessions/{id}", app.GetChatbotSession)
-
-	// Analytics
-	g.GET("/api/analytics/dashboard", app.GetDashboardStats)
-	g.GET("/api/analytics/messages", app.GetMessageAnalytics)
-	g.GET("/api/analytics/chatbot", app.GetChatbotAnalytics)
-	g.GET("/api/analytics/agents", app.GetAgentAnalytics)
-	g.GET("/api/analytics/agents/{id}", app.GetAgentDetails)
-	g.GET("/api/analytics/agents/comparison", app.GetAgentComparison)
-
-	// Meta WhatsApp Analytics
-	g.GET("/api/analytics/meta", app.GetMetaAnalytics)
-	g.GET("/api/analytics/meta/accounts", app.ListMetaAccountsForAnalytics)
-	g.POST("/api/analytics/meta/refresh", app.RefreshMetaAnalyticsCache)
-
-	// Widgets (customizable analytics)
-	g.GET("/api/widgets", app.ListWidgets)
-	g.POST("/api/widgets", app.CreateWidget)
-	g.GET("/api/widgets/data-sources", app.GetWidgetDataSources)
-	g.GET("/api/widgets/data", app.GetAllWidgetsData)
-	g.GET("/api/widgets/{id}", app.GetWidget)
-	g.PUT("/api/widgets/{id}", app.UpdateWidget)
-	g.DELETE("/api/widgets/{id}", app.DeleteWidget)
-	g.GET("/api/widgets/{id}/data", app.GetWidgetData)
-	g.POST("/api/widgets/layout", app.SaveWidgetLayout)
-
-	// Organization Settings
-	g.GET("/api/org/settings", app.GetOrganizationSettings)
-	g.PUT("/api/org/settings", app.UpdateOrganizationSettings)
-	g.POST("/api/org/audio", app.UploadOrgAudio)
-
-	// Organizations
-	g.GET("/api/organizations", app.ListOrganizations)
-	g.POST("/api/organizations", app.CreateOrganization)
-	g.GET("/api/organizations/current", app.GetCurrentOrganization)
-	g.GET("/api/organizations/members", app.ListOrganizationMembers)
-	g.POST("/api/organizations/members", app.AddOrganizationMember)
-	g.PUT("/api/organizations/members/{member_id}", app.UpdateOrganizationMemberRole)
-	g.DELETE("/api/organizations/members/{member_id}", app.RemoveOrganizationMember)
-
-	// SSO Settings (admin only - enforced by middleware)
-	g.GET("/api/settings/sso", app.GetSSOSettings)
-	g.PUT("/api/settings/sso/{provider}", app.UpdateSSOProvider)
-	g.DELETE("/api/settings/sso/{provider}", app.DeleteSSOProvider)
-
-	// Webhooks
-	g.GET("/api/webhooks", app.ListWebhooks)
-	g.POST("/api/webhooks", app.CreateWebhook)
-	g.GET("/api/webhooks/{id}", app.GetWebhook)
-	g.PUT("/api/webhooks/{id}", app.UpdateWebhook)
-	g.DELETE("/api/webhooks/{id}", app.DeleteWebhook)
-	g.POST("/api/webhooks/{id}/test", app.TestWebhook)
-
-	// Custom Actions
-	g.GET("/api/custom-actions", app.ListCustomActions)
-	g.POST("/api/custom-actions", app.CreateCustomAction)
-	g.GET("/api/custom-actions/{id}", app.GetCustomAction)
-	g.PUT("/api/custom-actions/{id}", app.UpdateCustomAction)
-	g.DELETE("/api/custom-actions/{id}", app.DeleteCustomAction)
-	g.POST("/api/custom-actions/{id}/execute", app.ExecuteCustomAction)
-	g.GET("/api/custom-actions/redirect/{token}", app.CustomActionRedirect)
-
-	// IVR Flows
-	g.GET("/api/ivr-flows", app.ListIVRFlows)
-	g.GET("/api/ivr-flows/{id}", app.GetIVRFlow)
-	g.POST("/api/ivr-flows", app.CreateIVRFlow)
-	g.PUT("/api/ivr-flows/{id}", app.UpdateIVRFlow)
-	g.DELETE("/api/ivr-flows/{id}", app.DeleteIVRFlow)
-	g.POST("/api/ivr-flows/audio", app.UploadIVRAudio)
-	g.GET("/api/ivr-flows/audio/{filename}", app.ServeIVRAudio)
-
-	// Call Logs
-	g.GET("/api/call-logs", app.ListCallLogs)
-	g.GET("/api/call-logs/{id}", app.GetCallLog)
-	g.GET("/api/call-logs/{id}/recording", app.GetCallRecording)
-
-	// Call Transfers
-	g.GET("/api/call-transfers", app.ListCallTransfers)
-	g.GET("/api/call-transfers/{id}", app.GetCallTransfer)
-	g.POST("/api/call-transfers/{id}/connect", app.ConnectCallTransfer)
-	g.POST("/api/call-transfers/{id}/hangup", app.HangupCallTransfer)
-	g.POST("/api/call-transfers/initiate", app.InitiateAgentTransfer)
-
-	// Call Hold
-	g.POST("/api/call-logs/{id}/hold", app.HoldCall)
-	g.POST("/api/call-logs/{id}/resume", app.ResumeCall)
-
-	// Outgoing Calls
-	g.POST("/api/calls/outgoing", app.InitiateOutgoingCall)
-	g.POST("/api/calls/outgoing/{id}/hangup", app.HangupOutgoingCall)
-	g.POST("/api/calls/permission-request", app.SendCallPermissionRequest)
-	g.GET("/api/calls/permission/{contactId}", app.GetCallPermission)
-	g.GET("/api/calls/ice-servers", app.GetICEServers)
-
-	// Catalogs
-	g.GET("/api/catalogs", app.ListCatalogs)
-	g.POST("/api/catalogs", app.CreateCatalog)
-	g.GET("/api/catalogs/{id}", app.GetCatalog)
-	g.DELETE("/api/catalogs/{id}", app.DeleteCatalog)
-	g.POST("/api/catalogs/sync", app.SyncCatalogs)
-
-	// Catalog Products
-	g.GET("/api/catalogs/{id}/products", app.ListCatalogProducts)
-	g.POST("/api/catalogs/{id}/products", app.CreateCatalogProduct)
-	g.GET("/api/products/{id}", app.GetCatalogProduct)
-	g.PUT("/api/products/{id}", app.UpdateCatalogProduct)
-	g.DELETE("/api/products/{id}", app.DeleteCatalogProduct)
-
-	// Serve embedded frontend (SPA)
-	if frontend.IsEmbedded() {
-		lo.Info("Serving embedded frontend", "base_path", basePath)
-		frontendHandler := frontend.Handler(basePath)
-		// Catch-all for frontend routes
-		g.GET("/{path:*}", func(r *fastglue.Request) error {
-			frontendHandler(r.RequestCtx)
-			return nil
-		})
-		g.GET("/", func(r *fastglue.Request) error {
-			frontendHandler(r.RequestCtx)
-			return nil
-		})
-	} else {
-		lo.Info("Frontend not embedded, API-only mode")
-	}
-}
-
-// withRateLimit wraps a handler with the rate limit middleware.
-func withRateLimit(handler fastglue.FastRequestHandler, opts middleware.RateLimitOpts) fastglue.FastRequestHandler {
-	rl := middleware.RateLimit(opts)
-	return func(r *fastglue.Request) error {
-		if rl(r) == nil {
-			return nil // Rate limited — response already sent.
-		}
-		return handler(r)
-	}
-}
-
-// corsWrapper wraps a handler with CORS support at the fasthttp level.
-// This ensures CORS headers are set even for auto-handled OPTIONS requests.
-func corsWrapper(next fasthttp.RequestHandler, allowedOrigins map[string]bool) fasthttp.RequestHandler {
-	return func(ctx *fasthttp.RequestCtx) {
-		origin := string(ctx.Request.Header.Peek("Origin"))
-
-		if origin != "" && middleware.IsOriginAllowed(origin, allowedOrigins) {
-			ctx.Response.Header.Set("Access-Control-Allow-Origin", origin)
-			ctx.Response.Header.Set("Access-Control-Allow-Credentials", "true")
-		} else if len(allowedOrigins) == 0 && origin != "" {
-			// Development: no whitelist configured
-			ctx.Response.Header.Set("Access-Control-Allow-Origin", origin)
-		}
-
-		ctx.Response.Header.Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS, PATCH")
-		ctx.Response.Header.Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-API-Key, X-Organization-ID, X-CSRF-Token")
-		ctx.Response.Header.Set("Access-Control-Max-Age", "86400")
-
-		// Handle preflight OPTIONS requests
-		if string(ctx.Method()) == "OPTIONS" {
-			ctx.SetStatusCode(fasthttp.StatusNoContent)
-			return
-		}
-
-		next(ctx)
-	}
 }
