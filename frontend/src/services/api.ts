@@ -1246,4 +1246,46 @@ export const ivrFlowsService = {
   getAudioUrl: (filename: string) => `${api.defaults.baseURL}/ivr-flows/audio/${encodeURIComponent(filename)}`
 }
 
+// Usage / billing meters (outbound category counts + free service allowance)
+export interface UsageCategoryCounts {
+  service: number
+  utility: number
+  marketing: number
+  authentication: number
+  unknown: number
+  total_outbound: number
+}
+
+export interface ServiceAllowanceRemaining {
+  limit: number
+  used: number
+  remaining: number
+}
+
+export interface PhoneUsage {
+  whatsapp_account: string
+  phone_id: string
+  counts: UsageCategoryCounts
+  service_allowance: ServiceAllowanceRemaining
+}
+
+export interface UsagePeriod {
+  start: string
+  end: string
+  label: string
+}
+
+export interface UsageResponse {
+  period: UsagePeriod
+  free_service_allowance: number
+  phones: PhoneUsage[]
+  totals: UsageCategoryCounts
+}
+
+export const usageService = {
+  get: (params?: { from?: string; to?: string; account?: string }) =>
+    api.get<UsageResponse>('/usage', { params }),
+}
+
+
 export default api

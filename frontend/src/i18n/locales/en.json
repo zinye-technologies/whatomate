@@ -278,7 +278,8 @@
     "skipToMain": "Skip to main content",
     "expandSidebar": "Expand sidebar",
     "collapseSidebar": "Collapse sidebar",
-    "toggleMenu": "Toggle menu"
+    "toggleMenu": "Toggle menu",
+    "usage": "Usage"
   },
   "userMenu": {
     "myAccount": "My Account",
@@ -2553,5 +2554,32 @@
     "callFailed": "Failed to initiate call",
     "permissionSent": "Call permission request sent",
     "permissionSentDesc": "The contact needs to accept the call permission on WhatsApp before you can call them. Try again after they accept."
+  },
+  "usage": {
+    "title": "Usage",
+    "subtitle": "Outbound message meters and free service allowances",
+    "period": "Period",
+    "totalOutbound": "Total outbound",
+    "service": "Service",
+    "serviceDesc": "Session / free-form messages",
+    "utility": "Utility",
+    "utilityDesc": "Utility template messages",
+    "marketing": "Marketing",
+    "marketingDesc": "Marketing template messages",
+    "authentication": "Authentication",
+    "authenticationDesc": "Authentication template messages",
+    "unknown": "Unknown",
+    "unknownNote": "{count} template messages had an unknown category",
+    "phoneAllowances": "Per-phone service allowance",
+    "phoneAllowancesDesc": "Each WhatsApp phone number includes {limit} free service messages per month (approximate)",
+    "phoneId": "Phone ID",
+    "remaining": "Remaining",
+    "total": "Total",
+    "noPhones": "No phone numbers",
+    "noPhonesDesc": "Connect a WhatsApp account to track usage meters.",
+    "allowanceExhausted": "Allowance used",
+    "allowanceNearLimit": "Near limit",
+    "disclaimer": "Counts are approximate outbound sends for planning. They are not a Meta billable ledger.",
+    "errorLoading": "Failed to load usage meters. Please try again."
   }
 }
