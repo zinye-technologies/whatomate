@@ -2,18 +2,16 @@ package handlers
 
 import (
 	"encoding/json"
-	"strconv"
-	"strings"
-	"time"
-
 	"github.com/google/uuid"
 	"github.com/shridarpatil/whatomate/internal/assignment"
 	"github.com/shridarpatil/whatomate/internal/models"
 	"github.com/shridarpatil/whatomate/internal/utils"
 	"github.com/shridarpatil/whatomate/internal/websocket"
-	"github.com/valyala/fasthttp"
-	"github.com/zerodha/fastglue"
 	"gorm.io/gorm/clause"
+	"net/http"
+	"strconv"
+	"strings"
+	"time"
 )
 
 // agentTransferRow represents a flat row result from the JOINed query
@@ -100,28 +98,29 @@ type AgentTransferResponse struct {
 
 // ListAgentTransfers lists agent transfers for the organization
 // Agents see only their assigned transfers + their team queues; Admin see all; Managers see their teams
-func (a *App) ListAgentTransfers(r *fastglue.Request) error {
-	orgID, userID, err := a.getOrgAndUserID(r)
+func (a *App) ListAgentTransfers(w http.ResponseWriter, r *http.Request) {
+	orgID, userID, err := a.getOrgAndUserIDHTTP(r)
 	if err != nil {
-		return r.SendErrorEnvelope(fasthttp.StatusUnauthorized, "Unauthorized", nil, "")
+		SendErrorEnvelope(w, http.StatusUnauthorized, "Unauthorized", nil, "")
+		return
 	}
 
 	// Check permissions - users with write permission have full access (like admin)
 	hasFullAccess := a.HasPermission(userID, models.ResourceTransfers, models.ActionWrite, orgID)
 
 	// Query params
-	status := string(r.RequestCtx.QueryArgs().Peek("status"))
-	teamIDStr := string(r.RequestCtx.QueryArgs().Peek("team_id"))
+	status := r.URL.Query().Get("status")
+	teamIDStr := r.URL.Query().Get("team_id")
 
 	// Pagination params
 	limit := 100 // Default limit
 	offset := 0
-	if limitStr := string(r.RequestCtx.QueryArgs().Peek("limit")); limitStr != "" {
+	if limitStr := r.URL.Query().Get("limit"); limitStr != "" {
 		if parsed, err := strconv.Atoi(limitStr); err == nil && parsed > 0 && parsed <= 100 {
 			limit = parsed
 		}
 	}
-	if offsetStr := string(r.RequestCtx.QueryArgs().Peek("offset")); offsetStr != "" {
+	if offsetStr := r.URL.Query().Get("offset"); offsetStr != "" {
 		if parsed, err := strconv.Atoi(offsetStr); err == nil && parsed >= 0 {
 			offset = parsed
 		}
@@ -129,7 +128,7 @@ func (a *App) ListAgentTransfers(r *fastglue.Request) error {
 
 	// Lazy loading: parse include parameter for optional relations
 	// Example: ?include=contact,agent,team or ?include=all (default: all)
-	includeParam := string(r.RequestCtx.QueryArgs().Peek("include"))
+	includeParam := r.URL.Query().Get("include")
 	includeAll := includeParam == "" || includeParam == "all"
 	includeSet := make(map[string]bool)
 	if !includeAll {
@@ -255,7 +254,8 @@ func (a *App) ListAgentTransfers(r *fastglue.Request) error {
 	var transfers []agentTransferRow
 	if err := query.Scan(&transfers).Error; err != nil {
 		a.Log.Error("Failed to fetch transfers", "error", err)
-		return r.SendErrorEnvelope(fasthttp.StatusInternalServerError, "Failed to fetch transfers", nil, "")
+		SendErrorEnvelope(w, http.StatusInternalServerError, "Failed to fetch transfers", nil, "")
+		return
 	}
 
 	// Get queue counts
@@ -384,7 +384,7 @@ func (a *App) ListAgentTransfers(r *fastglue.Request) error {
 		response[i] = resp
 	}
 
-	return r.SendEnvelope(map[string]any{
+	SendEnvelope(w, map[string]any{
 		"transfers":           response,
 		"general_queue_count": generalQueueCount,
 		"team_queue_counts":   teamCounts,
@@ -392,33 +392,38 @@ func (a *App) ListAgentTransfers(r *fastglue.Request) error {
 		"limit":               limit,
 		"offset":              offset,
 	})
+	return
 }
 
 // CreateAgentTransfer creates a new agent transfer
-func (a *App) CreateAgentTransfer(r *fastglue.Request) error {
-	orgID, userID, err := a.getOrgAndUserID(r)
+func (a *App) CreateAgentTransfer(w http.ResponseWriter, r *http.Request) {
+	orgID, userID, err := a.getOrgAndUserIDHTTP(r)
 	if err != nil {
-		return r.SendErrorEnvelope(fasthttp.StatusUnauthorized, "Unauthorized", nil, "")
+		SendErrorEnvelope(w, http.StatusUnauthorized, "Unauthorized", nil, "")
+		return
 	}
 
 	var req CreateAgentTransferRequest
-	if err := json.Unmarshal(r.RequestCtx.PostBody(), &req); err != nil {
-		return r.SendErrorEnvelope(fasthttp.StatusBadRequest, "Invalid request body", nil, "")
+	if err := json.Unmarshal(readBody(r), &req); err != nil {
+		SendErrorEnvelope(w, http.StatusBadRequest, "Invalid request body", nil, "")
+		return
 	}
 
 	if req.ContactID == "" {
-		return r.SendErrorEnvelope(fasthttp.StatusBadRequest, "contact_id is required", nil, "")
+		SendErrorEnvelope(w, http.StatusBadRequest, "contact_id is required", nil, "")
+		return
 	}
 
 	contactID, err := uuid.Parse(req.ContactID)
 	if err != nil {
-		return r.SendErrorEnvelope(fasthttp.StatusBadRequest, "Invalid contact_id", nil, "")
+		SendErrorEnvelope(w, http.StatusBadRequest, "Invalid contact_id", nil, "")
+		return
 	}
 
 	// Get contact
-	contact, err := findByIDAndOrg[models.Contact](a.DB, r, contactID, orgID, "Contact")
+	contact, err := findByIDAndOrgHTTP[models.Contact](a.DB, w, contactID, orgID, "Contact")
 	if err != nil {
-		return nil
+		return
 	}
 
 	// Check for existing active transfer
@@ -428,7 +433,8 @@ func (a *App) CreateAgentTransfer(r *fastglue.Request) error {
 		Count(&existingCount)
 
 	if existingCount > 0 {
-		return r.SendErrorEnvelope(fasthttp.StatusConflict, "Contact already has an active transfer", nil, "")
+		SendErrorEnvelope(w, http.StatusConflict, "Contact already has an active transfer", nil, "")
+		return
 	}
 
 	// Get chatbot settings to check AssignToSameAgent (use cache)
@@ -439,12 +445,14 @@ func (a *App) CreateAgentTransfer(r *fastglue.Request) error {
 	if req.TeamID != nil && *req.TeamID != "" {
 		parsedTeamID, err := uuid.Parse(*req.TeamID)
 		if err != nil {
-			return r.SendErrorEnvelope(fasthttp.StatusBadRequest, "Invalid team_id", nil, "")
+			SendErrorEnvelope(w, http.StatusBadRequest, "Invalid team_id", nil, "")
+			return
 		}
 		// Verify team exists and is active
 		var team models.Team
 		if err := a.DB.Where("id = ? AND organization_id = ? AND is_active = ?", parsedTeamID, orgID, true).First(&team).Error; err != nil {
-			return r.SendErrorEnvelope(fasthttp.StatusBadRequest, "Team not found or inactive", nil, "")
+			SendErrorEnvelope(w, http.StatusBadRequest, "Team not found or inactive", nil, "")
+			return
 		}
 		teamID = &parsedTeamID
 	}
@@ -456,15 +464,17 @@ func (a *App) CreateAgentTransfer(r *fastglue.Request) error {
 	if req.AgentID != nil && *req.AgentID != "" {
 		parsedAgentID, err := uuid.Parse(*req.AgentID)
 		if err != nil {
-			return r.SendErrorEnvelope(fasthttp.StatusBadRequest, "Invalid agent_id", nil, "")
+			SendErrorEnvelope(w, http.StatusBadRequest, "Invalid agent_id", nil, "")
+			return
 		}
 		// Verify agent exists and is available
-		agent, err := findByIDAndOrg[models.User](a.DB, r, parsedAgentID, orgID, "Agent")
+		agent, err := findByIDAndOrgHTTP[models.User](a.DB, w, parsedAgentID, orgID, "Agent")
 		if err != nil {
-			return nil
+			return
 		}
 		if !agent.IsAvailable {
-			return r.SendErrorEnvelope(fasthttp.StatusBadRequest, "Agent is currently away", nil, "")
+			SendErrorEnvelope(w, http.StatusBadRequest, "Agent is currently away", nil, "")
+			return
 		}
 		agentID = &parsedAgentID
 	} else if teamID != nil && a.Assigner != nil {
@@ -514,7 +524,8 @@ func (a *App) CreateAgentTransfer(r *fastglue.Request) error {
 
 	if err := a.DB.Create(&transfer).Error; err != nil {
 		a.Log.Error("Failed to create agent transfer", "error", err)
-		return r.SendErrorEnvelope(fasthttp.StatusInternalServerError, "Failed to create transfer", nil, "")
+		SendErrorEnvelope(w, http.StatusInternalServerError, "Failed to create transfer", nil, "")
+		return
 	}
 
 	// When AssignToSameAgent is enabled and no agent is already assigned,
@@ -616,31 +627,34 @@ func (a *App) CreateAgentTransfer(r *fastglue.Request) error {
 		resp.ExpiresAt = &expiresAt
 	}
 
-	return r.SendEnvelope(map[string]any{
+	SendEnvelope(w, map[string]any{
 		"transfer": resp,
 		"message":  "Transfer created successfully",
 	})
+	return
 }
 
 // ResumeFromTransfer resumes chatbot processing for a transferred contact
-func (a *App) ResumeFromTransfer(r *fastglue.Request) error {
-	orgID, userID, err := a.getOrgAndUserID(r)
+func (a *App) ResumeFromTransfer(w http.ResponseWriter, r *http.Request) {
+	orgID, userID, err := a.getOrgAndUserIDHTTP(r)
 	if err != nil {
-		return r.SendErrorEnvelope(fasthttp.StatusUnauthorized, "Unauthorized", nil, "")
+		SendErrorEnvelope(w, http.StatusUnauthorized, "Unauthorized", nil, "")
+		return
 	}
 
-	transferID, err := parsePathUUID(r, "id", "transfer")
+	transferID, err := parsePathUUIDHTTP(w, r, "id", "transfer")
 	if err != nil {
-		return nil
+		return
 	}
 
-	transfer, err := findByIDAndOrg[models.AgentTransfer](a.DB, r, transferID, orgID, "Transfer")
+	transfer, err := findByIDAndOrgHTTP[models.AgentTransfer](a.DB, w, transferID, orgID, "Transfer")
 	if err != nil {
-		return nil
+		return
 	}
 
 	if transfer.Status != models.TransferStatusActive {
-		return r.SendErrorEnvelope(fasthttp.StatusBadRequest, "Transfer is not active", nil, "")
+		SendErrorEnvelope(w, http.StatusBadRequest, "Transfer is not active", nil, "")
+		return
 	}
 
 	// Update transfer
@@ -651,7 +665,8 @@ func (a *App) ResumeFromTransfer(r *fastglue.Request) error {
 
 	if err := a.DB.Save(transfer).Error; err != nil {
 		a.Log.Error("Failed to resume transfer", "error", err, "transfer_id", transfer.ID)
-		return r.SendErrorEnvelope(fasthttp.StatusInternalServerError, "Failed to resume transfer", nil, "")
+		SendErrorEnvelope(w, http.StatusInternalServerError, "Failed to resume transfer", nil, "")
+		return
 	}
 
 	// Clear chatbot tracking so client inactivity SLA doesn't trigger after transfer is closed
@@ -674,39 +689,43 @@ func (a *App) ResumeFromTransfer(r *fastglue.Request) error {
 		WhatsAppAccount: transfer.WhatsAppAccount,
 	})
 
-	return r.SendEnvelope(map[string]any{
+	SendEnvelope(w, map[string]any{
 		"message": "Transfer resumed, chatbot is now active for this contact",
 	})
+	return
 }
 
 // AssignAgentTransfer assigns a transfer to a specific agent
-func (a *App) AssignAgentTransfer(r *fastglue.Request) error {
-	orgID, userID, err := a.getOrgAndUserID(r)
+func (a *App) AssignAgentTransfer(w http.ResponseWriter, r *http.Request) {
+	orgID, userID, err := a.getOrgAndUserIDHTTP(r)
 	if err != nil {
-		return r.SendErrorEnvelope(fasthttp.StatusUnauthorized, "Unauthorized", nil, "")
+		SendErrorEnvelope(w, http.StatusUnauthorized, "Unauthorized", nil, "")
+		return
 	}
 
 	// Check permissions - users with write permission can assign transfers to others
 	hasWriteAccess := a.HasPermission(userID, models.ResourceTransfers, models.ActionWrite, orgID)
 
-	transferID, err := parsePathUUID(r, "id", "transfer")
+	transferID, err := parsePathUUIDHTTP(w, r, "id", "transfer")
 	if err != nil {
-		return nil
+		return
 	}
 
 	var req AssignTransferRequest
-	if err := a.decodeRequest(r, &req); err != nil {
-		return nil
+	if err := a.decodeRequestHTTP(w, r, &req); err != nil {
+		return
 	}
 
 	var transfer models.AgentTransfer
 	if err := a.DB.Where("id = ? AND organization_id = ?", transferID, orgID).
 		Preload("Contact").First(&transfer).Error; err != nil {
-		return r.SendErrorEnvelope(fasthttp.StatusNotFound, "Transfer not found", nil, "")
+		SendErrorEnvelope(w, http.StatusNotFound, "Transfer not found", nil, "")
+		return
 	}
 
 	if transfer.Status != models.TransferStatusActive {
-		return r.SendErrorEnvelope(fasthttp.StatusBadRequest, "Transfer is not active", nil, "")
+		SendErrorEnvelope(w, http.StatusBadRequest, "Transfer is not active", nil, "")
+		return
 	}
 
 	// Determine target agent
@@ -715,21 +734,24 @@ func (a *App) AssignAgentTransfer(r *fastglue.Request) error {
 	if req.AgentID != nil && *req.AgentID != "" {
 		// Explicit assignment - requires write permission
 		if !hasWriteAccess {
-			return r.SendErrorEnvelope(fasthttp.StatusForbidden, "You don't have permission to assign transfers to others", nil, "")
+			SendErrorEnvelope(w, http.StatusForbidden, "You don't have permission to assign transfers to others", nil, "")
+			return
 		}
 
 		parsedAgentID, err := uuid.Parse(*req.AgentID)
 		if err != nil {
-			return r.SendErrorEnvelope(fasthttp.StatusBadRequest, "Invalid agent_id", nil, "")
+			SendErrorEnvelope(w, http.StatusBadRequest, "Invalid agent_id", nil, "")
+			return
 		}
 
 		// Verify agent exists and is available
-		agent, err := findByIDAndOrg[models.User](a.DB, r, parsedAgentID, orgID, "Agent")
+		agent, err := findByIDAndOrgHTTP[models.User](a.DB, w, parsedAgentID, orgID, "Agent")
 		if err != nil {
-			return nil
+			return
 		}
 		if !agent.IsAvailable {
-			return r.SendErrorEnvelope(fasthttp.StatusBadRequest, "Agent is currently away", nil, "")
+			SendErrorEnvelope(w, http.StatusBadRequest, "Agent is currently away", nil, "")
+			return
 		}
 		targetAgentID = &parsedAgentID
 	} else if req.AgentID == nil && !hasWriteAccess {
@@ -740,7 +762,8 @@ func (a *App) AssignAgentTransfer(r *fastglue.Request) error {
 	// Handle team reassignment (requires write permission)
 	if req.TeamID != nil {
 		if !hasWriteAccess {
-			return r.SendErrorEnvelope(fasthttp.StatusForbidden, "You don't have permission to change team assignment", nil, "")
+			SendErrorEnvelope(w, http.StatusForbidden, "You don't have permission to change team assignment", nil, "")
+			return
 		}
 
 		if *req.TeamID == "" {
@@ -750,12 +773,14 @@ func (a *App) AssignAgentTransfer(r *fastglue.Request) error {
 			// Move to specific team
 			parsedTeamID, err := uuid.Parse(*req.TeamID)
 			if err != nil {
-				return r.SendErrorEnvelope(fasthttp.StatusBadRequest, "Invalid team_id", nil, "")
+				SendErrorEnvelope(w, http.StatusBadRequest, "Invalid team_id", nil, "")
+				return
 			}
 			// Verify team exists
 			var team models.Team
 			if err := a.DB.Where("id = ? AND organization_id = ?", parsedTeamID, orgID).First(&team).Error; err != nil {
-				return r.SendErrorEnvelope(fasthttp.StatusBadRequest, "Team not found", nil, "")
+				SendErrorEnvelope(w, http.StatusBadRequest, "Team not found", nil, "")
+				return
 			}
 			transfer.TeamID = &parsedTeamID
 		}
@@ -776,7 +801,8 @@ func (a *App) AssignAgentTransfer(r *fastglue.Request) error {
 
 	if err := a.DB.Save(&transfer).Error; err != nil {
 		a.Log.Error("Failed to assign transfer", "error", err, "transfer_id", transfer.ID)
-		return r.SendErrorEnvelope(fasthttp.StatusInternalServerError, "Failed to assign transfer", nil, "")
+		SendErrorEnvelope(w, http.StatusInternalServerError, "Failed to assign transfer", nil, "")
+		return
 	}
 
 	// Update contact assignment using the same rule as pickup / auto-assign:
@@ -829,17 +855,19 @@ func (a *App) AssignAgentTransfer(r *fastglue.Request) error {
 		WhatsAppAccount: transfer.WhatsAppAccount,
 	})
 
-	return r.SendEnvelope(map[string]any{
+	SendEnvelope(w, map[string]any{
 		"message":  "Transfer assigned successfully",
 		"agent_id": targetAgentID,
 	})
+	return
 }
 
 // PickNextTransfer allows an agent to pick the next unassigned transfer from the queue
-func (a *App) PickNextTransfer(r *fastglue.Request) error {
-	orgID, userID, err := a.getOrgAndUserID(r)
+func (a *App) PickNextTransfer(w http.ResponseWriter, r *http.Request) {
+	orgID, userID, err := a.getOrgAndUserIDHTTP(r)
 	if err != nil {
-		return r.SendErrorEnvelope(fasthttp.StatusUnauthorized, "Unauthorized", nil, "")
+		SendErrorEnvelope(w, http.StatusUnauthorized, "Unauthorized", nil, "")
+		return
 	}
 
 	// Check permissions - users with write permission have full access
@@ -855,16 +883,18 @@ func (a *App) PickNextTransfer(r *fastglue.Request) error {
 	// Users without full access need AllowQueuePickup enabled when settings exist.
 	// If settings haven't been configured yet (nil), allow pickup by default.
 	if !hasFullAccess && settings != nil && !settings.AgentAssignment.AllowQueuePickup {
-		return r.SendErrorEnvelope(fasthttp.StatusForbidden, "Queue pickup is not allowed", nil, "")
+		SendErrorEnvelope(w, http.StatusForbidden, "Queue pickup is not allowed", nil, "")
+		return
 	}
 
 	// Users without full access need pickup permission
 	if !hasFullAccess && !hasPickupPermission {
-		return r.SendErrorEnvelope(fasthttp.StatusForbidden, "You don't have permission to pick up transfers", nil, "")
+		SendErrorEnvelope(w, http.StatusForbidden, "You don't have permission to pick up transfers", nil, "")
+		return
 	}
 
 	// Get optional team filter
-	teamIDStr := string(r.RequestCtx.QueryArgs().Peek("team_id"))
+	teamIDStr := r.URL.Query().Get("team_id")
 
 	// Get user's team memberships
 	var userTeamIDs []uuid.UUID
@@ -907,7 +937,8 @@ func (a *App) PickNextTransfer(r *fastglue.Request) error {
 					}
 					if !found {
 						tx.Rollback()
-						return r.SendErrorEnvelope(fasthttp.StatusForbidden, "You are not a member of this team", nil, "")
+						SendErrorEnvelope(w, http.StatusForbidden, "You are not a member of this team", nil, "")
+						return
 					}
 				}
 				query = query.Where("team_id = ?", teamID)
@@ -929,10 +960,11 @@ func (a *App) PickNextTransfer(r *fastglue.Request) error {
 
 	if result.Error != nil {
 		tx.Rollback()
-		return r.SendEnvelope(map[string]any{
+		SendEnvelope(w, map[string]any{
 			"message":  "No transfers in queue",
 			"transfer": nil,
 		})
+		return
 	}
 
 	// Assign to current user (self-pick)
@@ -948,7 +980,8 @@ func (a *App) PickNextTransfer(r *fastglue.Request) error {
 	if err := tx.Save(&transfer).Error; err != nil {
 		tx.Rollback()
 		a.Log.Error("Failed to pick transfer", "error", err, "transfer_id", transfer.ID)
-		return r.SendErrorEnvelope(fasthttp.StatusInternalServerError, "Failed to pick transfer", nil, "")
+		SendErrorEnvelope(w, http.StatusInternalServerError, "Failed to pick transfer", nil, "")
+		return
 	}
 
 	// Pin the agent as the contact's relationship manager only when the org
@@ -964,7 +997,8 @@ func (a *App) PickNextTransfer(r *fastglue.Request) error {
 			if err := tx.Model(&models.Contact{}).Where("id = ?", transfer.ContactID).Update("assigned_user_id", userID).Error; err != nil {
 				tx.Rollback()
 				a.Log.Error("Failed to update contact assignment", "error", err, "transfer_id", transfer.ID)
-				return r.SendErrorEnvelope(fasthttp.StatusInternalServerError, "Failed to update contact assignment", nil, "")
+				SendErrorEnvelope(w, http.StatusInternalServerError, "Failed to update contact assignment", nil, "")
+				return
 			}
 		}
 	}
@@ -972,7 +1006,8 @@ func (a *App) PickNextTransfer(r *fastglue.Request) error {
 	// Commit the transaction
 	if err := tx.Commit().Error; err != nil {
 		a.Log.Error("Failed to complete pickup", "error", err, "transfer_id", transfer.ID)
-		return r.SendErrorEnvelope(fasthttp.StatusInternalServerError, "Failed to complete pickup", nil, "")
+		SendErrorEnvelope(w, http.StatusInternalServerError, "Failed to complete pickup", nil, "")
+		return
 	}
 
 	// Load related data for response (outside transaction)
@@ -1057,10 +1092,11 @@ func (a *App) PickNextTransfer(r *fastglue.Request) error {
 		resp.ExpiresAt = &expiresAt
 	}
 
-	return r.SendEnvelope(map[string]any{
+	SendEnvelope(w, map[string]any{
 		"message":  "Transfer picked successfully",
 		"transfer": resp,
 	})
+	return
 }
 
 // hasActiveAgentTransfer checks if a contact has an active agent transfer

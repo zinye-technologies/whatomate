@@ -7,34 +7,33 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
-	"strings"
-	"time"
-
 	"github.com/google/uuid"
 	"github.com/shridarpatil/whatomate/internal/contactutil"
 	"github.com/shridarpatil/whatomate/internal/models"
 	"github.com/shridarpatil/whatomate/internal/websocket"
-	"github.com/valyala/fasthttp"
-	"github.com/zerodha/fastglue"
+	"net/http"
+	"strings"
+	"time"
 )
 
 // WebhookVerify handles Meta's webhook verification challenge
-func (a *App) WebhookVerify(r *fastglue.Request) error {
-	mode := string(r.RequestCtx.QueryArgs().Peek("hub.mode"))
-	token := string(r.RequestCtx.QueryArgs().Peek("hub.verify_token"))
-	challenge := string(r.RequestCtx.QueryArgs().Peek("hub.challenge"))
+func (a *App) WebhookVerify(w http.ResponseWriter, r *http.Request) {
+	mode := r.URL.Query().Get("hub.mode")
+	token := r.URL.Query().Get("hub.verify_token")
+	challenge := r.URL.Query().Get("hub.challenge")
 
 	if mode != "subscribe" {
 		a.Log.Warn("Webhook verification failed - invalid mode", "mode", mode)
-		return r.SendErrorEnvelope(fasthttp.StatusForbidden, "Verification failed", nil, "")
+		SendErrorEnvelope(w, http.StatusForbidden, "Verification failed", nil, "")
+		return
 	}
 
 	// First check against global config token
 	if token == a.Config.WhatsApp.WebhookVerifyToken && token != "" {
 		a.Log.Info("Webhook verified successfully (global token)")
-		r.RequestCtx.SetStatusCode(fasthttp.StatusOK)
-		r.RequestCtx.SetBodyString(challenge)
-		return nil
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(challenge))
+		return
 	}
 
 	// Then check against tokens stored in WhatsApp accounts
@@ -42,13 +41,14 @@ func (a *App) WebhookVerify(r *fastglue.Request) error {
 	result := a.DB.Where("webhook_verify_token = ?", token).First(&account)
 	if result.Error == nil {
 		a.Log.Info("Webhook verified successfully (account token)", "account", account.Name)
-		r.RequestCtx.SetStatusCode(fasthttp.StatusOK)
-		r.RequestCtx.SetBodyString(challenge)
-		return nil
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(challenge))
+		return
 	}
 
 	a.Log.Warn("Webhook verification failed - token not found", "token", token)
-	return r.SendErrorEnvelope(fasthttp.StatusForbidden, "Verification failed", nil, "")
+	SendErrorEnvelope(w, http.StatusForbidden, "Verification failed", nil, "")
+	return
 }
 
 // WebhookStatusError represents an error in a status update
@@ -160,14 +160,15 @@ type WebhookPayload struct {
 }
 
 // WebhookHandler processes incoming webhook events from Meta
-func (a *App) WebhookHandler(r *fastglue.Request) error {
-	body := r.RequestCtx.PostBody()
-	signature := r.RequestCtx.Request.Header.Peek("X-Hub-Signature-256")
+func (a *App) WebhookHandler(w http.ResponseWriter, r *http.Request) {
+	body := readBody(r)
+	signature := []byte(r.Header.Get("X-Hub-Signature-256"))
 
 	var payload WebhookPayload
 	if err := json.Unmarshal(body, &payload); err != nil {
 		a.Log.Error("Failed to parse webhook payload", "error", err)
-		return r.SendErrorEnvelope(fasthttp.StatusBadRequest, "Invalid payload", nil, "")
+		SendErrorEnvelope(w, http.StatusBadRequest, "Invalid payload", nil, "")
+		return
 	}
 
 	// Verify webhook signature before processing any fields.
@@ -185,7 +186,8 @@ func (a *App) WebhookHandler(r *fastglue.Request) error {
 				}
 				if !verifyWebhookSignature(body, signature, []byte(account.AppSecret)) {
 					a.Log.Warn("Invalid webhook signature", "phone_id", phoneNumberID)
-					return r.SendErrorEnvelope(fasthttp.StatusForbidden, "Invalid signature", nil, "")
+					SendErrorEnvelope(w, http.StatusForbidden, "Invalid signature", nil, "")
+					return
 				}
 				a.Log.Debug("Webhook signature verified successfully")
 				break
@@ -342,7 +344,8 @@ func (a *App) WebhookHandler(r *fastglue.Request) error {
 	}
 
 	// Always respond with 200 to acknowledge receipt
-	return r.SendEnvelope(map[string]string{"status": "ok"})
+	SendEnvelope(w, map[string]string{"status": "ok"})
+	return
 }
 
 func (a *App) processIncomingMessage(phoneNumberID string, msg IncomingTextMessage, profileName string) {

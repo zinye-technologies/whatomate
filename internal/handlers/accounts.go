@@ -14,8 +14,6 @@ import (
 	"github.com/shridarpatil/whatomate/internal/crypto"
 	"github.com/shridarpatil/whatomate/internal/models"
 	"github.com/shridarpatil/whatomate/pkg/whatsapp"
-	"github.com/valyala/fasthttp"
-	"github.com/zerodha/fastglue"
 )
 
 // AccountRequest represents the request body for creating/updating an account
@@ -61,16 +59,17 @@ type AccountResponse struct {
 }
 
 // ListAccounts returns all WhatsApp accounts for the organization
-func (a *App) ListAccounts(r *fastglue.Request) error {
-	orgID, _, err := a.requireAuth(r, models.ResourceAccounts, models.ActionRead)
+func (a *App) ListAccounts(w http.ResponseWriter, r *http.Request) {
+	orgID, _, err := a.requireAuthHTTP(w, r, models.ResourceAccounts, models.ActionRead)
 	if err != nil {
-		return nil
+		return
 	}
 
 	var accounts []models.WhatsAppAccount
 	if err := a.DB.Where("organization_id = ?", orgID).Order("created_at DESC").Find(&accounts).Error; err != nil {
 		a.Log.Error("Failed to list accounts", "error", err)
-		return r.SendErrorEnvelope(fasthttp.StatusInternalServerError, "Failed to list accounts", nil, "")
+		SendErrorEnvelope(w, http.StatusInternalServerError, "Failed to list accounts", nil, "")
+		return
 	}
 
 	// Convert to response format (hide sensitive data)
@@ -79,26 +78,28 @@ func (a *App) ListAccounts(r *fastglue.Request) error {
 		response[i] = accountToResponse(acc)
 	}
 
-	return r.SendEnvelope(map[string]any{
+	SendEnvelope(w, map[string]any{
 		"accounts": response,
 	})
+	return
 }
 
 // CreateAccount creates a new WhatsApp account
-func (a *App) CreateAccount(r *fastglue.Request) error {
-	orgID, userID, err := a.requireAuth(r, models.ResourceAccounts, models.ActionWrite)
+func (a *App) CreateAccount(w http.ResponseWriter, r *http.Request) {
+	orgID, userID, err := a.requireAuthHTTP(w, r, models.ResourceAccounts, models.ActionWrite)
 	if err != nil {
-		return nil
+		return
 	}
 
 	var req AccountRequest
-	if err := a.decodeRequest(r, &req); err != nil {
-		return nil
+	if err := a.decodeRequestHTTP(w, r, &req); err != nil {
+		return
 	}
 
 	// Validate required fields
 	if req.Name == "" || req.PhoneID == "" || req.BusinessID == "" || req.AccessToken == "" {
-		return r.SendErrorEnvelope(fasthttp.StatusBadRequest, "Name, phone_id, business_id, and access_token are required", nil, "")
+		SendErrorEnvelope(w, http.StatusBadRequest, "Name, phone_id, business_id, and access_token are required", nil, "")
+		return
 	}
 
 	// Generate webhook verify token if not provided
@@ -134,7 +135,8 @@ func (a *App) CreateAccount(r *fastglue.Request) error {
 
 	if err := a.encryptAccountSecrets(&account); err != nil {
 		a.Log.Error("Failed to encrypt account secrets", "error", err)
-		return r.SendErrorEnvelope(fasthttp.StatusInternalServerError, "Failed to create account", nil, "")
+		SendErrorEnvelope(w, http.StatusInternalServerError, "Failed to create account", nil, "")
+		return
 	}
 
 	// If this is set as default, unset other defaults
@@ -151,59 +153,62 @@ func (a *App) CreateAccount(r *fastglue.Request) error {
 
 	if err := a.DB.Create(&account).Error; err != nil {
 		a.Log.Error("Failed to create account", "error", err)
-		return r.SendErrorEnvelope(fasthttp.StatusInternalServerError, "Failed to create account", nil, "")
+		SendErrorEnvelope(w, http.StatusInternalServerError, "Failed to create account", nil, "")
+		return
 	}
 
 	a.DB.Preload("CreatedBy").Preload("UpdatedBy").First(&account, "id = ?", account.ID)
 	a.logAudit(orgID, userID,
 		"account", account.ID, models.AuditActionCreated, nil, &account)
 
-	return r.SendEnvelope(accountToResponse(account))
+	SendEnvelope(w, accountToResponse(account))
+	return
 }
 
 // GetAccount returns a single WhatsApp account
-func (a *App) GetAccount(r *fastglue.Request) error {
-	orgID, _, err := a.requireAuth(r, models.ResourceAccounts, models.ActionRead)
+func (a *App) GetAccount(w http.ResponseWriter, r *http.Request) {
+	orgID, _, err := a.requireAuthHTTP(w, r, models.ResourceAccounts, models.ActionRead)
 	if err != nil {
-		return nil
+		return
 	}
 
-	id, err := parsePathUUID(r, "id", "account")
+	id, err := parsePathUUIDHTTP(w, r, "id", "account")
 	if err != nil {
-		return nil
+		return
 	}
 
-	account, err := findByIDAndOrg[models.WhatsAppAccount](
-		a.DB.Preload("CreatedBy").Preload("UpdatedBy"), r, id, orgID, "Account")
+	account, err := findByIDAndOrgHTTP[models.WhatsAppAccount](
+		a.DB.Preload("CreatedBy").Preload("UpdatedBy"), w, id, orgID, "Account")
 	if err != nil {
-		return nil
+		return
 	}
 
-	return r.SendEnvelope(accountToResponse(*account))
+	SendEnvelope(w, accountToResponse(*account))
+	return
 }
 
 // UpdateAccount updates a WhatsApp account
-func (a *App) UpdateAccount(r *fastglue.Request) error {
-	orgID, userID, err := a.requireAuth(r, models.ResourceAccounts, models.ActionWrite)
+func (a *App) UpdateAccount(w http.ResponseWriter, r *http.Request) {
+	orgID, userID, err := a.requireAuthHTTP(w, r, models.ResourceAccounts, models.ActionWrite)
 	if err != nil {
-		return nil
+		return
 	}
 
-	id, err := parsePathUUID(r, "id", "account")
+	id, err := parsePathUUIDHTTP(w, r, "id", "account")
 	if err != nil {
-		return nil
+		return
 	}
 
-	account, err := a.resolveWhatsAppAccountByID(r, id, orgID)
+	account, err := a.resolveWhatsAppAccountByIDHTTP(w, id, orgID)
 	if err != nil {
-		return nil
+		return
 	}
 
 	oldAccount := *account // value copy for audit
 
 	var req AccountRequest
-	if err := a.decodeRequest(r, &req); err != nil {
-		return nil
+	if err := a.decodeRequestHTTP(w, r, &req); err != nil {
+		return
 	}
 
 	// Update fields if provided
@@ -225,7 +230,8 @@ func (a *App) UpdateAccount(r *fastglue.Request) error {
 		enc, err := crypto.Encrypt(req.AccessToken, a.Config.App.EncryptionKey)
 		if err != nil {
 			a.Log.Error("Failed to encrypt access token", "error", err)
-			return r.SendErrorEnvelope(fasthttp.StatusInternalServerError, "Failed to update account", nil, "")
+			SendErrorEnvelope(w, http.StatusInternalServerError, "Failed to update account", nil, "")
+			return
 		}
 		account.AccessToken = enc
 		tokenChanged = true
@@ -234,7 +240,8 @@ func (a *App) UpdateAccount(r *fastglue.Request) error {
 		enc, err := crypto.Encrypt(req.AppSecret, a.Config.App.EncryptionKey)
 		if err != nil {
 			a.Log.Error("Failed to encrypt app secret", "error", err)
-			return r.SendErrorEnvelope(fasthttp.StatusInternalServerError, "Failed to update account", nil, "")
+			SendErrorEnvelope(w, http.StatusInternalServerError, "Failed to update account", nil, "")
+			return
 		}
 		account.AppSecret = enc
 		secretChanged = true
@@ -265,7 +272,8 @@ func (a *App) UpdateAccount(r *fastglue.Request) error {
 
 	if err := a.DB.Save(account).Error; err != nil {
 		a.Log.Error("Failed to update account", "error", err)
-		return r.SendErrorEnvelope(fasthttp.StatusInternalServerError, "Failed to update account", nil, "")
+		SendErrorEnvelope(w, http.StatusInternalServerError, "Failed to update account", nil, "")
+		return
 	}
 
 	// Invalidate cache
@@ -287,30 +295,32 @@ func (a *App) UpdateAccount(r *fastglue.Request) error {
 	a.logAudit(orgID, userID,
 		"account", account.ID, models.AuditActionUpdated, &oldAccount, account, sensitiveChanges...)
 
-	return r.SendEnvelope(accountToResponse(*account))
+	SendEnvelope(w, accountToResponse(*account))
+	return
 }
 
 // DeleteAccount deletes a WhatsApp account
-func (a *App) DeleteAccount(r *fastglue.Request) error {
-	orgID, userID, err := a.requireAuth(r, models.ResourceAccounts, models.ActionDelete)
+func (a *App) DeleteAccount(w http.ResponseWriter, r *http.Request) {
+	orgID, userID, err := a.requireAuthHTTP(w, r, models.ResourceAccounts, models.ActionDelete)
 	if err != nil {
-		return nil
+		return
 	}
 
-	id, err := parsePathUUID(r, "id", "account")
+	id, err := parsePathUUIDHTTP(w, r, "id", "account")
 	if err != nil {
-		return nil
+		return
 	}
 
 	// Get account first for cache invalidation and audit
-	account, err := findByIDAndOrg[models.WhatsAppAccount](a.DB, r, id, orgID, "Account")
+	account, err := findByIDAndOrgHTTP[models.WhatsAppAccount](a.DB, w, id, orgID, "Account")
 	if err != nil {
-		return nil
+		return
 	}
 
 	if err := a.DB.Delete(account).Error; err != nil {
 		a.Log.Error("Failed to delete account", "error", err)
-		return r.SendErrorEnvelope(fasthttp.StatusInternalServerError, "Failed to delete account", nil, "")
+		SendErrorEnvelope(w, http.StatusInternalServerError, "Failed to delete account", nil, "")
+		return
 	}
 
 	// Invalidate cache
@@ -319,34 +329,37 @@ func (a *App) DeleteAccount(r *fastglue.Request) error {
 	a.logAudit(orgID, userID,
 		"account", id, models.AuditActionDeleted, account, nil)
 
-	return r.SendEnvelope(map[string]string{"message": "Account deleted successfully"})
+	SendEnvelope(w, map[string]string{"message": "Account deleted successfully"})
+	return
 }
 
 // TestAccountConnection tests the WhatsApp API connection
 // This validates both PhoneID and BusinessID to ensure all credentials are correct
-func (a *App) TestAccountConnection(r *fastglue.Request) error {
-	orgID, err := a.getOrgID(r)
+func (a *App) TestAccountConnection(w http.ResponseWriter, r *http.Request) {
+	orgID, err := a.getOrgIDHTTP(r)
 	if err != nil {
-		return r.SendErrorEnvelope(fasthttp.StatusUnauthorized, "Unauthorized", nil, "")
+		SendErrorEnvelope(w, http.StatusUnauthorized, "Unauthorized", nil, "")
+		return
 	}
 
-	id, err := parsePathUUID(r, "id", "account")
+	id, err := parsePathUUIDHTTP(w, r, "id", "account")
 	if err != nil {
-		return nil
+		return
 	}
 
-	account, err := a.resolveWhatsAppAccountByID(r, id, orgID)
+	account, err := a.resolveWhatsAppAccountByIDHTTP(w, id, orgID)
 	if err != nil {
-		return nil
+		return
 	}
 
 	// Use the comprehensive validation function
 	if err := a.validateAccountCredentials(account.PhoneID, account.BusinessID, account.AccessToken, account.APIVersion); err != nil {
 		a.Log.Error("Account test failed", "error", err, "account", account.Name)
-		return r.SendEnvelope(map[string]any{
+		SendEnvelope(w, map[string]any{
 			"success": false,
 			"error":   fmt.Sprintf("Account credential validation failed: %s", err.Error()),
 		})
+		return
 	}
 
 	// Fetch additional details for display
@@ -356,17 +369,19 @@ func (a *App) TestAccountConnection(r *fastglue.Request) error {
 	result, status, err := a.fetchMetaJSON(phoneURL, account.AccessToken)
 	if err != nil {
 		a.Log.Error("Failed to connect to WhatsApp API", "error", err)
-		return r.SendEnvelope(map[string]any{
+		SendEnvelope(w, map[string]any{
 			"success": false,
 			"error":   "Failed to connect to WhatsApp API",
 		})
+		return
 	}
 	if status != http.StatusOK {
-		return r.SendEnvelope(map[string]any{
+		SendEnvelope(w, map[string]any{
 			"success": false,
 			"error":   "API error",
 			"details": result,
 		})
+		return
 	}
 
 	// Check if this is a test/sandbox number
@@ -416,7 +431,8 @@ func (a *App) TestAccountConnection(r *fastglue.Request) error {
 		response["warning"] = "Phone verification has expired. Consider re-verifying at: https://business.facebook.com/wa/manage/phone-numbers/"
 	}
 
-	return r.SendEnvelope(response)
+	SendEnvelope(w, response)
+	return
 }
 
 // fetchMetaJSON performs a Bearer-authenticated GET against the Meta Graph API
@@ -501,37 +517,40 @@ func (a *App) validateAccountCredentials(phoneID, businessID, accessToken, apiVe
 
 // SubscribeApp subscribes the app to webhooks for the WhatsApp Business Account.
 // This is required after phone number registration to receive incoming messages from Meta.
-func (a *App) SubscribeApp(r *fastglue.Request) error {
-	orgID, err := a.getOrgID(r)
+func (a *App) SubscribeApp(w http.ResponseWriter, r *http.Request) {
+	orgID, err := a.getOrgIDHTTP(r)
 	if err != nil {
-		return r.SendErrorEnvelope(fasthttp.StatusUnauthorized, "Unauthorized", nil, "")
+		SendErrorEnvelope(w, http.StatusUnauthorized, "Unauthorized", nil, "")
+		return
 	}
 
-	id, err := parsePathUUID(r, "id", "account")
+	id, err := parsePathUUIDHTTP(w, r, "id", "account")
 	if err != nil {
-		return nil
+		return
 	}
 
-	account, err := a.resolveWhatsAppAccountByID(r, id, orgID)
+	account, err := a.resolveWhatsAppAccountByIDHTTP(w, id, orgID)
 	if err != nil {
-		return nil
+		return
 	}
 
 	// Subscribe the app to webhooks
 	ctx := context.Background()
 	if err := a.WhatsApp.SubscribeApp(ctx, a.toWhatsAppAccount(account)); err != nil {
 		a.Log.Error("Failed to subscribe app to webhooks", "error", err, "account", account.Name)
-		return r.SendEnvelope(map[string]any{
+		SendEnvelope(w, map[string]any{
 			"success": false,
 			"error":   "Failed to subscribe app to webhooks. Check your credentials.",
 		})
+		return
 	}
 
 	a.Log.Info("App subscribed to webhooks successfully", "account", account.Name, "business_id", account.BusinessID)
-	return r.SendEnvelope(map[string]any{
+	SendEnvelope(w, map[string]any{
 		"success": true,
 		"message": "App subscribed to webhooks successfully. You should now receive incoming messages.",
 	})
+	return
 }
 
 // resolveMetaAppCreds resolves Meta app ID, App Secret, and Config ID for an organization,
@@ -567,10 +586,10 @@ func (a *App) resolveMetaAppCreds(orgID uuid.UUID) (string, string, string, erro
 }
 
 // ExchangeToken exchanges the temporary code for a permanent access token and creates the account
-func (a *App) ExchangeToken(r *fastglue.Request) error {
-	orgID, userID, err := a.requireAuth(r, models.ResourceAccounts, models.ActionWrite)
+func (a *App) ExchangeToken(w http.ResponseWriter, r *http.Request) {
+	orgID, userID, err := a.requireAuthHTTP(w, r, models.ResourceAccounts, models.ActionWrite)
 	if err != nil {
-		return nil
+		return
 	}
 
 	var req struct {
@@ -580,8 +599,8 @@ func (a *App) ExchangeToken(r *fastglue.Request) error {
 		Name               string `json:"name"`
 		WebhookVerifyToken string `json:"webhook_verify_token"`
 	}
-	if err := a.decodeRequest(r, &req); err != nil {
-		return nil
+	if err := a.decodeRequestHTTP(w, r, &req); err != nil {
+		return
 	}
 
 	a.Log.Info("Received embedded signup exchange token request",
@@ -590,13 +609,15 @@ func (a *App) ExchangeToken(r *fastglue.Request) error {
 		"organization_id", orgID)
 
 	if req.Code == "" {
-		return r.SendErrorEnvelope(fasthttp.StatusBadRequest, "Code is required", nil, "")
+		SendErrorEnvelope(w, http.StatusBadRequest, "Code is required", nil, "")
+		return
 	}
 
 	// 1. Resolve Meta credentials for this org
 	appID, appSecret, _, err := a.resolveMetaAppCreds(orgID)
 	if err != nil {
-		return r.SendErrorEnvelope(fasthttp.StatusInternalServerError, "Failed to resolve credentials", nil, "")
+		SendErrorEnvelope(w, http.StatusInternalServerError, "Failed to resolve credentials", nil, "")
+		return
 	}
 
 	// 2. Exchange code for user access token using WhatsApp service
@@ -607,19 +628,22 @@ func (a *App) ExchangeToken(r *fastglue.Request) error {
 		appID, appSecret, a.Config.WhatsApp.APIVersion)
 	if err != nil {
 		a.Log.Error("Failed to exchange token", "error", err)
-		return r.SendErrorEnvelope(fasthttp.StatusBadRequest, err.Error(), nil, "")
+		SendErrorEnvelope(w, http.StatusBadRequest, err.Error(), nil, "")
+		return
 	}
 
 	// DISCOVERY: If IDs are missing, try to find them using the token
 	phoneID, wabaID, name, err := a.discoverWABAAndPhone(ctx, orgID, accessToken, req.PhoneID, req.WABAID, req.Name)
 	if err != nil {
-		return r.SendErrorEnvelope(fasthttp.StatusBadRequest, err.Error(), nil, "")
+		SendErrorEnvelope(w, http.StatusBadRequest, err.Error(), nil, "")
+		return
 	}
 
 	// 3. We can now create/update the account
 	account, phoneInfo, existingAccount, oldAccount, err := a.createOrUpdateAccount(ctx, orgID, phoneID, wabaID, name, req.WebhookVerifyToken, accessToken, appSecret)
 	if err != nil {
-		return r.SendErrorEnvelope(fasthttp.StatusInternalServerError, err.Error(), nil, "")
+		SendErrorEnvelope(w, http.StatusInternalServerError, err.Error(), nil, "")
+		return
 	}
 
 	// 4. Attempt Auto-Registration
@@ -638,12 +662,14 @@ func (a *App) ExchangeToken(r *fastglue.Request) error {
 	plaintextPin := account.Pin
 	if err := a.encryptAccountSecrets(account); err != nil {
 		a.Log.Error("Failed to encrypt account secrets", "error", err)
-		return r.SendErrorEnvelope(fasthttp.StatusInternalServerError, err.Error(), nil, "")
+		SendErrorEnvelope(w, http.StatusInternalServerError, err.Error(), nil, "")
+		return
 	}
 
 	if err := a.DB.Save(account).Error; err != nil {
 		a.Log.Error("Failed to save account", "error", err)
-		return r.SendErrorEnvelope(fasthttp.StatusInternalServerError, "Failed to save account", nil, "")
+		SendErrorEnvelope(w, http.StatusInternalServerError, "Failed to save account", nil, "")
+		return
 	}
 
 	// Invalidate cache
@@ -676,7 +702,8 @@ func (a *App) ExchangeToken(r *fastglue.Request) error {
 		out["warning"] = "Registration failed: " + regErr.Error()
 	}
 
-	return r.SendEnvelope(out)
+	SendEnvelope(w, out)
+	return
 }
 
 func (a *App) discoverWABAAndPhone(ctx context.Context, orgID uuid.UUID, accessToken, phoneID, wabaID, name string) (string, string, string, error) {
@@ -867,25 +894,25 @@ func (a *App) attemptAutoRegistration(ctx context.Context, account *models.Whats
 }
 
 // RegisterPhoneNumber registers the phone number with Two-Step Verification
-func (a *App) RegisterPhoneNumber(r *fastglue.Request) error {
-	orgID, userID, err := a.requireAuth(r, models.ResourceAccounts, models.ActionWrite)
+func (a *App) RegisterPhoneNumber(w http.ResponseWriter, r *http.Request) {
+	orgID, userID, err := a.requireAuthHTTP(w, r, models.ResourceAccounts, models.ActionWrite)
 	if err != nil {
-		return nil
+		return
 	}
 
-	id, err := parsePathUUID(r, "id", "account")
+	id, err := parsePathUUIDHTTP(w, r, "id", "account")
 	if err != nil {
-		return nil
+		return
 	}
 
 	var req struct {
 		Pin string `json:"pin"` // Optional custom PIN
 	}
-	_ = r.Decode(&req, "json")
+	_ = json.NewDecoder(r.Body).Decode(&req) // optional body
 
-	account, err := a.resolveWhatsAppAccountByID(r, id, orgID)
+	account, err := a.resolveWhatsAppAccountByIDHTTP(w, id, orgID)
 	if err != nil {
-		return nil
+		return
 	}
 
 	oldAccount := *account
@@ -896,7 +923,8 @@ func (a *App) RegisterPhoneNumber(r *fastglue.Request) error {
 		var err error
 		pin, err = generateNumericPIN(6)
 		if err != nil {
-			return r.SendErrorEnvelope(fasthttp.StatusInternalServerError, "Failed to generate secure random PIN", nil, "")
+			SendErrorEnvelope(w, http.StatusInternalServerError, "Failed to generate secure random PIN", nil, "")
+			return
 		}
 	}
 
@@ -911,7 +939,8 @@ func (a *App) RegisterPhoneNumber(r *fastglue.Request) error {
 		// Call Meta Register endpoint using WhatsApp service
 		if err := a.WhatsApp.RegisterPhoneNumber(ctx, account.PhoneID, pin, account.AccessToken, account.APIVersion); err != nil {
 			a.Log.Error("Manual registration failed", "error", err)
-			return r.SendErrorEnvelope(fasthttp.StatusBadRequest, err.Error(), nil, "")
+			SendErrorEnvelope(w, http.StatusBadRequest, err.Error(), nil, "")
+			return
 		}
 	}
 
@@ -922,11 +951,13 @@ func (a *App) RegisterPhoneNumber(r *fastglue.Request) error {
 	// Encrypt secrets before saving
 	if err := a.encryptAccountSecrets(account); err != nil {
 		a.Log.Error("Failed to encrypt account secrets", "error", err)
-		return r.SendErrorEnvelope(fasthttp.StatusInternalServerError, err.Error(), nil, "")
+		SendErrorEnvelope(w, http.StatusInternalServerError, err.Error(), nil, "")
+		return
 	}
 
 	if err := a.DB.Save(account).Error; err != nil {
-		return r.SendErrorEnvelope(fasthttp.StatusInternalServerError, "Failed to update account status", nil, "")
+		SendErrorEnvelope(w, http.StatusInternalServerError, "Failed to update account status", nil, "")
+		return
 	}
 
 	// Invalidate cache
@@ -937,11 +968,12 @@ func (a *App) RegisterPhoneNumber(r *fastglue.Request) error {
 	a.logAudit(orgID, userID,
 		"account", account.ID, models.AuditActionUpdated, &oldAccount, account)
 
-	return r.SendEnvelope(map[string]interface{}{
+	SendEnvelope(w, map[string]interface{}{
 		"success": true,
 		"message": "Phone number registered successfully",
 		"pin":     pin,
 	})
+	return
 }
 
 func generateNumericPIN(length int) (string, error) {

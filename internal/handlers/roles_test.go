@@ -29,8 +29,7 @@ func TestApp_ListRoles_Success(t *testing.T) {
 	req.RequestCtx.SetUserValue("user_id", user.ID)
 	req.RequestCtx.SetUserValue("organization_id", org.ID)
 
-	err := app.ListRoles(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.ListRoles, req)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	var resp struct {
@@ -39,7 +38,7 @@ func TestApp_ListRoles_Success(t *testing.T) {
 			Roles []handlers.RoleResponse `json:"roles"`
 		} `json:"data"`
 	}
-	err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+	err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 	require.NoError(t, err)
 
 	assert.Equal(t, "success", resp.Status)
@@ -65,15 +64,14 @@ func TestApp_GetRole_Success(t *testing.T) {
 	req.RequestCtx.SetUserValue("organization_id", org.ID)
 	req.RequestCtx.SetUserValue("id", role.ID.String())
 
-	err := app.GetRole(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.GetRole, req)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	var resp struct {
 		Status string                `json:"status"`
 		Data   handlers.RoleResponse `json:"data"`
 	}
-	err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+	err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 	require.NoError(t, err)
 
 	assert.Equal(t, "success", resp.Status)
@@ -92,8 +90,7 @@ func TestApp_GetRole_NotFound(t *testing.T) {
 	req.RequestCtx.SetUserValue("organization_id", org.ID)
 	req.RequestCtx.SetUserValue("id", uuid.New().String())
 
-	err := app.GetRole(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.GetRole, req)
 	assert.Equal(t, fasthttp.StatusNotFound, testutil.GetResponseStatusCode(req))
 }
 
@@ -114,15 +111,14 @@ func TestApp_CreateRole_Success(t *testing.T) {
 	req.RequestCtx.SetUserValue("user_id", user.ID)
 	req.RequestCtx.SetUserValue("organization_id", org.ID)
 
-	err := app.CreateRole(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.CreateRole, req)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	var resp struct {
 		Status string                `json:"status"`
 		Data   handlers.RoleResponse `json:"data"`
 	}
-	err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+	err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 	require.NoError(t, err)
 
 	assert.Equal(t, "success", resp.Status)
@@ -158,8 +154,7 @@ func TestApp_CreateRole_DuplicateName(t *testing.T) {
 	req.RequestCtx.SetUserValue("user_id", user.ID)
 	req.RequestCtx.SetUserValue("organization_id", org.ID)
 
-	err := app.CreateRole(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.CreateRole, req)
 	assert.Equal(t, fasthttp.StatusConflict, testutil.GetResponseStatusCode(req))
 }
 
@@ -178,8 +173,7 @@ func TestApp_CreateRole_MissingName(t *testing.T) {
 	req.RequestCtx.SetUserValue("user_id", user.ID)
 	req.RequestCtx.SetUserValue("organization_id", org.ID)
 
-	err := app.CreateRole(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.CreateRole, req)
 	assert.Equal(t, fasthttp.StatusBadRequest, testutil.GetResponseStatusCode(req))
 }
 
@@ -203,8 +197,7 @@ func TestApp_CreateRole_WithDefaultFlag(t *testing.T) {
 	req.RequestCtx.SetUserValue("user_id", user.ID)
 	req.RequestCtx.SetUserValue("organization_id", org.ID)
 
-	err := app.CreateRole(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.CreateRole, req)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	// Verify the old default was unset
@@ -232,15 +225,14 @@ func TestApp_UpdateRole_Success(t *testing.T) {
 	req.RequestCtx.SetUserValue("organization_id", org.ID)
 	req.RequestCtx.SetUserValue("id", role.ID.String())
 
-	err := app.UpdateRole(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.UpdateRole, req)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	var resp struct {
 		Status string                `json:"status"`
 		Data   handlers.RoleResponse `json:"data"`
 	}
-	err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+	err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 	require.NoError(t, err)
 
 	assert.Equal(t, "Updated Role Name", resp.Data.Name)
@@ -268,15 +260,14 @@ func TestApp_UpdateRole_SystemRoleOnlyDescription(t *testing.T) {
 	req.RequestCtx.SetUserValue("organization_id", org.ID)
 	req.RequestCtx.SetUserValue("id", systemRole.ID.String())
 
-	err := app.UpdateRole(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.UpdateRole, req)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	var resp struct {
 		Status string                `json:"status"`
 		Data   handlers.RoleResponse `json:"data"`
 	}
-	err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+	err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 	require.NoError(t, err)
 
 	// Name should not change for system roles
@@ -300,8 +291,7 @@ func TestApp_UpdateRole_NotFound(t *testing.T) {
 	req.RequestCtx.SetUserValue("organization_id", org.ID)
 	req.RequestCtx.SetUserValue("id", uuid.New().String())
 
-	err := app.UpdateRole(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.UpdateRole, req)
 	assert.Equal(t, fasthttp.StatusNotFound, testutil.GetResponseStatusCode(req))
 }
 
@@ -318,13 +308,12 @@ func TestApp_DeleteRole_Success(t *testing.T) {
 	req.RequestCtx.SetUserValue("organization_id", org.ID)
 	req.RequestCtx.SetUserValue("id", role.ID.String())
 
-	err := app.DeleteRole(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.DeleteRole, req)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	// Verify role was deleted
 	var dbRole models.CustomRole
-	err = app.DB.First(&dbRole, "id = ?", role.ID).Error
+	err := app.DB.First(&dbRole, "id = ?", role.ID).Error
 	assert.Error(t, err) // Should be not found
 }
 
@@ -341,8 +330,7 @@ func TestApp_DeleteRole_SystemRole(t *testing.T) {
 	req.RequestCtx.SetUserValue("organization_id", org.ID)
 	req.RequestCtx.SetUserValue("id", systemRole.ID.String())
 
-	err := app.DeleteRole(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.DeleteRole, req)
 	assert.Equal(t, fasthttp.StatusBadRequest, testutil.GetResponseStatusCode(req))
 
 	// Verify role still exists
@@ -365,8 +353,7 @@ func TestApp_DeleteRole_WithAssignedUsers(t *testing.T) {
 	req.RequestCtx.SetUserValue("organization_id", org.ID)
 	req.RequestCtx.SetUserValue("id", role.ID.String())
 
-	err := app.DeleteRole(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.DeleteRole, req)
 	assert.Equal(t, fasthttp.StatusBadRequest, testutil.GetResponseStatusCode(req))
 }
 
@@ -380,8 +367,7 @@ func TestApp_ListPermissions_Success(t *testing.T) {
 	req.RequestCtx.SetUserValue("user_id", user.ID)
 	req.RequestCtx.SetUserValue("organization_id", org.ID)
 
-	err := app.ListPermissions(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.ListPermissions, req)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	var resp struct {
@@ -390,7 +376,7 @@ func TestApp_ListPermissions_Success(t *testing.T) {
 			Permissions []handlers.PermissionResponse `json:"permissions"`
 		} `json:"data"`
 	}
-	err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+	err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 	require.NoError(t, err)
 
 	assert.Equal(t, "success", resp.Status)

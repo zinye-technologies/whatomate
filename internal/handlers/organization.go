@@ -2,16 +2,16 @@ package handlers
 
 import (
 	"encoding/json"
+	"net/http"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/shridarpatil/whatomate/internal/audit"
 	"github.com/shridarpatil/whatomate/internal/crypto"
 	"github.com/shridarpatil/whatomate/internal/database"
+	"github.com/shridarpatil/whatomate/internal/middleware"
 	"github.com/shridarpatil/whatomate/internal/models"
 	"github.com/shridarpatil/whatomate/internal/utils"
-	"github.com/valyala/fasthttp"
-	"github.com/zerodha/fastglue"
 )
 
 // generalSettingsSnapshot extracts the fields shown on the General tab into a
@@ -63,15 +63,17 @@ type OrganizationSettings struct {
 }
 
 // GetOrganizationSettings returns the organization settings
-func (a *App) GetOrganizationSettings(r *fastglue.Request) error {
-	orgID, err := a.getOrgID(r)
+func (a *App) GetOrganizationSettings(w http.ResponseWriter, r *http.Request) {
+	orgID, err := a.getOrgIDHTTP(r)
 	if err != nil {
-		return r.SendErrorEnvelope(fasthttp.StatusUnauthorized, "Unauthorized", nil, "")
+		SendErrorEnvelope(w, http.StatusUnauthorized, "Unauthorized", nil, "")
+		return
 	}
 
 	var org models.Organization
 	if err := a.DB.Where("id = ?", orgID).First(&org).Error; err != nil {
-		return r.SendErrorEnvelope(fasthttp.StatusNotFound, "Organization not found", nil, "")
+		SendErrorEnvelope(w, http.StatusNotFound, "Organization not found", nil, "")
+		return
 	}
 
 	// Parse settings from JSONB
@@ -122,17 +124,19 @@ func (a *App) GetOrganizationSettings(r *fastglue.Request) error {
 		}
 	}
 
-	return r.SendEnvelope(map[string]any{
+	SendEnvelope(w, map[string]any{
 		"settings": settings,
 		"name":     org.Name,
 	})
+	return
 }
 
 // UpdateOrganizationSettings updates the organization settings
-func (a *App) UpdateOrganizationSettings(r *fastglue.Request) error {
-	orgID, userID, err := a.getOrgAndUserID(r)
+func (a *App) UpdateOrganizationSettings(w http.ResponseWriter, r *http.Request) {
+	orgID, userID, err := a.getOrgAndUserIDHTTP(r)
 	if err != nil {
-		return r.SendErrorEnvelope(fasthttp.StatusUnauthorized, "Unauthorized", nil, "")
+		SendErrorEnvelope(w, http.StatusUnauthorized, "Unauthorized", nil, "")
+		return
 	}
 
 	var req struct {
@@ -150,20 +154,23 @@ func (a *App) UpdateOrganizationSettings(r *fastglue.Request) error {
 		MetaAppSecret       *string `json:"meta_app_secret"`
 	}
 
-	if err := json.Unmarshal(r.RequestCtx.PostBody(), &req); err != nil {
-		return r.SendErrorEnvelope(fasthttp.StatusBadRequest, "Invalid request body", nil, "")
+	if err := json.Unmarshal(readBody(r), &req); err != nil {
+		SendErrorEnvelope(w, http.StatusBadRequest, "Invalid request body", nil, "")
+		return
 	}
 
 	var org models.Organization
 	if err := a.DB.Where("id = ?", orgID).First(&org).Error; err != nil {
-		return r.SendErrorEnvelope(fasthttp.StatusNotFound, "Organization not found", nil, "")
+		SendErrorEnvelope(w, http.StatusNotFound, "Organization not found", nil, "")
+		return
 	}
 
 	// Gating Meta App credentials update on accounts:write permission
 	metaAppCredsTouched := req.MetaAppID != nil || req.MetaConfigID != nil || req.MetaAppSecret != nil
 	if metaAppCredsTouched {
-		if err := a.requirePermission(r, userID, models.ResourceAccounts, models.ActionWrite); err != nil {
-			return nil
+		if !a.HasPermission(userID, models.ResourceAccounts, models.ActionWrite, orgID) {
+			SendErrorEnvelope(w, http.StatusForbidden, "Insufficient permissions", nil, "")
+			return
 		}
 	}
 
@@ -214,7 +221,8 @@ func (a *App) UpdateOrganizationSettings(r *fastglue.Request) error {
 		encSecret, errEnc := crypto.Encrypt(*req.MetaAppSecret, a.Config.App.EncryptionKey)
 		if errEnc != nil {
 			a.Log.Error("Failed to encrypt meta app secret", "error", errEnc)
-			return r.SendErrorEnvelope(fasthttp.StatusInternalServerError, "Failed to update settings", nil, "")
+			SendErrorEnvelope(w, http.StatusInternalServerError, "Failed to update settings", nil, "")
+			return
 		}
 		org.Settings["meta_app_secret_encrypted"] = encSecret
 	}
@@ -224,7 +232,8 @@ func (a *App) UpdateOrganizationSettings(r *fastglue.Request) error {
 
 	if err := a.DB.Save(&org).Error; err != nil {
 		a.Log.Error("Failed to update settings", "error", err)
-		return r.SendErrorEnvelope(fasthttp.StatusInternalServerError, "Failed to update settings", nil, "")
+		SendErrorEnvelope(w, http.StatusInternalServerError, "Failed to update settings", nil, "")
+		return
 	}
 
 	if a.CallManager != nil {
@@ -244,9 +253,10 @@ func (a *App) UpdateOrganizationSettings(r *fastglue.Request) error {
 			models.ResourceSettingsCalling, orgID, models.AuditActionUpdated, oldCalling, newCalling)
 	}
 
-	return r.SendEnvelope(map[string]any{
+	SendEnvelope(w, map[string]any{
 		"message": "Settings updated successfully",
 	})
+	return
 }
 
 // IsCallingEnabledForOrg checks if calling is enabled for an organization.
@@ -267,11 +277,11 @@ func (a *App) IsCallingEnabledForOrg(orgID any) bool {
 	return false
 }
 
-// requireCallingEnabled checks if calling is enabled for the org and returns an error
-// envelope if not. Returns nil when calling is enabled and the handler can proceed.
-func (a *App) requireCallingEnabled(r *fastglue.Request, orgID uuid.UUID) error {
+// requireCallingEnabledHTTP is the net/http variant of requireCallingEnabled.
+func (a *App) requireCallingEnabledHTTP(w http.ResponseWriter, orgID uuid.UUID) error {
 	if !a.IsCallingEnabledForOrg(orgID) {
-		return r.SendErrorEnvelope(fasthttp.StatusServiceUnavailable, "Calling is not enabled for this organization", nil, "")
+		SendErrorEnvelope(w, http.StatusServiceUnavailable, "Calling is not enabled for this organization", nil, "")
+		return errEnvelopeSent
 	}
 	return nil
 }
@@ -337,21 +347,24 @@ type OrganizationResponse struct {
 }
 
 // ListOrganizations returns all organizations (super admin or users with organizations:read)
-func (a *App) ListOrganizations(r *fastglue.Request) error {
-	userID, ok := r.RequestCtx.UserValue("user_id").(uuid.UUID)
+func (a *App) ListOrganizations(w http.ResponseWriter, r *http.Request) {
+	userID, ok := middleware.UserIDFromContext(r.Context())
 	if !ok {
-		return r.SendErrorEnvelope(fasthttp.StatusUnauthorized, "Unauthorized", nil, "")
+		SendErrorEnvelope(w, http.StatusUnauthorized, "Unauthorized", nil, "")
+		return
 	}
 
 	// Super admins or users with organizations:read permission
 	if !a.IsSuperAdmin(userID) && !a.HasPermission(userID, models.ResourceOrganizations, models.ActionRead) {
-		return r.SendErrorEnvelope(fasthttp.StatusForbidden, "Insufficient permissions", nil, "")
+		SendErrorEnvelope(w, http.StatusForbidden, "Insufficient permissions", nil, "")
+		return
 	}
 
 	var orgs []models.Organization
 	if err := a.DB.Order("name ASC").Find(&orgs).Error; err != nil {
 		a.Log.Error("Failed to list organizations", "error", err)
-		return r.SendErrorEnvelope(fasthttp.StatusInternalServerError, "Failed to list organizations", nil, "")
+		SendErrorEnvelope(w, http.StatusInternalServerError, "Failed to list organizations", nil, "")
+		return
 	}
 
 	response := make([]OrganizationResponse, len(orgs))
@@ -364,24 +377,27 @@ func (a *App) ListOrganizations(r *fastglue.Request) error {
 		}
 	}
 
-	return r.SendEnvelope(map[string]any{
+	SendEnvelope(w, map[string]any{
 		"organizations": response,
 	})
+	return
 }
 
-// GetCurrentOrganization returns the current user's organization details
-func (a *App) GetCurrentOrganization(r *fastglue.Request) error {
-	orgID, err := a.getOrgID(r)
+// GetCurrentOrganization returns the current user's organization details (native net/http).
+func (a *App) GetCurrentOrganization(w http.ResponseWriter, r *http.Request) {
+	orgID, err := a.getOrgIDHTTP(r)
 	if err != nil {
-		return r.SendErrorEnvelope(fasthttp.StatusUnauthorized, "Unauthorized", nil, "")
+		SendErrorEnvelope(w, http.StatusUnauthorized, "Unauthorized", nil, "")
+		return
 	}
 
 	var org models.Organization
 	if err := a.DB.Where("id = ?", orgID).First(&org).Error; err != nil {
-		return r.SendErrorEnvelope(fasthttp.StatusNotFound, "Organization not found", nil, "")
+		SendErrorEnvelope(w, http.StatusNotFound, "Organization not found", nil, "")
+		return
 	}
 
-	return r.SendEnvelope(OrganizationResponse{
+	SendEnvelope(w, OrganizationResponse{
 		ID:        org.ID,
 		Name:      org.Name,
 		Slug:      org.Slug,
@@ -395,26 +411,28 @@ type CreateOrganizationRequest struct {
 }
 
 // CreateOrganization creates a new organization
-func (a *App) CreateOrganization(r *fastglue.Request) error {
-	_, userID, err := a.requireAuth(r, models.ResourceOrganizations, models.ActionWrite)
+func (a *App) CreateOrganization(w http.ResponseWriter, r *http.Request) {
+	_, userID, err := a.requireAuthHTTP(w, r, models.ResourceOrganizations, models.ActionWrite)
 	if err != nil {
-		return nil
+		return
 	}
 
 	var req CreateOrganizationRequest
-	if err := a.decodeRequest(r, &req); err != nil {
-		return nil
+	if err := a.decodeRequestHTTP(w, r, &req); err != nil {
+		return
 	}
 
 	if req.Name == "" {
-		return r.SendErrorEnvelope(fasthttp.StatusBadRequest, "Organization name is required", nil, "")
+		SendErrorEnvelope(w, http.StatusBadRequest, "Organization name is required", nil, "")
+		return
 	}
 
 	// Start transaction
 	tx := a.DB.Begin()
 	if tx.Error != nil {
 		a.Log.Error("Failed to begin transaction", "error", tx.Error)
-		return r.SendErrorEnvelope(fasthttp.StatusInternalServerError, "Failed to create organization", nil, "")
+		SendErrorEnvelope(w, http.StatusInternalServerError, "Failed to create organization", nil, "")
+		return
 	}
 
 	org := models.Organization{
@@ -426,14 +444,16 @@ func (a *App) CreateOrganization(r *fastglue.Request) error {
 	if err := tx.Create(&org).Error; err != nil {
 		tx.Rollback()
 		a.Log.Error("Failed to create organization", "error", err)
-		return r.SendErrorEnvelope(fasthttp.StatusInternalServerError, "Failed to create organization", nil, "")
+		SendErrorEnvelope(w, http.StatusInternalServerError, "Failed to create organization", nil, "")
+		return
 	}
 
 	// Seed system roles for the new organization
 	if err := database.SeedSystemRolesForOrg(tx, org.ID); err != nil {
 		tx.Rollback()
 		a.Log.Error("Failed to seed system roles", "error", err, "org_id", org.ID)
-		return r.SendErrorEnvelope(fasthttp.StatusInternalServerError, "Failed to create organization", nil, "")
+		SendErrorEnvelope(w, http.StatusInternalServerError, "Failed to create organization", nil, "")
+		return
 	}
 
 	// Create default chatbot settings
@@ -445,7 +465,8 @@ func (a *App) CreateOrganization(r *fastglue.Request) error {
 	if err := tx.Create(&chatbotSettings).Error; err != nil {
 		tx.Rollback()
 		a.Log.Error("Failed to create chatbot settings", "error", err, "org_id", org.ID)
-		return r.SendErrorEnvelope(fasthttp.StatusInternalServerError, "Failed to create organization", nil, "")
+		SendErrorEnvelope(w, http.StatusInternalServerError, "Failed to create organization", nil, "")
+		return
 	}
 
 	// Get admin role for this org and add the creator as admin
@@ -453,7 +474,8 @@ func (a *App) CreateOrganization(r *fastglue.Request) error {
 	if err := tx.Where("organization_id = ? AND name = ? AND is_system = ?", org.ID, "admin", true).First(&adminRole).Error; err != nil {
 		tx.Rollback()
 		a.Log.Error("Failed to find admin role", "error", err, "org_id", org.ID)
-		return r.SendErrorEnvelope(fasthttp.StatusInternalServerError, "Failed to create organization", nil, "")
+		SendErrorEnvelope(w, http.StatusInternalServerError, "Failed to create organization", nil, "")
+		return
 	}
 
 	userOrg := models.UserOrganization{
@@ -465,29 +487,33 @@ func (a *App) CreateOrganization(r *fastglue.Request) error {
 	if err := tx.Create(&userOrg).Error; err != nil {
 		tx.Rollback()
 		a.Log.Error("Failed to add creator to organization", "error", err)
-		return r.SendErrorEnvelope(fasthttp.StatusInternalServerError, "Failed to create organization", nil, "")
+		SendErrorEnvelope(w, http.StatusInternalServerError, "Failed to create organization", nil, "")
+		return
 	}
 
 	// Seed default dashboard widgets for the new organization
 	if err := database.SeedDefaultWidgetsForOrg(tx, org.ID, userID); err != nil {
 		tx.Rollback()
 		a.Log.Error("Failed to seed default widgets", "error", err, "org_id", org.ID)
-		return r.SendErrorEnvelope(fasthttp.StatusInternalServerError, "Failed to create organization", nil, "")
+		SendErrorEnvelope(w, http.StatusInternalServerError, "Failed to create organization", nil, "")
+		return
 	}
 
 	if err := tx.Commit().Error; err != nil {
 		a.Log.Error("Failed to commit transaction", "error", err)
-		return r.SendErrorEnvelope(fasthttp.StatusInternalServerError, "Failed to create organization", nil, "")
+		SendErrorEnvelope(w, http.StatusInternalServerError, "Failed to create organization", nil, "")
+		return
 	}
 
 	a.Log.Info("Created organization", "org_id", org.ID, "org_name", org.Name, "created_by", userID)
 
-	return r.SendEnvelope(OrganizationResponse{
+	SendEnvelope(w, OrganizationResponse{
 		ID:        org.ID,
 		Name:      org.Name,
 		Slug:      org.Slug,
 		CreatedAt: org.CreatedAt.Format("2006-01-02T15:04:05Z"),
 	})
+	return
 }
 
 // MemberResponse represents an organization member in API responses
@@ -505,14 +531,14 @@ type MemberResponse struct {
 }
 
 // ListOrganizationMembers returns all members of the current organization
-func (a *App) ListOrganizationMembers(r *fastglue.Request) error {
-	orgID, _, err := a.requireAuth(r, models.ResourceOrganizations, models.ActionRead)
+func (a *App) ListOrganizationMembers(w http.ResponseWriter, r *http.Request) {
+	orgID, _, err := a.requireAuthHTTP(w, r, models.ResourceOrganizations, models.ActionRead)
 	if err != nil {
-		return nil
+		return
 	}
 
-	pg := parsePagination(r)
-	search := string(r.RequestCtx.QueryArgs().Peek("search"))
+	pg := parsePaginationHTTP(r)
+	search := r.URL.Query().Get("search")
 
 	baseQuery := a.DB.Table("user_organizations").
 		Joins("LEFT JOIN users ON users.id = user_organizations.user_id AND users.deleted_at IS NULL").
@@ -535,10 +561,12 @@ func (a *App) ListOrganizationMembers(r *fastglue.Request) error {
 		Order("user_organizations.created_at DESC")).
 		Scan(&response).Error; err != nil {
 		a.Log.Error("Failed to list organization members", "error", err)
-		return r.SendErrorEnvelope(fasthttp.StatusInternalServerError, "Failed to list members", nil, "")
+		SendErrorEnvelope(w, http.StatusInternalServerError, "Failed to list members", nil, "")
+		return
 	}
 
-	return r.SendEnvelope(listEnvelope("members", response, total, pg))
+	SendEnvelope(w, listEnvelope("members", response, total, pg))
+	return
 }
 
 // AddMemberRequest represents the request body for adding a member to an organization
@@ -549,29 +577,32 @@ type AddMemberRequest struct {
 }
 
 // AddOrganizationMember adds an existing user to the current organization
-func (a *App) AddOrganizationMember(r *fastglue.Request) error {
-	orgID, _, err := a.requireAuth(r, models.ResourceOrganizations, models.ActionAssign)
+func (a *App) AddOrganizationMember(w http.ResponseWriter, r *http.Request) {
+	orgID, _, err := a.requireAuthHTTP(w, r, models.ResourceOrganizations, models.ActionAssign)
 	if err != nil {
-		return nil
+		return
 	}
 
 	var req AddMemberRequest
-	if err := a.decodeRequest(r, &req); err != nil {
-		return nil
+	if err := a.decodeRequestHTTP(w, r, &req); err != nil {
+		return
 	}
 
 	// Resolve target user by user_id or email
 	var targetUser models.User
 	if req.UserID != uuid.Nil {
 		if err := a.DB.Where("id = ?", req.UserID).First(&targetUser).Error; err != nil {
-			return r.SendErrorEnvelope(fasthttp.StatusNotFound, "User not found", nil, "")
+			SendErrorEnvelope(w, http.StatusNotFound, "User not found", nil, "")
+			return
 		}
 	} else if req.Email != "" {
 		if err := a.DB.Where("email = ?", req.Email).First(&targetUser).Error; err != nil {
-			return r.SendErrorEnvelope(fasthttp.StatusNotFound, "No user found with this email", nil, "")
+			SendErrorEnvelope(w, http.StatusNotFound, "No user found with this email", nil, "")
+			return
 		}
 	} else {
-		return r.SendErrorEnvelope(fasthttp.StatusBadRequest, "user_id or email is required", nil, "")
+		SendErrorEnvelope(w, http.StatusBadRequest, "user_id or email is required", nil, "")
+		return
 	}
 
 	// Check if already a member
@@ -580,7 +611,8 @@ func (a *App) AddOrganizationMember(r *fastglue.Request) error {
 		Where("user_id = ? AND organization_id = ?", targetUser.ID, orgID).
 		Count(&existingCount)
 	if existingCount > 0 {
-		return r.SendErrorEnvelope(fasthttp.StatusConflict, "User is already a member of this organization", nil, "")
+		SendErrorEnvelope(w, http.StatusConflict, "User is already a member of this organization", nil, "")
+		return
 	}
 
 	// Determine role
@@ -589,7 +621,8 @@ func (a *App) AddOrganizationMember(r *fastglue.Request) error {
 		// Validate role exists and belongs to org
 		var role models.CustomRole
 		if err := a.DB.Where("id = ? AND organization_id = ?", req.RoleID, orgID).First(&role).Error; err != nil {
-			return r.SendErrorEnvelope(fasthttp.StatusBadRequest, "Invalid role", nil, "")
+			SendErrorEnvelope(w, http.StatusBadRequest, "Invalid role", nil, "")
+			return
 		}
 		roleID = req.RoleID
 	} else {
@@ -609,43 +642,49 @@ func (a *App) AddOrganizationMember(r *fastglue.Request) error {
 
 	if err := a.DB.Create(&userOrg).Error; err != nil {
 		a.Log.Error("Failed to add organization member", "error", err)
-		return r.SendErrorEnvelope(fasthttp.StatusInternalServerError, "Failed to add member", nil, "")
+		SendErrorEnvelope(w, http.StatusInternalServerError, "Failed to add member", nil, "")
+		return
 	}
 
-	return r.SendEnvelope(map[string]string{"message": "Member added successfully"})
+	SendEnvelope(w, map[string]string{"message": "Member added successfully"})
+	return
 }
 
 // RemoveOrganizationMember removes a user from the current organization
-func (a *App) RemoveOrganizationMember(r *fastglue.Request) error {
-	orgID, userID, err := a.requireAuth(r, models.ResourceOrganizations, models.ActionAssign)
+func (a *App) RemoveOrganizationMember(w http.ResponseWriter, r *http.Request) {
+	orgID, userID, err := a.requireAuthHTTP(w, r, models.ResourceOrganizations, models.ActionAssign)
 	if err != nil {
-		return nil
+		return
 	}
 
-	targetUserID, err := parsePathUUID(r, "member_id", "member")
+	targetUserID, err := parsePathUUIDHTTP(w, r, "member_id", "member")
 	if err != nil {
-		return nil
+		return
 	}
 
 	// Cannot remove self
 	if targetUserID == userID {
-		return r.SendErrorEnvelope(fasthttp.StatusBadRequest, "Cannot remove yourself from the organization", nil, "")
+		SendErrorEnvelope(w, http.StatusBadRequest, "Cannot remove yourself from the organization", nil, "")
+		return
 	}
 
 	result := a.DB.Where("user_id = ? AND organization_id = ?", targetUserID, orgID).
 		Delete(&models.UserOrganization{})
 	if result.Error != nil {
 		a.Log.Error("Failed to remove organization member", "error", result.Error)
-		return r.SendErrorEnvelope(fasthttp.StatusInternalServerError, "Failed to remove member", nil, "")
+		SendErrorEnvelope(w, http.StatusInternalServerError, "Failed to remove member", nil, "")
+		return
 	}
 	if result.RowsAffected == 0 {
-		return r.SendErrorEnvelope(fasthttp.StatusNotFound, "Member not found in this organization", nil, "")
+		SendErrorEnvelope(w, http.StatusNotFound, "Member not found in this organization", nil, "")
+		return
 	}
 
 	// Invalidate removed user's permission cache
 	a.InvalidateUserPermissionsCache(targetUserID)
 
-	return r.SendEnvelope(map[string]string{"message": "Member removed successfully"})
+	SendEnvelope(w, map[string]string{"message": "Member removed successfully"})
+	return
 }
 
 // UpdateMemberRoleRequest represents the request body for updating a member's role
@@ -654,30 +693,32 @@ type UpdateMemberRoleRequest struct {
 }
 
 // UpdateOrganizationMemberRole updates a member's role in the current organization
-func (a *App) UpdateOrganizationMemberRole(r *fastglue.Request) error {
-	orgID, _, err := a.requireAuth(r, models.ResourceOrganizations, models.ActionAssign)
+func (a *App) UpdateOrganizationMemberRole(w http.ResponseWriter, r *http.Request) {
+	orgID, _, err := a.requireAuthHTTP(w, r, models.ResourceOrganizations, models.ActionAssign)
 	if err != nil {
-		return nil
+		return
 	}
 
-	targetUserID, err := parsePathUUID(r, "member_id", "member")
+	targetUserID, err := parsePathUUIDHTTP(w, r, "member_id", "member")
 	if err != nil {
-		return nil
+		return
 	}
 
 	var req UpdateMemberRoleRequest
-	if err := a.decodeRequest(r, &req); err != nil {
-		return nil
+	if err := a.decodeRequestHTTP(w, r, &req); err != nil {
+		return
 	}
 
 	if req.RoleID == uuid.Nil {
-		return r.SendErrorEnvelope(fasthttp.StatusBadRequest, "role_id is required", nil, "")
+		SendErrorEnvelope(w, http.StatusBadRequest, "role_id is required", nil, "")
+		return
 	}
 
 	// Validate role exists and belongs to org
 	var role models.CustomRole
 	if err := a.DB.Where("id = ? AND organization_id = ?", req.RoleID, orgID).First(&role).Error; err != nil {
-		return r.SendErrorEnvelope(fasthttp.StatusBadRequest, "Invalid role", nil, "")
+		SendErrorEnvelope(w, http.StatusBadRequest, "Invalid role", nil, "")
+		return
 	}
 
 	// Update the user's role in this org
@@ -686,14 +727,17 @@ func (a *App) UpdateOrganizationMemberRole(r *fastglue.Request) error {
 		Update("role_id", req.RoleID)
 	if result.Error != nil {
 		a.Log.Error("Failed to update member role", "error", result.Error)
-		return r.SendErrorEnvelope(fasthttp.StatusInternalServerError, "Failed to update member role", nil, "")
+		SendErrorEnvelope(w, http.StatusInternalServerError, "Failed to update member role", nil, "")
+		return
 	}
 	if result.RowsAffected == 0 {
-		return r.SendErrorEnvelope(fasthttp.StatusNotFound, "Member not found in this organization", nil, "")
+		SendErrorEnvelope(w, http.StatusNotFound, "Member not found in this organization", nil, "")
+		return
 	}
 
 	// Invalidate permission cache
 	a.InvalidateUserPermissionsCache(targetUserID)
 
-	return r.SendEnvelope(map[string]string{"message": "Member role updated successfully"})
+	SendEnvelope(w, map[string]string{"message": "Member role updated successfully"})
+	return
 }

@@ -44,8 +44,7 @@ func TestApp_ListTags(t *testing.T) {
 		req := testutil.NewGETRequest(t)
 		testutil.SetAuthContext(req, org.ID, user.ID)
 
-		err := app.ListTags(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.ListTags, req)
 		assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 		var resp struct {
@@ -53,7 +52,7 @@ func TestApp_ListTags(t *testing.T) {
 				Tags []handlers.TagResponse `json:"tags"`
 			} `json:"data"`
 		}
-		err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+		err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 		require.NoError(t, err)
 		assert.Len(t, resp.Data.Tags, 2)
 	})
@@ -67,8 +66,7 @@ func TestApp_ListTags(t *testing.T) {
 		req := testutil.NewGETRequest(t)
 		testutil.SetAuthContext(req, org.ID, user.ID)
 
-		err := app.ListTags(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.ListTags, req)
 		assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 		var resp struct {
@@ -76,7 +74,7 @@ func TestApp_ListTags(t *testing.T) {
 				Tags []handlers.TagResponse `json:"tags"`
 			} `json:"data"`
 		}
-		err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+		err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 		require.NoError(t, err)
 		assert.Empty(t, resp.Data.Tags)
 	})
@@ -94,8 +92,7 @@ func TestApp_ListTags(t *testing.T) {
 		req := testutil.NewGETRequest(t)
 		testutil.SetAuthContext(req, org.ID, user.ID)
 
-		err := app.ListTags(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.ListTags, req)
 		assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 		var resp struct {
@@ -103,7 +100,7 @@ func TestApp_ListTags(t *testing.T) {
 				Tags []handlers.TagResponse `json:"tags"`
 			} `json:"data"`
 		}
-		err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+		err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 		require.NoError(t, err)
 		require.Len(t, resp.Data.Tags, 3)
 		assert.Equal(t, "Alpha", resp.Data.Tags[0].Name)
@@ -126,8 +123,7 @@ func TestApp_ListTags(t *testing.T) {
 		req := testutil.NewGETRequest(t)
 		testutil.SetAuthContext(req, org1.ID, user1.ID)
 
-		err := app.ListTags(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.ListTags, req)
 		assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 		var resp struct {
@@ -135,7 +131,7 @@ func TestApp_ListTags(t *testing.T) {
 				Tags []handlers.TagResponse `json:"tags"`
 			} `json:"data"`
 		}
-		err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+		err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 		require.NoError(t, err)
 		assert.Len(t, resp.Data.Tags, 1)
 		assert.Equal(t, "Org1Tag", resp.Data.Tags[0].Name)
@@ -148,8 +144,7 @@ func TestApp_ListTags(t *testing.T) {
 		req := testutil.NewGETRequest(t)
 		// No auth context
 
-		err := app.ListTags(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.ListTags, req)
 		assert.Equal(t, fasthttp.StatusUnauthorized, testutil.GetResponseStatusCode(req))
 	})
 }
@@ -171,14 +166,13 @@ func TestApp_CreateTag(t *testing.T) {
 		})
 		testutil.SetAuthContext(req, org.ID, user.ID)
 
-		err := app.CreateTag(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.CreateTag, req)
 		assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 		var resp struct {
 			Data handlers.TagResponse `json:"data"`
 		}
-		err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+		err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 		require.NoError(t, err)
 		assert.Equal(t, "New Lead", resp.Data.Name)
 		assert.Equal(t, "green", resp.Data.Color)
@@ -196,14 +190,13 @@ func TestApp_CreateTag(t *testing.T) {
 		})
 		testutil.SetAuthContext(req, org.ID, user.ID)
 
-		err := app.CreateTag(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.CreateTag, req)
 		assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 		var resp struct {
 			Data handlers.TagResponse `json:"data"`
 		}
-		err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+		err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 		require.NoError(t, err)
 		assert.Equal(t, "No Color Tag", resp.Data.Name)
 		assert.Equal(t, "", resp.Data.Color) // Empty color is allowed
@@ -220,8 +213,7 @@ func TestApp_CreateTag(t *testing.T) {
 		})
 		testutil.SetAuthContext(req, org.ID, user.ID)
 
-		err := app.CreateTag(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.CreateTag, req)
 		assert.Equal(t, fasthttp.StatusBadRequest, testutil.GetResponseStatusCode(req))
 	})
 
@@ -241,8 +233,7 @@ func TestApp_CreateTag(t *testing.T) {
 		})
 		testutil.SetAuthContext(req, org.ID, user.ID)
 
-		err := app.CreateTag(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.CreateTag, req)
 		assert.Equal(t, fasthttp.StatusBadRequest, testutil.GetResponseStatusCode(req))
 	})
 
@@ -258,8 +249,7 @@ func TestApp_CreateTag(t *testing.T) {
 		})
 		testutil.SetAuthContext(req, org.ID, user.ID)
 
-		err := app.CreateTag(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.CreateTag, req)
 		assert.Equal(t, fasthttp.StatusBadRequest, testutil.GetResponseStatusCode(req))
 	})
 
@@ -277,8 +267,7 @@ func TestApp_CreateTag(t *testing.T) {
 		})
 		testutil.SetAuthContext(req, org.ID, user.ID)
 
-		err := app.CreateTag(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.CreateTag, req)
 		assert.Equal(t, fasthttp.StatusConflict, testutil.GetResponseStatusCode(req))
 	})
 
@@ -299,8 +288,7 @@ func TestApp_CreateTag(t *testing.T) {
 		})
 		testutil.SetAuthContext(req, org2.ID, user2.ID)
 
-		err := app.CreateTag(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.CreateTag, req)
 		assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 		_ = user1
 	})
@@ -314,8 +302,7 @@ func TestApp_CreateTag(t *testing.T) {
 		})
 		// No auth context
 
-		err := app.CreateTag(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.CreateTag, req)
 		assert.Equal(t, fasthttp.StatusUnauthorized, testutil.GetResponseStatusCode(req))
 	})
 }
@@ -340,14 +327,13 @@ func TestApp_UpdateTag(t *testing.T) {
 		testutil.SetAuthContext(req, org.ID, user.ID)
 		testutil.SetPathParam(req, "name", "ColorChange")
 
-		err := app.UpdateTag(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.UpdateTag, req)
 		assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 		var resp struct {
 			Data handlers.TagResponse `json:"data"`
 		}
-		err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+		err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 		require.NoError(t, err)
 		assert.Equal(t, "ColorChange", resp.Data.Name)
 		assert.Equal(t, "red", resp.Data.Color)
@@ -368,14 +354,13 @@ func TestApp_UpdateTag(t *testing.T) {
 		testutil.SetAuthContext(req, org.ID, user.ID)
 		testutil.SetPathParam(req, "name", "OldName")
 
-		err := app.UpdateTag(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.UpdateTag, req)
 		assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 		var resp struct {
 			Data handlers.TagResponse `json:"data"`
 		}
-		err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+		err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 		require.NoError(t, err)
 		assert.Equal(t, "NewName", resp.Data.Name)
 
@@ -399,14 +384,13 @@ func TestApp_UpdateTag(t *testing.T) {
 		testutil.SetAuthContext(req, org.ID, user.ID)
 		testutil.SetPathParam(req, "name", "KeepColor")
 
-		err := app.UpdateTag(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.UpdateTag, req)
 		assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 		var resp struct {
 			Data handlers.TagResponse `json:"data"`
 		}
-		err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+		err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 		require.NoError(t, err)
 		assert.Equal(t, "KeepColorRenamed", resp.Data.Name)
 		assert.Equal(t, "purple", resp.Data.Color)
@@ -425,8 +409,7 @@ func TestApp_UpdateTag(t *testing.T) {
 		testutil.SetAuthContext(req, org.ID, user.ID)
 		testutil.SetPathParam(req, "name", "NonExistent")
 
-		err := app.UpdateTag(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.UpdateTag, req)
 		assert.Equal(t, fasthttp.StatusNotFound, testutil.GetResponseStatusCode(req))
 	})
 
@@ -445,8 +428,7 @@ func TestApp_UpdateTag(t *testing.T) {
 		testutil.SetAuthContext(req, org.ID, user.ID)
 		testutil.SetPathParam(req, "name", "TagToRename")
 
-		err := app.UpdateTag(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.UpdateTag, req)
 		assert.Equal(t, fasthttp.StatusConflict, testutil.GetResponseStatusCode(req))
 	})
 
@@ -465,8 +447,7 @@ func TestApp_UpdateTag(t *testing.T) {
 		testutil.SetAuthContext(req, org.ID, user.ID)
 		testutil.SetPathParam(req, "name", "InvalidColorUpdate")
 
-		err := app.UpdateTag(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.UpdateTag, req)
 		assert.Equal(t, fasthttp.StatusBadRequest, testutil.GetResponseStatusCode(req))
 	})
 
@@ -489,8 +470,7 @@ func TestApp_UpdateTag(t *testing.T) {
 		testutil.SetAuthContext(req, org2.ID, user2.ID)
 		testutil.SetPathParam(req, "name", "Org1OnlyTag")
 
-		err := app.UpdateTag(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.UpdateTag, req)
 		assert.Equal(t, fasthttp.StatusNotFound, testutil.GetResponseStatusCode(req))
 
 		// Verify original is unchanged
@@ -515,14 +495,13 @@ func TestApp_UpdateTag(t *testing.T) {
 		testutil.SetAuthContext(req, org.ID, user.ID)
 		testutil.SetPathParam(req, "name", url.PathEscape("Tag With Spaces"))
 
-		err := app.UpdateTag(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.UpdateTag, req)
 		assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 		var resp struct {
 			Data handlers.TagResponse `json:"data"`
 		}
-		err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+		err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 		require.NoError(t, err)
 		assert.Equal(t, "green", resp.Data.Color)
 	})
@@ -536,8 +515,7 @@ func TestApp_UpdateTag(t *testing.T) {
 		})
 		testutil.SetPathParam(req, "name", "SomeTag")
 
-		err := app.UpdateTag(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.UpdateTag, req)
 		assert.Equal(t, fasthttp.StatusUnauthorized, testutil.GetResponseStatusCode(req))
 	})
 }
@@ -559,8 +537,7 @@ func TestApp_DeleteTag(t *testing.T) {
 		testutil.SetAuthContext(req, org.ID, user.ID)
 		testutil.SetPathParam(req, "name", "DeleteMe")
 
-		err := app.DeleteTag(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.DeleteTag, req)
 		assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 		var resp struct {
@@ -568,7 +545,7 @@ func TestApp_DeleteTag(t *testing.T) {
 				Message string `json:"message"`
 			} `json:"data"`
 		}
-		err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+		err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 		require.NoError(t, err)
 		assert.Equal(t, "Tag deleted", resp.Data.Message)
 
@@ -588,8 +565,7 @@ func TestApp_DeleteTag(t *testing.T) {
 		testutil.SetAuthContext(req, org.ID, user.ID)
 		testutil.SetPathParam(req, "name", "NonExistent")
 
-		err := app.DeleteTag(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.DeleteTag, req)
 		assert.Equal(t, fasthttp.StatusNotFound, testutil.GetResponseStatusCode(req))
 	})
 
@@ -609,8 +585,7 @@ func TestApp_DeleteTag(t *testing.T) {
 		testutil.SetAuthContext(req, org2.ID, user2.ID)
 		testutil.SetPathParam(req, "name", "ProtectedTag")
 
-		err := app.DeleteTag(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.DeleteTag, req)
 		assert.Equal(t, fasthttp.StatusNotFound, testutil.GetResponseStatusCode(req))
 
 		// Verify it still exists
@@ -633,8 +608,7 @@ func TestApp_DeleteTag(t *testing.T) {
 		testutil.SetAuthContext(req1, org.ID, user.ID)
 		testutil.SetPathParam(req1, "name", "DeleteTwice")
 
-		err := app.DeleteTag(req1)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.DeleteTag, req1)
 		assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req1))
 
 		// Second delete should return not found
@@ -642,8 +616,7 @@ func TestApp_DeleteTag(t *testing.T) {
 		testutil.SetAuthContext(req2, org.ID, user.ID)
 		testutil.SetPathParam(req2, "name", "DeleteTwice")
 
-		err = app.DeleteTag(req2)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.DeleteTag, req2)
 		assert.Equal(t, fasthttp.StatusNotFound, testutil.GetResponseStatusCode(req2))
 	})
 
@@ -659,8 +632,7 @@ func TestApp_DeleteTag(t *testing.T) {
 		testutil.SetAuthContext(req, org.ID, user.ID)
 		testutil.SetPathParam(req, "name", url.PathEscape("Delete With Spaces"))
 
-		err := app.DeleteTag(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.DeleteTag, req)
 		assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 	})
 
@@ -670,8 +642,7 @@ func TestApp_DeleteTag(t *testing.T) {
 		req := testutil.NewGETRequest(t)
 		testutil.SetPathParam(req, "name", "SomeTag")
 
-		err := app.DeleteTag(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.DeleteTag, req)
 		assert.Equal(t, fasthttp.StatusUnauthorized, testutil.GetResponseStatusCode(req))
 	})
 }
@@ -693,14 +664,13 @@ func TestApp_Tag_FullLifecycle(t *testing.T) {
 	})
 	testutil.SetAuthContext(createReq, org.ID, user.ID)
 
-	err := app.CreateTag(createReq)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.CreateTag, createReq)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(createReq))
 
 	var createResp struct {
 		Data handlers.TagResponse `json:"data"`
 	}
-	err = json.Unmarshal(testutil.GetResponseBody(createReq), &createResp)
+	err := json.Unmarshal(testutil.GetResponseBody(createReq), &createResp)
 	require.NoError(t, err)
 	assert.Equal(t, "Lifecycle Tag", createResp.Data.Name)
 	assert.Equal(t, "blue", createResp.Data.Color)
@@ -709,8 +679,7 @@ func TestApp_Tag_FullLifecycle(t *testing.T) {
 	listReq := testutil.NewGETRequest(t)
 	testutil.SetAuthContext(listReq, org.ID, user.ID)
 
-	err = app.ListTags(listReq)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.ListTags, listReq)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(listReq))
 
 	var listResp struct {
@@ -731,8 +700,7 @@ func TestApp_Tag_FullLifecycle(t *testing.T) {
 	testutil.SetAuthContext(updateReq, org.ID, user.ID)
 	testutil.SetPathParam(updateReq, "name", "Lifecycle Tag")
 
-	err = app.UpdateTag(updateReq)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.UpdateTag, updateReq)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(updateReq))
 
 	var updateResp struct {
@@ -750,8 +718,7 @@ func TestApp_Tag_FullLifecycle(t *testing.T) {
 	testutil.SetAuthContext(renameReq, org.ID, user.ID)
 	testutil.SetPathParam(renameReq, "name", "Lifecycle Tag")
 
-	err = app.UpdateTag(renameReq)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.UpdateTag, renameReq)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(renameReq))
 
 	var renameResp struct {
@@ -766,16 +733,14 @@ func TestApp_Tag_FullLifecycle(t *testing.T) {
 	testutil.SetAuthContext(deleteReq, org.ID, user.ID)
 	testutil.SetPathParam(deleteReq, "name", "Lifecycle Tag Renamed")
 
-	err = app.DeleteTag(deleteReq)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.DeleteTag, deleteReq)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(deleteReq))
 
 	// 6. Verify gone
 	listReq2 := testutil.NewGETRequest(t)
 	testutil.SetAuthContext(listReq2, org.ID, user.ID)
 
-	err = app.ListTags(listReq2)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.ListTags, listReq2)
 
 	var listResp2 struct {
 		Data struct {
@@ -809,14 +774,13 @@ func TestApp_CreateTag_AllValidColors(t *testing.T) {
 			})
 			testutil.SetAuthContext(req, org.ID, user.ID)
 
-			err := app.CreateTag(req)
-			require.NoError(t, err)
+			testutil.InvokeHTTP(t, app.CreateTag, req)
 			assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 			var resp struct {
 				Data handlers.TagResponse `json:"data"`
 			}
-			err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+			err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 			require.NoError(t, err)
 			assert.Equal(t, color, resp.Data.Color)
 		})

@@ -29,14 +29,13 @@ func TestApp_CreateOrganization_Success(t *testing.T) {
 	})
 	testutil.SetAuthContext(req, org.ID, user.ID)
 
-	err := app.CreateOrganization(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.CreateOrganization, req)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	var resp struct {
 		Data handlers.OrganizationResponse `json:"data"`
 	}
-	err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+	err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 	require.NoError(t, err)
 
 	assert.Equal(t, "New Test Organization", resp.Data.Name)
@@ -59,8 +58,7 @@ func TestApp_CreateOrganization_EmptyName(t *testing.T) {
 	})
 	testutil.SetAuthContext(req, org.ID, user.ID)
 
-	err := app.CreateOrganization(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.CreateOrganization, req)
 	assert.Equal(t, fasthttp.StatusBadRequest, testutil.GetResponseStatusCode(req))
 }
 
@@ -73,8 +71,7 @@ func TestApp_CreateOrganization_Unauthorized(t *testing.T) {
 		"name": "Unauthorized Org",
 	})
 
-	err := app.CreateOrganization(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.CreateOrganization, req)
 	assert.Equal(t, fasthttp.StatusUnauthorized, testutil.GetResponseStatusCode(req))
 }
 
@@ -92,8 +89,7 @@ func TestApp_ListOrganizationMembers_Success(t *testing.T) {
 	req := testutil.NewGETRequest(t)
 	testutil.SetAuthContext(req, org.ID, user.ID)
 
-	err := app.ListOrganizationMembers(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.ListOrganizationMembers, req)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	var resp struct {
@@ -101,7 +97,7 @@ func TestApp_ListOrganizationMembers_Success(t *testing.T) {
 			Members []handlers.MemberResponse `json:"members"`
 		} `json:"data"`
 	}
-	err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+	err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 	require.NoError(t, err)
 
 	assert.GreaterOrEqual(t, len(resp.Data.Members), 1)
@@ -127,8 +123,7 @@ func TestApp_ListOrganizationMembers_Unauthorized(t *testing.T) {
 
 	req := testutil.NewGETRequest(t)
 
-	err := app.ListOrganizationMembers(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.ListOrganizationMembers, req)
 	assert.Equal(t, fasthttp.StatusUnauthorized, testutil.GetResponseStatusCode(req))
 }
 
@@ -152,8 +147,7 @@ func TestApp_AddOrganizationMember_Success(t *testing.T) {
 	})
 	testutil.SetAuthContext(req, org.ID, admin.ID)
 
-	err := app.AddOrganizationMember(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.AddOrganizationMember, req)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	// Verify membership was created
@@ -181,8 +175,7 @@ func TestApp_AddOrganizationMember_WithRole(t *testing.T) {
 	})
 	testutil.SetAuthContext(req, org.ID, admin.ID)
 
-	err := app.AddOrganizationMember(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.AddOrganizationMember, req)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	// Verify role was set
@@ -209,8 +202,7 @@ func TestApp_AddOrganizationMember_AlreadyMember(t *testing.T) {
 	})
 	testutil.SetAuthContext(req, org.ID, admin.ID)
 
-	err := app.AddOrganizationMember(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.AddOrganizationMember, req)
 	assert.Equal(t, fasthttp.StatusConflict, testutil.GetResponseStatusCode(req))
 }
 
@@ -226,8 +218,7 @@ func TestApp_AddOrganizationMember_MissingUserID(t *testing.T) {
 	req := testutil.NewJSONRequest(t, map[string]any{})
 	testutil.SetAuthContext(req, org.ID, admin.ID)
 
-	err := app.AddOrganizationMember(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.AddOrganizationMember, req)
 	assert.Equal(t, fasthttp.StatusBadRequest, testutil.GetResponseStatusCode(req))
 }
 
@@ -245,8 +236,7 @@ func TestApp_AddOrganizationMember_UserNotFound(t *testing.T) {
 	})
 	testutil.SetAuthContext(req, org.ID, admin.ID)
 
-	err := app.AddOrganizationMember(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.AddOrganizationMember, req)
 	assert.Equal(t, fasthttp.StatusNotFound, testutil.GetResponseStatusCode(req))
 }
 
@@ -259,8 +249,7 @@ func TestApp_AddOrganizationMember_Unauthorized(t *testing.T) {
 		"user_id": uuid.New().String(),
 	})
 
-	err := app.AddOrganizationMember(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.AddOrganizationMember, req)
 	assert.Equal(t, fasthttp.StatusUnauthorized, testutil.GetResponseStatusCode(req))
 }
 
@@ -283,8 +272,7 @@ func TestApp_RemoveOrganizationMember_Success(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, admin.ID)
 	testutil.SetPathParam(req, "member_id", targetUser.ID.String())
 
-	err := app.RemoveOrganizationMember(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.RemoveOrganizationMember, req)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	// Verify membership was removed
@@ -307,8 +295,7 @@ func TestApp_RemoveOrganizationMember_CannotRemoveSelf(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, admin.ID)
 	testutil.SetPathParam(req, "member_id", admin.ID.String())
 
-	err := app.RemoveOrganizationMember(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.RemoveOrganizationMember, req)
 	assert.Equal(t, fasthttp.StatusBadRequest, testutil.GetResponseStatusCode(req))
 }
 
@@ -326,8 +313,7 @@ func TestApp_RemoveOrganizationMember_NotFound(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, admin.ID)
 	testutil.SetPathParam(req, "member_id", uuid.New().String())
 
-	err := app.RemoveOrganizationMember(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.RemoveOrganizationMember, req)
 	assert.Equal(t, fasthttp.StatusNotFound, testutil.GetResponseStatusCode(req))
 }
 
@@ -340,8 +326,7 @@ func TestApp_RemoveOrganizationMember_Unauthorized(t *testing.T) {
 	req.RequestCtx.Request.Header.SetMethod("DELETE")
 	testutil.SetPathParam(req, "member_id", uuid.New().String())
 
-	err := app.RemoveOrganizationMember(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.RemoveOrganizationMember, req)
 	assert.Equal(t, fasthttp.StatusUnauthorized, testutil.GetResponseStatusCode(req))
 }
 
@@ -366,8 +351,7 @@ func TestApp_UpdateOrganizationMemberRole_Success(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, admin.ID)
 	testutil.SetPathParam(req, "member_id", targetUser.ID.String())
 
-	err := app.UpdateOrganizationMemberRole(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.UpdateOrganizationMemberRole, req)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	// Verify role was updated
@@ -390,8 +374,7 @@ func TestApp_UpdateOrganizationMemberRole_MissingRoleID(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, admin.ID)
 	testutil.SetPathParam(req, "member_id", uuid.New().String())
 
-	err := app.UpdateOrganizationMemberRole(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.UpdateOrganizationMemberRole, req)
 	assert.Equal(t, fasthttp.StatusBadRequest, testutil.GetResponseStatusCode(req))
 }
 
@@ -412,8 +395,7 @@ func TestApp_UpdateOrganizationMemberRole_InvalidRole(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, admin.ID)
 	testutil.SetPathParam(req, "member_id", targetUser.ID.String())
 
-	err := app.UpdateOrganizationMemberRole(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.UpdateOrganizationMemberRole, req)
 	assert.Equal(t, fasthttp.StatusBadRequest, testutil.GetResponseStatusCode(req))
 }
 
@@ -433,8 +415,7 @@ func TestApp_UpdateOrganizationMemberRole_MemberNotFound(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, admin.ID)
 	testutil.SetPathParam(req, "member_id", uuid.New().String())
 
-	err := app.UpdateOrganizationMemberRole(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.UpdateOrganizationMemberRole, req)
 	assert.Equal(t, fasthttp.StatusNotFound, testutil.GetResponseStatusCode(req))
 }
 
@@ -448,8 +429,7 @@ func TestApp_UpdateOrganizationMemberRole_Unauthorized(t *testing.T) {
 	})
 	testutil.SetPathParam(req, "member_id", uuid.New().String())
 
-	err := app.UpdateOrganizationMemberRole(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.UpdateOrganizationMemberRole, req)
 	assert.Equal(t, fasthttp.StatusUnauthorized, testutil.GetResponseStatusCode(req))
 }
 
@@ -474,8 +454,7 @@ func TestApp_ListMyOrganizations_Success(t *testing.T) {
 	req := testutil.NewGETRequest(t)
 	testutil.SetPathParam(req, "user_id", user.ID)
 
-	err := app.ListMyOrganizations(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.ListMyOrganizations, req)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	var resp struct {
@@ -488,7 +467,7 @@ func TestApp_ListMyOrganizations_Success(t *testing.T) {
 			} `json:"organizations"`
 		} `json:"data"`
 	}
-	err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+	err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 	require.NoError(t, err)
 
 	assert.Len(t, resp.Data.Organizations, 2)
@@ -513,8 +492,7 @@ func TestApp_ListMyOrganizations_SingleOrg(t *testing.T) {
 	req := testutil.NewGETRequest(t)
 	testutil.SetPathParam(req, "user_id", user.ID)
 
-	err := app.ListMyOrganizations(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.ListMyOrganizations, req)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	var resp struct {
@@ -524,7 +502,7 @@ func TestApp_ListMyOrganizations_SingleOrg(t *testing.T) {
 			} `json:"organizations"`
 		} `json:"data"`
 	}
-	err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+	err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 	require.NoError(t, err)
 
 	assert.Len(t, resp.Data.Organizations, 1)
@@ -539,8 +517,7 @@ func TestApp_ListMyOrganizations_Unauthorized(t *testing.T) {
 	req := testutil.NewGETRequest(t)
 	// No user_id set
 
-	err := app.ListMyOrganizations(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.ListMyOrganizations, req)
 	assert.Equal(t, fasthttp.StatusUnauthorized, testutil.GetResponseStatusCode(req))
 }
 
@@ -568,8 +545,7 @@ func TestApp_SwitchOrg_Success(t *testing.T) {
 	})
 	testutil.SetPathParam(req, "user_id", user.ID)
 
-	err := app.SwitchOrg(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.SwitchOrg, req)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	// Tokens are now in httpOnly cookies, not in the response body
@@ -583,7 +559,7 @@ func TestApp_SwitchOrg_Success(t *testing.T) {
 			ExpiresIn int `json:"expires_in"`
 		} `json:"data"`
 	}
-	err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+	err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 	require.NoError(t, err)
 	assert.Greater(t, resp.Data.ExpiresIn, 0)
 }
@@ -602,8 +578,7 @@ func TestApp_SwitchOrg_SuperAdmin(t *testing.T) {
 	})
 	testutil.SetPathParam(req, "user_id", superAdmin.ID)
 
-	err := app.SwitchOrg(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.SwitchOrg, req)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 }
 
@@ -621,8 +596,7 @@ func TestApp_SwitchOrg_NotMember(t *testing.T) {
 	})
 	testutil.SetPathParam(req, "user_id", user.ID)
 
-	err := app.SwitchOrg(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.SwitchOrg, req)
 	assert.Equal(t, fasthttp.StatusForbidden, testutil.GetResponseStatusCode(req))
 }
 
@@ -638,8 +612,7 @@ func TestApp_SwitchOrg_OrgNotFound(t *testing.T) {
 	})
 	testutil.SetPathParam(req, "user_id", user.ID)
 
-	err := app.SwitchOrg(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.SwitchOrg, req)
 	assert.Equal(t, fasthttp.StatusNotFound, testutil.GetResponseStatusCode(req))
 }
 
@@ -653,8 +626,7 @@ func TestApp_SwitchOrg_MissingOrgID(t *testing.T) {
 	req := testutil.NewJSONRequest(t, map[string]any{})
 	testutil.SetPathParam(req, "user_id", user.ID)
 
-	err := app.SwitchOrg(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.SwitchOrg, req)
 	assert.Equal(t, fasthttp.StatusBadRequest, testutil.GetResponseStatusCode(req))
 }
 
@@ -667,7 +639,6 @@ func TestApp_SwitchOrg_Unauthorized(t *testing.T) {
 		"organization_id": uuid.New().String(),
 	})
 
-	err := app.SwitchOrg(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.SwitchOrg, req)
 	assert.Equal(t, fasthttp.StatusUnauthorized, testutil.GetResponseStatusCode(req))
 }

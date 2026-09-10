@@ -60,8 +60,7 @@ func TestApp_ListCustomActions(t *testing.T) {
 		req := testutil.NewGETRequest(t)
 		testutil.SetAuthContext(req, org.ID, user.ID)
 
-		err := app.ListCustomActions(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.ListCustomActions, req)
 		assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 		var resp struct {
@@ -69,7 +68,7 @@ func TestApp_ListCustomActions(t *testing.T) {
 				CustomActions []handlers.CustomActionResponse `json:"custom_actions"`
 			} `json:"data"`
 		}
-		err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+		err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 		require.NoError(t, err)
 		assert.Len(t, resp.Data.CustomActions, 2)
 		// Ordered by display_order ASC
@@ -85,8 +84,7 @@ func TestApp_ListCustomActions(t *testing.T) {
 		req := testutil.NewGETRequest(t)
 		testutil.SetAuthContext(req, org.ID, user.ID)
 
-		err := app.ListCustomActions(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.ListCustomActions, req)
 		assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 		var resp struct {
@@ -94,7 +92,7 @@ func TestApp_ListCustomActions(t *testing.T) {
 				CustomActions []handlers.CustomActionResponse `json:"custom_actions"`
 			} `json:"data"`
 		}
-		err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+		err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 		require.NoError(t, err)
 		assert.Empty(t, resp.Data.CustomActions)
 	})
@@ -117,14 +115,13 @@ func TestApp_GetCustomAction(t *testing.T) {
 		testutil.SetAuthContext(req, org.ID, user.ID)
 		testutil.SetPathParam(req, "id", action.ID.String())
 
-		err := app.GetCustomAction(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.GetCustomAction, req)
 		assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 		var resp struct {
 			Data handlers.CustomActionResponse `json:"data"`
 		}
-		err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+		err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 		require.NoError(t, err)
 		assert.Equal(t, action.ID, resp.Data.ID)
 		assert.Equal(t, "My Webhook", resp.Data.Name)
@@ -142,8 +139,7 @@ func TestApp_GetCustomAction(t *testing.T) {
 		testutil.SetAuthContext(req, org.ID, user.ID)
 		testutil.SetPathParam(req, "id", uuid.New().String())
 
-		err := app.GetCustomAction(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.GetCustomAction, req)
 		assert.Equal(t, fasthttp.StatusNotFound, testutil.GetResponseStatusCode(req))
 	})
 }
@@ -171,14 +167,13 @@ func TestApp_CreateCustomAction(t *testing.T) {
 		})
 		testutil.SetAuthContext(req, org.ID, user.ID)
 
-		err := app.CreateCustomAction(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.CreateCustomAction, req)
 		assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 		var resp struct {
 			Data handlers.CustomActionResponse `json:"data"`
 		}
-		err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+		err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 		require.NoError(t, err)
 		assert.Equal(t, "Send to CRM", resp.Data.Name)
 		assert.Equal(t, "send", resp.Data.Icon)
@@ -210,14 +205,13 @@ func TestApp_CreateCustomAction(t *testing.T) {
 		})
 		testutil.SetAuthContext(req, org.ID, user.ID)
 
-		err := app.CreateCustomAction(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.CreateCustomAction, req)
 		assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 		var resp struct {
 			Data handlers.CustomActionResponse `json:"data"`
 		}
-		err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+		err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 		require.NoError(t, err)
 		assert.Equal(t, models.ActionTypeURL, resp.Data.ActionType)
 	})
@@ -237,14 +231,13 @@ func TestApp_CreateCustomAction(t *testing.T) {
 		})
 		testutil.SetAuthContext(req, org.ID, user.ID)
 
-		err := app.CreateCustomAction(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.CreateCustomAction, req)
 		assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 		var resp struct {
 			Data handlers.CustomActionResponse `json:"data"`
 		}
-		err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+		err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 		require.NoError(t, err)
 		assert.Equal(t, models.ActionTypeJavascript, resp.Data.ActionType)
 	})
@@ -263,8 +256,7 @@ func TestApp_CreateCustomAction(t *testing.T) {
 		})
 		testutil.SetAuthContext(req, org.ID, user.ID)
 
-		err := app.CreateCustomAction(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.CreateCustomAction, req)
 		assert.Equal(t, fasthttp.StatusBadRequest, testutil.GetResponseStatusCode(req))
 	})
 
@@ -282,8 +274,7 @@ func TestApp_CreateCustomAction(t *testing.T) {
 		})
 		testutil.SetAuthContext(req, org.ID, user.ID)
 
-		err := app.CreateCustomAction(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.CreateCustomAction, req)
 		assert.Equal(t, fasthttp.StatusBadRequest, testutil.GetResponseStatusCode(req))
 	})
 
@@ -302,8 +293,7 @@ func TestApp_CreateCustomAction(t *testing.T) {
 		})
 		testutil.SetAuthContext(req, org.ID, user.ID)
 
-		err := app.CreateCustomAction(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.CreateCustomAction, req)
 		assert.Equal(t, fasthttp.StatusBadRequest, testutil.GetResponseStatusCode(req))
 	})
 
@@ -320,8 +310,7 @@ func TestApp_CreateCustomAction(t *testing.T) {
 		})
 		testutil.SetAuthContext(req, org.ID, user.ID)
 
-		err := app.CreateCustomAction(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.CreateCustomAction, req)
 		assert.Equal(t, fasthttp.StatusBadRequest, testutil.GetResponseStatusCode(req))
 	})
 
@@ -338,8 +327,7 @@ func TestApp_CreateCustomAction(t *testing.T) {
 		})
 		testutil.SetAuthContext(req, org.ID, user.ID)
 
-		err := app.CreateCustomAction(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.CreateCustomAction, req)
 		assert.Equal(t, fasthttp.StatusBadRequest, testutil.GetResponseStatusCode(req))
 	})
 
@@ -356,8 +344,7 @@ func TestApp_CreateCustomAction(t *testing.T) {
 		})
 		testutil.SetAuthContext(req, org.ID, user.ID)
 
-		err := app.CreateCustomAction(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.CreateCustomAction, req)
 		assert.Equal(t, fasthttp.StatusBadRequest, testutil.GetResponseStatusCode(req))
 	})
 
@@ -373,8 +360,7 @@ func TestApp_CreateCustomAction(t *testing.T) {
 		})
 		// No auth context
 
-		err := app.CreateCustomAction(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.CreateCustomAction, req)
 		assert.Equal(t, fasthttp.StatusUnauthorized, testutil.GetResponseStatusCode(req))
 	})
 }
@@ -401,14 +387,13 @@ func TestApp_UpdateCustomAction(t *testing.T) {
 		testutil.SetAuthContext(req, org.ID, user.ID)
 		testutil.SetPathParam(req, "id", action.ID.String())
 
-		err := app.UpdateCustomAction(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.UpdateCustomAction, req)
 		assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 		var resp struct {
 			Data handlers.CustomActionResponse `json:"data"`
 		}
-		err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+		err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 		require.NoError(t, err)
 		assert.Equal(t, action.ID, resp.Data.ID)
 		assert.Equal(t, "Updated Name", resp.Data.Name)
@@ -435,14 +420,13 @@ func TestApp_UpdateCustomAction(t *testing.T) {
 		testutil.SetAuthContext(req, org.ID, user.ID)
 		testutil.SetPathParam(req, "id", action.ID.String())
 
-		err := app.UpdateCustomAction(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.UpdateCustomAction, req)
 		assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 		var resp struct {
 			Data handlers.CustomActionResponse `json:"data"`
 		}
-		err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+		err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 		require.NoError(t, err)
 		assert.Equal(t, "https://new.example.com/hook", resp.Data.Config["url"])
 	})
@@ -459,8 +443,7 @@ func TestApp_UpdateCustomAction(t *testing.T) {
 		testutil.SetAuthContext(req, org.ID, user.ID)
 		testutil.SetPathParam(req, "id", uuid.New().String())
 
-		err := app.UpdateCustomAction(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.UpdateCustomAction, req)
 		assert.Equal(t, fasthttp.StatusNotFound, testutil.GetResponseStatusCode(req))
 	})
 
@@ -482,8 +465,7 @@ func TestApp_UpdateCustomAction(t *testing.T) {
 		testutil.SetAuthContext(req, org2.ID, user2.ID)
 		testutil.SetPathParam(req, "id", action.ID.String())
 
-		err := app.UpdateCustomAction(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.UpdateCustomAction, req)
 		assert.Equal(t, fasthttp.StatusNotFound, testutil.GetResponseStatusCode(req))
 	})
 }
@@ -505,8 +487,7 @@ func TestApp_DeleteCustomAction(t *testing.T) {
 		testutil.SetAuthContext(req, org.ID, user.ID)
 		testutil.SetPathParam(req, "id", action.ID.String())
 
-		err := app.DeleteCustomAction(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.DeleteCustomAction, req)
 		assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 		var resp struct {
@@ -514,7 +495,7 @@ func TestApp_DeleteCustomAction(t *testing.T) {
 				Status string `json:"status"`
 			} `json:"data"`
 		}
-		err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+		err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 		require.NoError(t, err)
 		assert.Equal(t, "deleted", resp.Data.Status)
 
@@ -533,8 +514,7 @@ func TestApp_DeleteCustomAction(t *testing.T) {
 		testutil.SetAuthContext(req, org.ID, user.ID)
 		testutil.SetPathParam(req, "id", uuid.New().String())
 
-		err := app.DeleteCustomAction(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.DeleteCustomAction, req)
 		assert.Equal(t, fasthttp.StatusNotFound, testutil.GetResponseStatusCode(req))
 	})
 
@@ -553,8 +533,7 @@ func TestApp_DeleteCustomAction(t *testing.T) {
 		testutil.SetAuthContext(req, org2.ID, user2.ID)
 		testutil.SetPathParam(req, "id", action.ID.String())
 
-		err := app.DeleteCustomAction(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.DeleteCustomAction, req)
 		assert.Equal(t, fasthttp.StatusNotFound, testutil.GetResponseStatusCode(req))
 
 		// Action should still exist
@@ -585,8 +564,7 @@ func TestApp_ListCustomActions_CrossOrgIsolation(t *testing.T) {
 	req1 := testutil.NewGETRequest(t)
 	testutil.SetAuthContext(req1, org1.ID, user1.ID)
 
-	err := app.ListCustomActions(req1)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.ListCustomActions, req1)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req1))
 
 	var resp1 struct {
@@ -594,7 +572,7 @@ func TestApp_ListCustomActions_CrossOrgIsolation(t *testing.T) {
 			CustomActions []handlers.CustomActionResponse `json:"custom_actions"`
 		} `json:"data"`
 	}
-	err = json.Unmarshal(testutil.GetResponseBody(req1), &resp1)
+	err := json.Unmarshal(testutil.GetResponseBody(req1), &resp1)
 	require.NoError(t, err)
 	assert.Len(t, resp1.Data.CustomActions, 1)
 	assert.Equal(t, "Org1 Action", resp1.Data.CustomActions[0].Name)
@@ -603,8 +581,7 @@ func TestApp_ListCustomActions_CrossOrgIsolation(t *testing.T) {
 	req2 := testutil.NewGETRequest(t)
 	testutil.SetAuthContext(req2, org2.ID, user2.ID)
 
-	err = app.ListCustomActions(req2)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.ListCustomActions, req2)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req2))
 
 	var resp2 struct {
@@ -637,8 +614,7 @@ func TestApp_GetCustomAction_CrossOrgIsolation(t *testing.T) {
 	testutil.SetAuthContext(req, org2.ID, user2.ID)
 	testutil.SetPathParam(req, "id", action.ID.String())
 
-	err := app.GetCustomAction(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.GetCustomAction, req)
 	assert.Equal(t, fasthttp.StatusNotFound, testutil.GetResponseStatusCode(req))
 }
 
@@ -655,8 +631,7 @@ func TestApp_GetCustomAction_InvalidID(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, user.ID)
 	testutil.SetPathParam(req, "id", "not-a-valid-uuid")
 
-	err := app.GetCustomAction(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.GetCustomAction, req)
 	assert.Equal(t, fasthttp.StatusBadRequest, testutil.GetResponseStatusCode(req))
 }
 
@@ -679,8 +654,7 @@ func TestApp_UpdateCustomAction_InvalidActionType(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, user.ID)
 	testutil.SetPathParam(req, "id", action.ID.String())
 
-	err := app.UpdateCustomAction(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.UpdateCustomAction, req)
 	assert.Equal(t, fasthttp.StatusBadRequest, testutil.GetResponseStatusCode(req))
 }
 
@@ -704,8 +678,7 @@ func TestApp_UpdateCustomAction_InvalidConfig(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, user.ID)
 	testutil.SetPathParam(req, "id", action.ID.String())
 
-	err := app.UpdateCustomAction(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.UpdateCustomAction, req)
 	assert.Equal(t, fasthttp.StatusBadRequest, testutil.GetResponseStatusCode(req))
 }
 
@@ -743,14 +716,13 @@ func TestApp_ExecuteCustomAction(t *testing.T) {
 		testutil.SetAuthContext(req, org.ID, user.ID)
 		testutil.SetPathParam(req, "id", action.ID.String())
 
-		err := app.ExecuteCustomAction(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.ExecuteCustomAction, req)
 		assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 		var resp struct {
 			Data handlers.ActionResult `json:"data"`
 		}
-		err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+		err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 		require.NoError(t, err)
 		assert.True(t, resp.Data.Success)
 		assert.Contains(t, resp.Data.Message, "successfully")
@@ -781,14 +753,13 @@ func TestApp_ExecuteCustomAction(t *testing.T) {
 		testutil.SetAuthContext(req, org.ID, user.ID)
 		testutil.SetPathParam(req, "id", action.ID.String())
 
-		err := app.ExecuteCustomAction(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.ExecuteCustomAction, req)
 		assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 		var resp struct {
 			Data handlers.ActionResult `json:"data"`
 		}
-		err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+		err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 		require.NoError(t, err)
 		assert.True(t, resp.Data.Success)
 		assert.Equal(t, "Opening URL", resp.Data.Message)
@@ -815,14 +786,13 @@ func TestApp_ExecuteCustomAction(t *testing.T) {
 		testutil.SetAuthContext(req, org.ID, user.ID)
 		testutil.SetPathParam(req, "id", action.ID.String())
 
-		err := app.ExecuteCustomAction(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.ExecuteCustomAction, req)
 		assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 		var resp struct {
 			Data handlers.ActionResult `json:"data"`
 		}
-		err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+		err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 		require.NoError(t, err)
 		assert.True(t, resp.Data.Success)
 		assert.Equal(t, "JavaScript action executed", resp.Data.Message)
@@ -850,14 +820,13 @@ func TestApp_ExecuteCustomAction(t *testing.T) {
 		testutil.SetAuthContext(req, org.ID, user.ID)
 		testutil.SetPathParam(req, "id", action.ID.String())
 
-		err := app.ExecuteCustomAction(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.ExecuteCustomAction, req)
 		assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 		var resp struct {
 			Data handlers.ActionResult `json:"data"`
 		}
-		err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+		err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 		require.NoError(t, err)
 		assert.True(t, resp.Data.Success)
 		// URL must be wrapped in a redirect token, never returned raw
@@ -884,8 +853,7 @@ func TestApp_ExecuteCustomAction(t *testing.T) {
 		testutil.SetAuthContext(req, org.ID, user.ID)
 		testutil.SetPathParam(req, "id", action.ID.String())
 
-		err := app.ExecuteCustomAction(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.ExecuteCustomAction, req)
 		assert.Equal(t, fasthttp.StatusBadRequest, testutil.GetResponseStatusCode(req))
 	})
 
@@ -902,8 +870,7 @@ func TestApp_ExecuteCustomAction(t *testing.T) {
 		testutil.SetAuthContext(req, org.ID, user.ID)
 		testutil.SetPathParam(req, "id", uuid.New().String())
 
-		err := app.ExecuteCustomAction(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.ExecuteCustomAction, req)
 		assert.Equal(t, fasthttp.StatusNotFound, testutil.GetResponseStatusCode(req))
 	})
 
@@ -923,8 +890,7 @@ func TestApp_ExecuteCustomAction(t *testing.T) {
 		testutil.SetAuthContext(req, org.ID, user.ID)
 		testutil.SetPathParam(req, "id", action.ID.String())
 
-		err := app.ExecuteCustomAction(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.ExecuteCustomAction, req)
 		assert.Equal(t, fasthttp.StatusBadRequest, testutil.GetResponseStatusCode(req))
 	})
 
@@ -944,8 +910,7 @@ func TestApp_ExecuteCustomAction(t *testing.T) {
 		testutil.SetAuthContext(req, org.ID, user.ID)
 		testutil.SetPathParam(req, "id", action.ID.String())
 
-		err := app.ExecuteCustomAction(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.ExecuteCustomAction, req)
 		assert.Equal(t, fasthttp.StatusNotFound, testutil.GetResponseStatusCode(req))
 	})
 
@@ -970,8 +935,7 @@ func TestApp_ExecuteCustomAction(t *testing.T) {
 		testutil.SetAuthContext(req, org2.ID, user2.ID)
 		testutil.SetPathParam(req, "id", action.ID.String())
 
-		err := app.ExecuteCustomAction(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.ExecuteCustomAction, req)
 		assert.Equal(t, fasthttp.StatusNotFound, testutil.GetResponseStatusCode(req))
 	})
 
@@ -986,8 +950,7 @@ func TestApp_ExecuteCustomAction(t *testing.T) {
 		// No auth context
 		testutil.SetPathParam(req, "id", uuid.New().String())
 
-		err := app.ExecuteCustomAction(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.ExecuteCustomAction, req)
 		assert.Equal(t, fasthttp.StatusUnauthorized, testutil.GetResponseStatusCode(req))
 	})
 
@@ -1015,14 +978,13 @@ func TestApp_ExecuteCustomAction(t *testing.T) {
 		testutil.SetAuthContext(req, org.ID, user.ID)
 		testutil.SetPathParam(req, "id", action.ID.String())
 
-		err := app.ExecuteCustomAction(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.ExecuteCustomAction, req)
 		assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 		var resp struct {
 			Data handlers.ActionResult `json:"data"`
 		}
-		err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+		err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 		require.NoError(t, err)
 		// Webhook returns non-2xx but handler still returns 200 with success=false
 		assert.False(t, resp.Data.Success)
@@ -1060,8 +1022,7 @@ func TestApp_ExecuteCustomAction(t *testing.T) {
 		testutil.SetAuthContext(req, org.ID, user.ID)
 		testutil.SetPathParam(req, "id", action.ID.String())
 
-		err := app.ExecuteCustomAction(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.ExecuteCustomAction, req)
 		assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 		// Verify the variable was replaced in the URL
@@ -1094,14 +1055,13 @@ func TestApp_CustomActionRedirect(t *testing.T) {
 		testutil.SetAuthContext(execReq, org.ID, user.ID)
 		testutil.SetPathParam(execReq, "id", action.ID.String())
 
-		err := app.ExecuteCustomAction(execReq)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.ExecuteCustomAction, execReq)
 		assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(execReq))
 
 		var execResp struct {
 			Data handlers.ActionResult `json:"data"`
 		}
-		err = json.Unmarshal(testutil.GetResponseBody(execReq), &execResp)
+		err := json.Unmarshal(testutil.GetResponseBody(execReq), &execResp)
 		require.NoError(t, err)
 		require.NotEmpty(t, execResp.Data.RedirectURL)
 
@@ -1115,8 +1075,7 @@ func TestApp_CustomActionRedirect(t *testing.T) {
 		redirectReq := testutil.NewGETRequest(t)
 		testutil.SetPathParam(redirectReq, "token", token)
 
-		err = app.CustomActionRedirect(redirectReq)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.CustomActionRedirect, redirectReq)
 
 		// Should redirect (302)
 		assert.Equal(t, fasthttp.StatusFound, redirectReq.RequestCtx.Response.StatusCode())
@@ -1132,8 +1091,7 @@ func TestApp_CustomActionRedirect(t *testing.T) {
 		req := testutil.NewGETRequest(t)
 		testutil.SetPathParam(req, "token", "nonexistent-token-12345")
 
-		err := app.CustomActionRedirect(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.CustomActionRedirect, req)
 		assert.Equal(t, fasthttp.StatusNotFound, testutil.GetResponseStatusCode(req))
 	})
 
@@ -1157,28 +1115,25 @@ func TestApp_CustomActionRedirect(t *testing.T) {
 		testutil.SetAuthContext(execReq, org.ID, user.ID)
 		testutil.SetPathParam(execReq, "id", action.ID.String())
 
-		err := app.ExecuteCustomAction(execReq)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.ExecuteCustomAction, execReq)
 
 		var execResp struct {
 			Data handlers.ActionResult `json:"data"`
 		}
-		err = json.Unmarshal(testutil.GetResponseBody(execReq), &execResp)
+		err := json.Unmarshal(testutil.GetResponseBody(execReq), &execResp)
 		require.NoError(t, err)
 		token := execResp.Data.RedirectURL[len("/api/custom-actions/redirect/"):]
 
 		// First use should succeed
 		req1 := testutil.NewGETRequest(t)
 		testutil.SetPathParam(req1, "token", token)
-		err = app.CustomActionRedirect(req1)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.CustomActionRedirect, req1)
 		assert.Equal(t, fasthttp.StatusFound, req1.RequestCtx.Response.StatusCode())
 
 		// Second use should fail (token consumed)
 		req2 := testutil.NewGETRequest(t)
 		testutil.SetPathParam(req2, "token", token)
-		err = app.CustomActionRedirect(req2)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.CustomActionRedirect, req2)
 		assert.Equal(t, fasthttp.StatusNotFound, testutil.GetResponseStatusCode(req2))
 	})
 }
@@ -1200,8 +1155,7 @@ func TestApp_CreateCustomAction_MissingConfig(t *testing.T) {
 	})
 	testutil.SetAuthContext(req, org.ID, user.ID)
 
-	err := app.CreateCustomAction(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.CreateCustomAction, req)
 	assert.Equal(t, fasthttp.StatusBadRequest, testutil.GetResponseStatusCode(req))
 }
 
@@ -1227,8 +1181,7 @@ func TestApp_CreateCustomAction_DuplicateName(t *testing.T) {
 	})
 	testutil.SetAuthContext(req, org.ID, user.ID)
 
-	err := app.CreateCustomAction(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.CreateCustomAction, req)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	// Should now have 2 actions with the same name
@@ -1260,14 +1213,13 @@ func TestApp_UpdateCustomAction_ChangeActionType(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, user.ID)
 	testutil.SetPathParam(req, "id", action.ID.String())
 
-	err := app.UpdateCustomAction(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.UpdateCustomAction, req)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	var resp struct {
 		Data handlers.CustomActionResponse `json:"data"`
 	}
-	err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+	err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 	require.NoError(t, err)
 	assert.Equal(t, models.ActionTypeJavascript, resp.Data.ActionType)
 	assert.Equal(t, "console.log('hello')", resp.Data.Config["code"])
@@ -1283,8 +1235,7 @@ func TestApp_ListCustomActions_Unauthorized(t *testing.T) {
 	req := testutil.NewGETRequest(t)
 	// No auth context
 
-	err := app.ListCustomActions(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.ListCustomActions, req)
 	assert.Equal(t, fasthttp.StatusUnauthorized, testutil.GetResponseStatusCode(req))
 }
 
@@ -1299,8 +1250,7 @@ func TestApp_GetCustomAction_Unauthorized(t *testing.T) {
 	// No auth context
 	testutil.SetPathParam(req, "id", uuid.New().String())
 
-	err := app.GetCustomAction(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.GetCustomAction, req)
 	assert.Equal(t, fasthttp.StatusUnauthorized, testutil.GetResponseStatusCode(req))
 }
 
@@ -1315,8 +1265,7 @@ func TestApp_DeleteCustomAction_Unauthorized(t *testing.T) {
 	// No auth context
 	testutil.SetPathParam(req, "id", uuid.New().String())
 
-	err := app.DeleteCustomAction(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.DeleteCustomAction, req)
 	assert.Equal(t, fasthttp.StatusUnauthorized, testutil.GetResponseStatusCode(req))
 }
 
@@ -1334,7 +1283,6 @@ func TestApp_UpdateCustomAction_Unauthorized(t *testing.T) {
 	// No auth context
 	testutil.SetPathParam(req, "id", uuid.New().String())
 
-	err := app.UpdateCustomAction(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.UpdateCustomAction, req)
 	assert.Equal(t, fasthttp.StatusUnauthorized, testutil.GetResponseStatusCode(req))
 }

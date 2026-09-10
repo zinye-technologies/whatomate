@@ -1,11 +1,10 @@
 package handlers
 
 import (
+	"net/http"
 	"time"
 
 	"github.com/shridarpatil/whatomate/internal/models"
-	"github.com/valyala/fasthttp"
-	"github.com/zerodha/fastglue"
 )
 
 // DashboardStats represents dashboard statistics
@@ -31,24 +30,26 @@ type RecentMessageResponse struct {
 }
 
 // GetDashboardStats returns dashboard statistics for the organization
-func (a *App) GetDashboardStats(r *fastglue.Request) error {
-	orgID, err := a.getOrgID(r)
+func (a *App) GetDashboardStats(w http.ResponseWriter, r *http.Request) {
+	orgID, err := a.getOrgIDHTTP(r)
 	if err != nil {
-		return r.SendErrorEnvelope(fasthttp.StatusUnauthorized, "Unauthorized", nil, "")
+		SendErrorEnvelope(w, http.StatusUnauthorized, "Unauthorized", nil, "")
+		return
 	}
 
 	now := time.Now()
 
 	// Parse date range from query params
-	fromStr := string(r.RequestCtx.QueryArgs().Peek("from"))
-	toStr := string(r.RequestCtx.QueryArgs().Peek("to"))
+	fromStr := r.URL.Query().Get("from")
+	toStr := r.URL.Query().Get("to")
 
 	var periodStart, periodEnd time.Time
 	if fromStr != "" && toStr != "" {
 		var errMsg string
 		periodStart, periodEnd, errMsg = parseDateRange(fromStr, toStr)
 		if errMsg != "" {
-			return r.SendErrorEnvelope(fasthttp.StatusBadRequest, errMsg, nil, "")
+			SendErrorEnvelope(w, http.StatusBadRequest, errMsg, nil, "")
+			return
 		}
 	} else {
 		// Default to current month
@@ -154,10 +155,11 @@ func (a *App) GetDashboardStats(r *fastglue.Request) error {
 		}
 	}
 
-	return r.SendEnvelope(map[string]any{
+	SendEnvelope(w, map[string]any{
 		"stats":           stats,
 		"recent_messages": recentMessages,
 	})
+	return
 }
 
 // calculatePercentageChange calculates the percentage change between two values

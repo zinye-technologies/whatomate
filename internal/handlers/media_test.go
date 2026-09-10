@@ -65,7 +65,7 @@ func TestApp_ServeMedia_Success_WithContactsRead(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, user.ID)
 	testutil.SetPathParam(req, "message_id", msg.ID.String())
 
-	require.NoError(t, app.ServeMedia(req))
+	testutil.InvokeHTTP(t, app.ServeMedia, req)
 	require.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 	assert.Equal(t, "image/jpeg", string(req.RequestCtx.Response.Header.Peek("Content-Type")))
 	assert.Equal(t, "private, max-age=3600", string(req.RequestCtx.Response.Header.Peek("Cache-Control")))
@@ -97,7 +97,7 @@ func TestApp_ServeMedia_RejectsDirectoryTraversal(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, user.ID)
 	testutil.SetPathParam(req, "message_id", msg.ID.String())
 
-	require.NoError(t, app.ServeMedia(req))
+	testutil.InvokeHTTP(t, app.ServeMedia, req)
 	assert.Equal(t, fasthttp.StatusBadRequest, testutil.GetResponseStatusCode(req),
 		"path traversal must be blocked at the storage boundary")
 }
@@ -133,7 +133,7 @@ func TestApp_ServeMedia_RejectsSymlink(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, user.ID)
 	testutil.SetPathParam(req, "message_id", msg.ID.String())
 
-	require.NoError(t, app.ServeMedia(req))
+	testutil.InvokeHTTP(t, app.ServeMedia, req)
 	assert.Equal(t, fasthttp.StatusBadRequest, testutil.GetResponseStatusCode(req),
 		"symlinked media files must be rejected to prevent reading arbitrary host files")
 }
@@ -158,7 +158,7 @@ func TestApp_ServeMedia_FileMissingOnDisk(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, user.ID)
 	testutil.SetPathParam(req, "message_id", msg.ID.String())
 
-	require.NoError(t, app.ServeMedia(req))
+	testutil.InvokeHTTP(t, app.ServeMedia, req)
 	assert.Equal(t, fasthttp.StatusNotFound, testutil.GetResponseStatusCode(req))
 }
 
@@ -179,7 +179,7 @@ func TestApp_ServeMedia_CrossOrgIsolation(t *testing.T) {
 	testutil.SetAuthContext(req, orgB.ID, userB.ID)
 	testutil.SetPathParam(req, "message_id", msg.ID.String())
 
-	require.NoError(t, app.ServeMedia(req))
+	testutil.InvokeHTTP(t, app.ServeMedia, req)
 	assert.Equal(t, fasthttp.StatusNotFound, testutil.GetResponseStatusCode(req),
 		"users from other orgs must not see another org's media")
 }
@@ -204,7 +204,7 @@ func TestApp_ServeMedia_AgentCanReadAssignedContactMedia(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, user.ID)
 	testutil.SetPathParam(req, "message_id", msg.ID.String())
 
-	require.NoError(t, app.ServeMedia(req))
+	testutil.InvokeHTTP(t, app.ServeMedia, req)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 }
 
@@ -224,7 +224,7 @@ func TestApp_ServeMedia_AgentWithoutAssignmentDenied(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, user.ID)
 	testutil.SetPathParam(req, "message_id", msg.ID.String())
 
-	require.NoError(t, app.ServeMedia(req))
+	testutil.InvokeHTTP(t, app.ServeMedia, req)
 	assert.Equal(t, fasthttp.StatusForbidden, testutil.GetResponseStatusCode(req))
 }
 
@@ -252,7 +252,7 @@ func TestApp_ServeMedia_AgentViaDirectTransfer(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, user.ID)
 	testutil.SetPathParam(req, "message_id", msg.ID.String())
 
-	require.NoError(t, app.ServeMedia(req))
+	testutil.InvokeHTTP(t, app.ServeMedia, req)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req),
 		"agent with an active direct transfer should access the contact's media")
 }
@@ -294,7 +294,7 @@ func TestApp_ServeMedia_AgentViaTeamTransfer(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, user.ID)
 	testutil.SetPathParam(req, "message_id", msg.ID.String())
 
-	require.NoError(t, app.ServeMedia(req))
+	testutil.InvokeHTTP(t, app.ServeMedia, req)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 }
 
@@ -328,7 +328,7 @@ func TestApp_ServeMedia_NoMediaInMessage(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, user.ID)
 	testutil.SetPathParam(req, "message_id", msg.ID.String())
 
-	require.NoError(t, app.ServeMedia(req))
+	testutil.InvokeHTTP(t, app.ServeMedia, req)
 	assert.Equal(t, fasthttp.StatusNotFound, testutil.GetResponseStatusCode(req))
 }
 
@@ -343,7 +343,7 @@ func TestApp_ServeMedia_InvalidMessageID(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, user.ID)
 	testutil.SetPathParam(req, "message_id", "not-a-uuid")
 
-	require.NoError(t, app.ServeMedia(req))
+	testutil.InvokeHTTP(t, app.ServeMedia, req)
 	assert.Equal(t, fasthttp.StatusBadRequest, testutil.GetResponseStatusCode(req))
 }
 
@@ -355,6 +355,6 @@ func TestApp_ServeMedia_Unauthorized(t *testing.T) {
 	req := testutil.NewGETRequest(t)
 	testutil.SetPathParam(req, "message_id", uuid.New().String())
 
-	require.NoError(t, app.ServeMedia(req))
+	testutil.InvokeHTTP(t, app.ServeMedia, req)
 	assert.Equal(t, fasthttp.StatusUnauthorized, testutil.GetResponseStatusCode(req))
 }

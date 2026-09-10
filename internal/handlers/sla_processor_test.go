@@ -8,6 +8,7 @@ import (
 	"github.com/shridarpatil/whatomate/test/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"gorm.io/gorm"
 )
 
 // --- SetSLADeadlines ---
@@ -196,12 +197,13 @@ func TestUpdateContactChatbotMessage_SetsTimestampAndResetsReminder(t *testing.T
 	// Set reminder_sent to true using raw SQL to avoid GORM caching
 	require.NoError(t, app.DB.Exec("UPDATE contacts SET chatbot_reminder_sent = true WHERE id = ?", contact.ID).Error)
 
-	before := time.Now()
+	// Allow small clock/DB timestamp skew when asserting "updated recently".
+	before := time.Now().Add(-2 * time.Second)
 	app.UpdateContactChatbotMessage(contact.ID)
 
-	// Reload the contact from DB
+	// Reload the contact from DB (fresh session avoids statement cache quirks)
 	var updated models.Contact
-	require.NoError(t, app.DB.Where("id = ?", contact.ID).First(&updated).Error)
+	require.NoError(t, app.DB.Session(&gorm.Session{NewDB: true}).Where("id = ?", contact.ID).First(&updated).Error)
 
 	require.NotNil(t, updated.ChatbotLastMessageAt)
 	assert.False(t, updated.ChatbotLastMessageAt.Before(before))

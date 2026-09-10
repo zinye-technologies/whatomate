@@ -42,7 +42,7 @@ func TestApp_ListConversationNotes_Success(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, user.ID)
 	testutil.SetPathParam(req, "id", contact.ID.String())
 
-	require.NoError(t, app.ListConversationNotes(req))
+	testutil.InvokeHTTP(t, app.ListConversationNotes, req)
 	require.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	var resp struct {
@@ -79,7 +79,7 @@ func TestApp_ListConversationNotes_CrossOrgIsolation(t *testing.T) {
 	testutil.SetAuthContext(req, orgB.ID, userB.ID)
 	testutil.SetPathParam(req, "id", contactA.ID.String())
 
-	require.NoError(t, app.ListConversationNotes(req))
+	testutil.InvokeHTTP(t, app.ListConversationNotes, req)
 	var resp struct {
 		Data struct {
 			Notes []handlers.ConversationNoteResponse `json:"notes"`
@@ -102,7 +102,7 @@ func TestApp_ListConversationNotes_PermissionDenied(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, user.ID)
 	testutil.SetPathParam(req, "id", contact.ID.String())
 
-	require.NoError(t, app.ListConversationNotes(req))
+	testutil.InvokeHTTP(t, app.ListConversationNotes, req)
 	assert.Equal(t, fasthttp.StatusForbidden, testutil.GetResponseStatusCode(req))
 }
 
@@ -119,7 +119,7 @@ func TestApp_CreateConversationNote_Success(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, user.ID)
 	testutil.SetPathParam(req, "id", contact.ID.String())
 
-	require.NoError(t, app.CreateConversationNote(req))
+	testutil.InvokeHTTP(t, app.CreateConversationNote, req)
 	require.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	var resp struct {
@@ -147,7 +147,7 @@ func TestApp_CreateConversationNote_EmptyContentRejected(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, user.ID)
 	testutil.SetPathParam(req, "id", contact.ID.String())
 
-	require.NoError(t, app.CreateConversationNote(req))
+	testutil.InvokeHTTP(t, app.CreateConversationNote, req)
 	testutil.AssertErrorResponse(t, req, fasthttp.StatusBadRequest, "content is required")
 }
 
@@ -163,7 +163,7 @@ func TestApp_CreateConversationNote_PermissionDenied(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, user.ID)
 	testutil.SetPathParam(req, "id", contact.ID.String())
 
-	require.NoError(t, app.CreateConversationNote(req))
+	testutil.InvokeHTTP(t, app.CreateConversationNote, req)
 	assert.Equal(t, fasthttp.StatusForbidden, testutil.GetResponseStatusCode(req))
 }
 
@@ -192,7 +192,7 @@ func TestApp_UpdateConversationNote_OnlyCreatorCanEdit(t *testing.T) {
 	testutil.SetPathParam(req, "id", contact.ID.String())
 	testutil.SetPathParam(req, "note_id", note.ID.String())
 
-	require.NoError(t, app.UpdateConversationNote(req))
+	testutil.InvokeHTTP(t, app.UpdateConversationNote, req)
 	testutil.AssertErrorResponse(t, req, fasthttp.StatusForbidden, "your own notes")
 
 	// Note unchanged.
@@ -206,7 +206,7 @@ func TestApp_UpdateConversationNote_OnlyCreatorCanEdit(t *testing.T) {
 	testutil.SetPathParam(req2, "id", contact.ID.String())
 	testutil.SetPathParam(req2, "note_id", note.ID.String())
 
-	require.NoError(t, app.UpdateConversationNote(req2))
+	testutil.InvokeHTTP(t, app.UpdateConversationNote, req2)
 	require.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req2))
 
 	require.NoError(t, app.DB.Where("id = ?", note.ID).First(&got).Error)
@@ -225,7 +225,7 @@ func TestApp_UpdateConversationNote_NotFound(t *testing.T) {
 	testutil.SetPathParam(req, "id", contact.ID.String())
 	testutil.SetPathParam(req, "note_id", uuid.New().String())
 
-	require.NoError(t, app.UpdateConversationNote(req))
+	testutil.InvokeHTTP(t, app.UpdateConversationNote, req)
 	assert.Equal(t, fasthttp.StatusNotFound, testutil.GetResponseStatusCode(req))
 }
 
@@ -249,7 +249,7 @@ func TestApp_UpdateConversationNote_EmptyContentRejected(t *testing.T) {
 	testutil.SetPathParam(req, "id", contact.ID.String())
 	testutil.SetPathParam(req, "note_id", note.ID.String())
 
-	require.NoError(t, app.UpdateConversationNote(req))
+	testutil.InvokeHTTP(t, app.UpdateConversationNote, req)
 	testutil.AssertErrorResponse(t, req, fasthttp.StatusBadRequest, "content is required")
 }
 
@@ -277,7 +277,7 @@ func TestApp_DeleteConversationNote_OnlyCreatorCanDelete(t *testing.T) {
 	testutil.SetPathParam(req, "id", contact.ID.String())
 	testutil.SetPathParam(req, "note_id", note.ID.String())
 
-	require.NoError(t, app.DeleteConversationNote(req))
+	testutil.InvokeHTTP(t, app.DeleteConversationNote, req)
 	testutil.AssertErrorResponse(t, req, fasthttp.StatusForbidden, "your own notes")
 
 	var stillExists int64
@@ -290,7 +290,7 @@ func TestApp_DeleteConversationNote_OnlyCreatorCanDelete(t *testing.T) {
 	testutil.SetPathParam(req2, "id", contact.ID.String())
 	testutil.SetPathParam(req2, "note_id", note.ID.String())
 
-	require.NoError(t, app.DeleteConversationNote(req2))
+	testutil.InvokeHTTP(t, app.DeleteConversationNote, req2)
 	require.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req2))
 
 	app.DB.Model(&models.ConversationNote{}).Where("id = ?", note.ID).Count(&stillExists)
@@ -319,7 +319,7 @@ func TestApp_DeleteConversationNote_CrossOrgIsolation(t *testing.T) {
 	testutil.SetPathParam(req, "id", contactA.ID.String())
 	testutil.SetPathParam(req, "note_id", note.ID.String())
 
-	require.NoError(t, app.DeleteConversationNote(req))
+	testutil.InvokeHTTP(t, app.DeleteConversationNote, req)
 	assert.Equal(t, fasthttp.StatusNotFound, testutil.GetResponseStatusCode(req))
 
 	var stillExists int64

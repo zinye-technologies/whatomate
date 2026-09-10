@@ -172,8 +172,7 @@ func TestApp_ListTemplates_Success(t *testing.T) {
 	req := testutil.NewGETRequest(t)
 	testutil.SetAuthContext(req, org.ID, user.ID)
 
-	err := app.ListTemplates(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.ListTemplates, req)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	var resp struct {
@@ -195,8 +194,7 @@ func TestApp_ListTemplates_EmptyList(t *testing.T) {
 	req := testutil.NewGETRequest(t)
 	testutil.SetAuthContext(req, org.ID, user.ID)
 
-	err := app.ListTemplates(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.ListTemplates, req)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	var resp struct {
@@ -225,8 +223,7 @@ func TestApp_ListTemplates_FilterByAccount(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, user.ID)
 	testutil.SetQueryParam(req, "account", account1.Name)
 
-	err := app.ListTemplates(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.ListTemplates, req)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	var resp struct {
@@ -257,8 +254,7 @@ func TestApp_ListTemplates_FilterByStatus(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, user.ID)
 	testutil.SetQueryParam(req, "status", "APPROVED")
 
-	err := app.ListTemplates(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.ListTemplates, req)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	var resp struct {
@@ -299,8 +295,7 @@ func TestApp_ListTemplates_FilterByCategory(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, user.ID)
 	testutil.SetQueryParam(req, "category", "UTILITY")
 
-	err := app.ListTemplates(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.ListTemplates, req)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	var resp struct {
@@ -330,8 +325,7 @@ func TestApp_ListTemplates_CrossOrgIsolation(t *testing.T) {
 	req := testutil.NewGETRequest(t)
 	testutil.SetAuthContext(req, org1.ID, user1.ID)
 
-	err := app.ListTemplates(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.ListTemplates, req)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	var resp struct {
@@ -368,8 +362,7 @@ func TestApp_CreateTemplate_Success(t *testing.T) {
 	req := testutil.NewJSONRequest(t, body)
 	testutil.SetAuthContext(req, org.ID, user.ID)
 
-	err := app.CreateTemplate(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.CreateTemplate, req)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	var resp struct {
@@ -405,8 +398,7 @@ func TestApp_CreateTemplate_MissingRequiredFields(t *testing.T) {
 	req := testutil.NewJSONRequest(t, body)
 	testutil.SetAuthContext(req, org.ID, user.ID)
 
-	err := app.CreateTemplate(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.CreateTemplate, req)
 	testutil.AssertErrorResponse(t, req, fasthttp.StatusBadRequest, "required")
 }
 
@@ -429,8 +421,7 @@ func TestApp_CreateTemplate_MissingBodyContent(t *testing.T) {
 	req := testutil.NewJSONRequest(t, body)
 	testutil.SetAuthContext(req, org.ID, user.ID)
 
-	err := app.CreateTemplate(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.CreateTemplate, req)
 	testutil.AssertErrorResponse(t, req, fasthttp.StatusBadRequest, "required")
 }
 
@@ -452,8 +443,7 @@ func TestApp_CreateTemplate_AccountNotFound(t *testing.T) {
 	req := testutil.NewJSONRequest(t, body)
 	testutil.SetAuthContext(req, org.ID, user.ID)
 
-	err := app.CreateTemplate(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.CreateTemplate, req)
 	testutil.AssertErrorResponse(t, req, fasthttp.StatusBadRequest, "WhatsApp account not found")
 }
 
@@ -480,8 +470,7 @@ func TestApp_CreateTemplate_DuplicateName(t *testing.T) {
 	req := testutil.NewJSONRequest(t, body)
 	testutil.SetAuthContext(req, org.ID, user.ID)
 
-	err := app.CreateTemplate(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.CreateTemplate, req)
 	testutil.AssertErrorResponse(t, req, fasthttp.StatusConflict, "already exists")
 }
 
@@ -505,8 +494,7 @@ func TestApp_CreateTemplate_AccountFromAnotherOrg(t *testing.T) {
 	req := testutil.NewJSONRequest(t, body)
 	testutil.SetAuthContext(req, org1.ID, user1.ID)
 
-	err := app.CreateTemplate(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.CreateTemplate, req)
 	testutil.AssertErrorResponse(t, req, fasthttp.StatusBadRequest, "WhatsApp account not found")
 }
 
@@ -524,8 +512,7 @@ func TestApp_CreateTemplate_InvalidJSON(t *testing.T) {
 	req := &fastglue.Request{RequestCtx: ctx}
 	testutil.SetAuthContext(req, org.ID, user.ID)
 
-	err := app.CreateTemplate(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.CreateTemplate, req)
 	testutil.AssertErrorResponse(t, req, fasthttp.StatusBadRequest, "Invalid request body")
 }
 
@@ -552,8 +539,7 @@ func TestApp_CreateTemplate_RejectsTooManyHeaderVariables(t *testing.T) {
 	req := testutil.NewJSONRequest(t, body)
 	testutil.SetAuthContext(req, org.ID, user.ID)
 
-	err := app.CreateTemplate(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.CreateTemplate, req)
 	testutil.AssertErrorResponse(t, req, fasthttp.StatusBadRequest, "at most one variable")
 }
 
@@ -590,8 +576,7 @@ func TestApp_UpdateTemplate_RejectsTooManyHeaderVariables(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, user.ID)
 	testutil.SetPathParam(req, "id", tpl.ID.String())
 
-	err := app.UpdateTemplate(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.UpdateTemplate, req)
 	testutil.AssertErrorResponse(t, req, fasthttp.StatusBadRequest, "at most one variable")
 }
 
@@ -614,8 +599,7 @@ func TestApp_CreateTemplate_NameNormalization(t *testing.T) {
 	req := testutil.NewJSONRequest(t, body)
 	testutil.SetAuthContext(req, org.ID, user.ID)
 
-	err := app.CreateTemplate(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.CreateTemplate, req)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	var resp struct {
@@ -642,8 +626,7 @@ func TestApp_GetTemplate_Success(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, user.ID)
 	testutil.SetPathParam(req, "id", tmpl.ID.String())
 
-	err := app.GetTemplate(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.GetTemplate, req)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	var resp struct {
@@ -667,8 +650,7 @@ func TestApp_GetTemplate_NotFound(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, user.ID)
 	testutil.SetPathParam(req, "id", uuid.New().String())
 
-	err := app.GetTemplate(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.GetTemplate, req)
 	testutil.AssertErrorResponse(t, req, fasthttp.StatusNotFound, "not found")
 }
 
@@ -683,8 +665,7 @@ func TestApp_GetTemplate_InvalidID(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, user.ID)
 	testutil.SetPathParam(req, "id", "not-a-uuid")
 
-	err := app.GetTemplate(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.GetTemplate, req)
 	testutil.AssertErrorResponse(t, req, fasthttp.StatusBadRequest, "Invalid template ID")
 }
 
@@ -704,8 +685,7 @@ func TestApp_GetTemplate_CrossOrgIsolation(t *testing.T) {
 	testutil.SetAuthContext(req, org1.ID, user1.ID)
 	testutil.SetPathParam(req, "id", tmpl.ID.String())
 
-	err := app.GetTemplate(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.GetTemplate, req)
 	testutil.AssertErrorResponse(t, req, fasthttp.StatusNotFound, "not found")
 }
 
@@ -732,8 +712,7 @@ func TestApp_UpdateTemplate_Success(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, user.ID)
 	testutil.SetPathParam(req, "id", tmpl.ID.String())
 
-	err := app.UpdateTemplate(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.UpdateTemplate, req)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	var resp struct {
@@ -765,8 +744,7 @@ func TestApp_UpdateTemplate_ApprovedToDraft(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, user.ID)
 	testutil.SetPathParam(req, "id", tmpl.ID.String())
 
-	err := app.UpdateTemplate(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.UpdateTemplate, req)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	var resp struct {
@@ -796,8 +774,7 @@ func TestApp_UpdateTemplate_RejectedToDraft(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, user.ID)
 	testutil.SetPathParam(req, "id", tmpl.ID.String())
 
-	err := app.UpdateTemplate(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.UpdateTemplate, req)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	var resp struct {
@@ -823,8 +800,7 @@ func TestApp_UpdateTemplate_NotFound(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, user.ID)
 	testutil.SetPathParam(req, "id", uuid.New().String())
 
-	err := app.UpdateTemplate(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.UpdateTemplate, req)
 	testutil.AssertErrorResponse(t, req, fasthttp.StatusNotFound, "not found")
 }
 
@@ -843,8 +819,7 @@ func TestApp_UpdateTemplate_InvalidID(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, user.ID)
 	testutil.SetPathParam(req, "id", "bad-uuid")
 
-	err := app.UpdateTemplate(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.UpdateTemplate, req)
 	testutil.AssertErrorResponse(t, req, fasthttp.StatusBadRequest, "Invalid template ID")
 }
 
@@ -867,8 +842,7 @@ func TestApp_UpdateTemplate_CrossOrgIsolation(t *testing.T) {
 	testutil.SetAuthContext(req, org1.ID, user1.ID)
 	testutil.SetPathParam(req, "id", tmpl.ID.String())
 
-	err := app.UpdateTemplate(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.UpdateTemplate, req)
 	testutil.AssertErrorResponse(t, req, fasthttp.StatusNotFound, "not found")
 }
 
@@ -890,8 +864,7 @@ func TestApp_UpdateTemplate_RejectedTemplateEditable(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, user.ID)
 	testutil.SetPathParam(req, "id", tmpl.ID.String())
 
-	err := app.UpdateTemplate(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.UpdateTemplate, req)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	var resp struct {
@@ -917,8 +890,7 @@ func TestApp_DeleteTemplate_Success(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, user.ID)
 	testutil.SetPathParam(req, "id", tmpl.ID.String())
 
-	err := app.DeleteTemplate(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.DeleteTemplate, req)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	var resp struct {
@@ -946,8 +918,7 @@ func TestApp_DeleteTemplate_NotFound(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, user.ID)
 	testutil.SetPathParam(req, "id", uuid.New().String())
 
-	err := app.DeleteTemplate(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.DeleteTemplate, req)
 	testutil.AssertErrorResponse(t, req, fasthttp.StatusNotFound, "not found")
 }
 
@@ -962,8 +933,7 @@ func TestApp_DeleteTemplate_InvalidID(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, user.ID)
 	testutil.SetPathParam(req, "id", "invalid-uuid")
 
-	err := app.DeleteTemplate(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.DeleteTemplate, req)
 	testutil.AssertErrorResponse(t, req, fasthttp.StatusBadRequest, "Invalid template ID")
 }
 
@@ -982,8 +952,7 @@ func TestApp_DeleteTemplate_CrossOrgIsolation(t *testing.T) {
 	testutil.SetAuthContext(req, org1.ID, user1.ID)
 	testutil.SetPathParam(req, "id", tmpl.ID.String())
 
-	err := app.DeleteTemplate(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.DeleteTemplate, req)
 	testutil.AssertErrorResponse(t, req, fasthttp.StatusNotFound, "not found")
 
 	// Verify the template still exists in org2
@@ -1017,8 +986,7 @@ func TestApp_SubmitTemplate_Success(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, user.ID)
 	testutil.SetPathParam(req, "id", tmpl.ID.String())
 
-	err := app.SubmitTemplate(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.SubmitTemplate, req)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	var resp struct {
@@ -1063,8 +1031,7 @@ func TestApp_SubmitTemplate_AlreadySubmitted(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, user.ID)
 	testutil.SetPathParam(req, "id", tmpl.ID.String())
 
-	err := app.SubmitTemplate(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.SubmitTemplate, req)
 	testutil.AssertErrorResponse(t, req, fasthttp.StatusBadRequest, "pending approval")
 }
 
@@ -1079,8 +1046,7 @@ func TestApp_SubmitTemplate_NotFound(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, user.ID)
 	testutil.SetPathParam(req, "id", uuid.New().String())
 
-	err := app.SubmitTemplate(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.SubmitTemplate, req)
 	testutil.AssertErrorResponse(t, req, fasthttp.StatusNotFound, "not found")
 }
 
@@ -1095,8 +1061,7 @@ func TestApp_SubmitTemplate_InvalidID(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, user.ID)
 	testutil.SetPathParam(req, "id", "bad-id")
 
-	err := app.SubmitTemplate(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.SubmitTemplate, req)
 	testutil.AssertErrorResponse(t, req, fasthttp.StatusBadRequest, "Invalid template ID")
 }
 
@@ -1118,8 +1083,7 @@ func TestApp_SyncTemplates_Success(t *testing.T) {
 	})
 	testutil.SetAuthContext(req, org.ID, user.ID)
 
-	err := app.SyncTemplates(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.SyncTemplates, req)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	var resp struct {
@@ -1166,8 +1130,7 @@ func TestApp_SyncTemplates_MissingAccount(t *testing.T) {
 	req := testutil.NewJSONRequest(t, map[string]any{})
 	testutil.SetAuthContext(req, org.ID, user.ID)
 
-	err := app.SyncTemplates(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.SyncTemplates, req)
 	testutil.AssertErrorResponse(t, req, fasthttp.StatusBadRequest, "whatsapp_account is required")
 }
 
@@ -1183,8 +1146,7 @@ func TestApp_SyncTemplates_AccountNotFound(t *testing.T) {
 	})
 	testutil.SetAuthContext(req, org.ID, user.ID)
 
-	err := app.SyncTemplates(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.SyncTemplates, req)
 	testutil.AssertErrorResponse(t, req, fasthttp.StatusNotFound, "WhatsApp account not found")
 }
 
@@ -1203,8 +1165,7 @@ func TestApp_SyncTemplates_ViaQueryParam(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, user.ID)
 	testutil.SetQueryParam(req, "account", account.Name)
 
-	err := app.SyncTemplates(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.SyncTemplates, req)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	var resp struct {

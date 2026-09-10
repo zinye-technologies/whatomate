@@ -1,12 +1,12 @@
 package handlers
 
 import (
+	"net/http"
 	"sort"
 
 	"github.com/google/uuid"
+	"github.com/shridarpatil/whatomate/internal/middleware"
 	"github.com/shridarpatil/whatomate/internal/models"
-	"github.com/valyala/fasthttp"
-	"github.com/zerodha/fastglue"
 	"gorm.io/gorm"
 )
 
@@ -59,15 +59,16 @@ type PermissionResponse struct {
 	Key         string    `json:"key"` // "resource:action"
 }
 
-// ListRoles returns all roles for the organization
-func (a *App) ListRoles(r *fastglue.Request) error {
-	orgID, userID, err := a.getOrgAndUserID(r)
+// ListRoles returns all roles for the organization (native net/http).
+func (a *App) ListRoles(w http.ResponseWriter, r *http.Request) {
+	orgID, userID, err := a.getOrgAndUserIDHTTP(r)
 	if err != nil {
-		return r.SendErrorEnvelope(fasthttp.StatusUnauthorized, "Unauthorized", nil, "")
+		SendErrorEnvelope(w, http.StatusUnauthorized, "Unauthorized", nil, "")
+		return
 	}
 
-	pg := parsePagination(r)
-	search := string(r.RequestCtx.QueryArgs().Peek("search"))
+	pg := parsePaginationHTTP(r)
+	search := r.URL.Query().Get("search")
 
 	baseQuery := a.ScopeToOrg(a.DB, userID, orgID)
 	if search != "" {
@@ -83,7 +84,8 @@ func (a *App) ListRoles(r *fastglue.Request) error {
 		Order("is_system DESC, name ASC")).
 		Find(&roles).Error; err != nil {
 		a.Log.Error("Failed to list roles", "error", err)
-		return r.SendErrorEnvelope(fasthttp.StatusInternalServerError, "Failed to list roles", nil, "")
+		SendErrorEnvelope(w, http.StatusInternalServerError, "Failed to list roles", nil, "")
+		return
 	}
 
 	// Load permissions via JOIN instead of GORM's Preload IN query
@@ -93,7 +95,8 @@ func (a *App) ListRoles(r *fastglue.Request) error {
 	}
 	if err := a.loadRolePermissions(rolePtrs...); err != nil {
 		a.Log.Error("Failed to load role permissions", "error", err)
-		return r.SendErrorEnvelope(fasthttp.StatusInternalServerError, "Failed to list roles", nil, "")
+		SendErrorEnvelope(w, http.StatusInternalServerError, "Failed to list roles", nil, "")
+		return
 	}
 
 	// Convert to response format with user counts
@@ -104,66 +107,73 @@ func (a *App) ListRoles(r *fastglue.Request) error {
 		response[i] = roleToResponse(role, userCount)
 	}
 
-	return r.SendEnvelope(listEnvelope("roles", response, total, pg))
+	SendEnvelope(w, listEnvelope("roles", response, total, pg))
 }
 
-// GetRole returns a single role
-func (a *App) GetRole(r *fastglue.Request) error {
-	orgID, err := a.getOrgID(r)
+// GetRole returns a single role (native net/http).
+func (a *App) GetRole(w http.ResponseWriter, r *http.Request) {
+	orgID, err := a.getOrgIDHTTP(r)
 	if err != nil {
-		return r.SendErrorEnvelope(fasthttp.StatusUnauthorized, "Unauthorized", nil, "")
+		SendErrorEnvelope(w, http.StatusUnauthorized, "Unauthorized", nil, "")
+		return
 	}
 
-	id, err := parsePathUUID(r, "id", "role")
+	id, err := parsePathUUIDHTTP(w, r, "id", "role")
 	if err != nil {
-		return nil
+		return
 	}
 
 	var role models.CustomRole
 	if err := a.DB.Where("id = ? AND organization_id = ?", id, orgID).
 		First(&role).Error; err != nil {
-		return r.SendErrorEnvelope(fasthttp.StatusNotFound, "Role not found", nil, "")
+		SendErrorEnvelope(w, http.StatusNotFound, "Role not found", nil, "")
+		return
 	}
 
 	if err := a.loadRolePermissions(&role); err != nil {
 		a.Log.Error("Failed to load role permissions", "error", err)
-		return r.SendErrorEnvelope(fasthttp.StatusInternalServerError, "Failed to get role", nil, "")
+		SendErrorEnvelope(w, http.StatusInternalServerError, "Failed to get role", nil, "")
+		return
 	}
 
 	var userCount int64
 	a.DB.Model(&models.User{}).Where("role_id = ?", role.ID).Count(&userCount)
 
-	return r.SendEnvelope(roleToResponse(role, userCount))
+	SendEnvelope(w, roleToResponse(role, userCount))
 }
 
-// CreateRole creates a new custom role
-func (a *App) CreateRole(r *fastglue.Request) error {
-	orgID, userID, err := a.getOrgAndUserID(r)
+// CreateRole creates a new custom role (native net/http).
+func (a *App) CreateRole(w http.ResponseWriter, r *http.Request) {
+	orgID, userID, err := a.getOrgAndUserIDHTTP(r)
 	if err != nil {
-		return r.SendErrorEnvelope(fasthttp.StatusUnauthorized, "Unauthorized", nil, "")
+		SendErrorEnvelope(w, http.StatusUnauthorized, "Unauthorized", nil, "")
+		return
 	}
 
 	var req RoleRequest
-	if err := a.decodeRequest(r, &req); err != nil {
-		return nil
+	if err := a.decodeRequestHTTP(w, r, &req); err != nil {
+		return
 	}
 
 	// Validate required fields
 	if req.Name == "" {
-		return r.SendErrorEnvelope(fasthttp.StatusBadRequest, "Name is required", nil, "")
+		SendErrorEnvelope(w, http.StatusBadRequest, "Name is required", nil, "")
+		return
 	}
 
 	// Check if name already exists
 	var existingRole models.CustomRole
 	if err := a.DB.Where("organization_id = ? AND name = ?", orgID, req.Name).First(&existingRole).Error; err == nil {
-		return r.SendErrorEnvelope(fasthttp.StatusConflict, "Role with this name already exists", nil, "")
+		SendErrorEnvelope(w, http.StatusConflict, "Role with this name already exists", nil, "")
+		return
 	}
 
 	// Get permissions from database
 	permissions, err := a.getPermissionsByKeys(req.Permissions)
 	if err != nil {
 		a.Log.Error("Failed to fetch permissions", "error", err)
-		return r.SendErrorEnvelope(fasthttp.StatusInternalServerError, "Failed to create role", nil, "")
+		SendErrorEnvelope(w, http.StatusInternalServerError, "Failed to create role", nil, "")
+		return
 	}
 
 	role := models.CustomRole{
@@ -185,58 +195,64 @@ func (a *App) CreateRole(r *fastglue.Request) error {
 			return tx.Create(&role).Error
 		}); err != nil {
 			a.Log.Error("Failed to create role", "error", err)
-			return r.SendErrorEnvelope(fasthttp.StatusInternalServerError, "Failed to create role", nil, "")
+			SendErrorEnvelope(w, http.StatusInternalServerError, "Failed to create role", nil, "")
+			return
 		}
 		a.logAudit(orgID, userID,
 			"role", role.ID, models.AuditActionCreated, nil, roleAuditSnapshot(&role))
-		return r.SendEnvelope(roleToResponse(role, 0))
+		SendEnvelope(w, roleToResponse(role, 0))
+		return
 	}
 
 	if err := a.DB.Create(&role).Error; err != nil {
 		a.Log.Error("Failed to create role", "error", err)
-		return r.SendErrorEnvelope(fasthttp.StatusInternalServerError, "Failed to create role", nil, "")
+		SendErrorEnvelope(w, http.StatusInternalServerError, "Failed to create role", nil, "")
+		return
 	}
 
 	a.logAudit(orgID, userID,
 		"role", role.ID, models.AuditActionCreated, nil, roleAuditSnapshot(&role))
 
-	return r.SendEnvelope(roleToResponse(role, 0))
+	SendEnvelope(w, roleToResponse(role, 0))
 }
 
-// UpdateRole updates a custom role
-func (a *App) UpdateRole(r *fastglue.Request) error {
-	orgID, userID, err := a.getOrgAndUserID(r)
+// UpdateRole updates a custom role (native net/http).
+func (a *App) UpdateRole(w http.ResponseWriter, r *http.Request) {
+	orgID, userID, err := a.getOrgAndUserIDHTTP(r)
 	if err != nil {
-		return r.SendErrorEnvelope(fasthttp.StatusUnauthorized, "Unauthorized", nil, "")
+		SendErrorEnvelope(w, http.StatusUnauthorized, "Unauthorized", nil, "")
+		return
 	}
 
-	id, err := parsePathUUID(r, "id", "role")
+	id, err := parsePathUUIDHTTP(w, r, "id", "role")
 	if err != nil {
-		return nil
+		return
 	}
 
 	var role models.CustomRole
 	if err := a.DB.Where("id = ? AND organization_id = ?", id, orgID).
 		First(&role).Error; err != nil {
-		return r.SendErrorEnvelope(fasthttp.StatusNotFound, "Role not found", nil, "")
+		SendErrorEnvelope(w, http.StatusNotFound, "Role not found", nil, "")
+		return
 	}
 
 	if err := a.loadRolePermissions(&role); err != nil {
 		a.Log.Error("Failed to load role permissions", "error", err)
-		return r.SendErrorEnvelope(fasthttp.StatusInternalServerError, "Failed to update role", nil, "")
+		SendErrorEnvelope(w, http.StatusInternalServerError, "Failed to update role", nil, "")
+		return
 	}
 
 	oldSnap := roleAuditSnapshot(&role)
 
 	// System roles can only have their description updated
 	var req RoleRequest
-	if err := a.decodeRequest(r, &req); err != nil {
-		return nil
+	if err := a.decodeRequestHTTP(w, r, &req); err != nil {
+		return
 	}
 
 	if role.IsSystem {
 		// Check if user is super admin
-		isSuperAdmin, _ := r.RequestCtx.UserValue("is_super_admin").(bool)
+		isSuperAdmin := middleware.IsSuperAdminFromContext(r.Context())
 
 		// Only allow description updates for non-super admins
 		if req.Description != "" {
@@ -248,18 +264,21 @@ func (a *App) UpdateRole(r *fastglue.Request) error {
 			permissions, err := a.getPermissionsByKeys(req.Permissions)
 			if err != nil {
 				a.Log.Error("Failed to fetch permissions", "error", err)
-				return r.SendErrorEnvelope(fasthttp.StatusInternalServerError, "Failed to update role", nil, "")
+				SendErrorEnvelope(w, http.StatusInternalServerError, "Failed to update role", nil, "")
+				return
 			}
 			if err := a.DB.Model(&role).Association("Permissions").Replace(permissions); err != nil {
 				a.Log.Error("Failed to update role permissions", "error", err)
-				return r.SendErrorEnvelope(fasthttp.StatusInternalServerError, "Failed to update role", nil, "")
+				SendErrorEnvelope(w, http.StatusInternalServerError, "Failed to update role", nil, "")
+				return
 			}
 			role.Permissions = permissions
 		}
 
 		if err := a.DB.Save(&role).Error; err != nil {
 			a.Log.Error("Failed to update role", "error", err)
-			return r.SendErrorEnvelope(fasthttp.StatusInternalServerError, "Failed to update role", nil, "")
+			SendErrorEnvelope(w, http.StatusInternalServerError, "Failed to update role", nil, "")
+			return
 		}
 
 		// Invalidate permissions cache for all users with this role
@@ -270,7 +289,8 @@ func (a *App) UpdateRole(r *fastglue.Request) error {
 
 		var userCount int64
 		a.DB.Model(&models.User{}).Where("role_id = ?", role.ID).Count(&userCount)
-		return r.SendEnvelope(roleToResponse(role, userCount))
+		SendEnvelope(w, roleToResponse(role, userCount))
+		return
 	}
 
 	// For custom roles, allow full updates
@@ -278,7 +298,8 @@ func (a *App) UpdateRole(r *fastglue.Request) error {
 		// Check if name already exists for another role
 		var existingRole models.CustomRole
 		if err := a.DB.Where("organization_id = ? AND name = ? AND id != ?", orgID, req.Name, id).First(&existingRole).Error; err == nil {
-			return r.SendErrorEnvelope(fasthttp.StatusConflict, "Role with this name already exists", nil, "")
+			SendErrorEnvelope(w, http.StatusConflict, "Role with this name already exists", nil, "")
+			return
 		}
 		role.Name = req.Name
 	}
@@ -291,12 +312,14 @@ func (a *App) UpdateRole(r *fastglue.Request) error {
 		permissions, err := a.getPermissionsByKeys(req.Permissions)
 		if err != nil {
 			a.Log.Error("Failed to fetch permissions", "error", err)
-			return r.SendErrorEnvelope(fasthttp.StatusInternalServerError, "Failed to update role", nil, "")
+			SendErrorEnvelope(w, http.StatusInternalServerError, "Failed to update role", nil, "")
+			return
 		}
 		// Replace associations
 		if err := a.DB.Model(&role).Association("Permissions").Replace(permissions); err != nil {
 			a.Log.Error("Failed to update role permissions", "error", err)
-			return r.SendErrorEnvelope(fasthttp.StatusInternalServerError, "Failed to update role", nil, "")
+			SendErrorEnvelope(w, http.StatusInternalServerError, "Failed to update role", nil, "")
+			return
 		}
 		role.Permissions = permissions
 	}
@@ -311,7 +334,8 @@ func (a *App) UpdateRole(r *fastglue.Request) error {
 			return tx.Save(&role).Error
 		}); err != nil {
 			a.Log.Error("Failed to update role", "error", err)
-			return r.SendErrorEnvelope(fasthttp.StatusInternalServerError, "Failed to update role", nil, "")
+			SendErrorEnvelope(w, http.StatusInternalServerError, "Failed to update role", nil, "")
+			return
 		}
 	} else {
 		if !req.IsDefault && role.IsDefault {
@@ -319,7 +343,8 @@ func (a *App) UpdateRole(r *fastglue.Request) error {
 		}
 		if err := a.DB.Save(&role).Error; err != nil {
 			a.Log.Error("Failed to update role", "error", err)
-			return r.SendErrorEnvelope(fasthttp.StatusInternalServerError, "Failed to update role", nil, "")
+			SendErrorEnvelope(w, http.StatusInternalServerError, "Failed to update role", nil, "")
+			return
 		}
 	}
 
@@ -331,36 +356,39 @@ func (a *App) UpdateRole(r *fastglue.Request) error {
 
 	var userCount int64
 	a.DB.Model(&models.User{}).Where("role_id = ?", role.ID).Count(&userCount)
-	return r.SendEnvelope(roleToResponse(role, userCount))
+	SendEnvelope(w, roleToResponse(role, userCount))
 }
 
-// DeleteRole deletes a custom role
-func (a *App) DeleteRole(r *fastglue.Request) error {
-	orgID, userID, err := a.getOrgAndUserID(r)
+// DeleteRole deletes a custom role (native net/http).
+func (a *App) DeleteRole(w http.ResponseWriter, r *http.Request) {
+	orgID, userID, err := a.getOrgAndUserIDHTTP(r)
 	if err != nil {
-		return r.SendErrorEnvelope(fasthttp.StatusUnauthorized, "Unauthorized", nil, "")
+		SendErrorEnvelope(w, http.StatusUnauthorized, "Unauthorized", nil, "")
+		return
 	}
 
-	id, err := parsePathUUID(r, "id", "role")
+	id, err := parsePathUUIDHTTP(w, r, "id", "role")
 	if err != nil {
-		return nil
+		return
 	}
 
-	role, err := findByIDAndOrg[models.CustomRole](a.DB, r, id, orgID, "Role")
+	role, err := findByIDAndOrgHTTP[models.CustomRole](a.DB, w, id, orgID, "Role")
 	if err != nil {
-		return nil
+		return
 	}
 
 	// Cannot delete system roles
 	if role.IsSystem {
-		return r.SendErrorEnvelope(fasthttp.StatusBadRequest, "Cannot delete system roles", nil, "")
+		SendErrorEnvelope(w, http.StatusBadRequest, "Cannot delete system roles", nil, "")
+		return
 	}
 
 	// Check if any users have this role
 	var userCount int64
 	a.DB.Model(&models.User{}).Where("role_id = ?", id).Count(&userCount)
 	if userCount > 0 {
-		return r.SendErrorEnvelope(fasthttp.StatusBadRequest, "Cannot delete role with assigned users", nil, "")
+		SendErrorEnvelope(w, http.StatusBadRequest, "Cannot delete role with assigned users", nil, "")
+		return
 	}
 
 	// Load permissions for audit snapshot before deletion
@@ -370,21 +398,23 @@ func (a *App) DeleteRole(r *fastglue.Request) error {
 	// Delete the role (permissions associations will be cleared automatically)
 	if err := a.DB.Delete(role).Error; err != nil {
 		a.Log.Error("Failed to delete role", "error", err)
-		return r.SendErrorEnvelope(fasthttp.StatusInternalServerError, "Failed to delete role", nil, "")
+		SendErrorEnvelope(w, http.StatusInternalServerError, "Failed to delete role", nil, "")
+		return
 	}
 
 	a.logAudit(orgID, userID,
 		"role", id, models.AuditActionDeleted, oldSnap, nil)
 
-	return r.SendEnvelope(map[string]string{"message": "Role deleted successfully"})
+	SendEnvelope(w, map[string]string{"message": "Role deleted successfully"})
 }
 
-// ListPermissions returns all available permissions
-func (a *App) ListPermissions(r *fastglue.Request) error {
+// ListPermissions returns all available permissions (native net/http).
+func (a *App) ListPermissions(w http.ResponseWriter, r *http.Request) {
 	var permissions []models.Permission
 	if err := a.DB.Order("resource ASC, action ASC").Find(&permissions).Error; err != nil {
 		a.Log.Error("Failed to list permissions", "error", err)
-		return r.SendErrorEnvelope(fasthttp.StatusInternalServerError, "Failed to list permissions", nil, "")
+		SendErrorEnvelope(w, http.StatusInternalServerError, "Failed to list permissions", nil, "")
+		return
 	}
 
 	response := make([]PermissionResponse, len(permissions))
@@ -398,7 +428,7 @@ func (a *App) ListPermissions(r *fastglue.Request) error {
 		}
 	}
 
-	return r.SendEnvelope(map[string]any{
+	SendEnvelope(w, map[string]any{
 		"permissions": response,
 	})
 }

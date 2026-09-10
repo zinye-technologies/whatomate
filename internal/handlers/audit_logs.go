@@ -1,12 +1,11 @@
 package handlers
 
 import (
+	"net/http"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/shridarpatil/whatomate/internal/models"
-	"github.com/valyala/fasthttp"
-	"github.com/zerodha/fastglue"
 	"gorm.io/gorm"
 )
 
@@ -24,36 +23,36 @@ type AuditLogResponse struct {
 
 // ListAuditLogs returns audit logs with optional filters.
 // Supported query params: resource_type, resource_id, user_id, action, from, to, page, limit.
-func (a *App) ListAuditLogs(r *fastglue.Request) error {
-	orgID, _, err := a.requireAuth(r, models.ResourceAuditLogs, models.ActionRead)
+func (a *App) ListAuditLogs(w http.ResponseWriter, r *http.Request) {
+	orgID, _, err := a.requireAuthHTTP(w, r, models.ResourceAuditLogs, models.ActionRead)
 	if err != nil {
-		return nil
+		return
 	}
 
 	// Build query with optional filters
 	baseQuery := a.DB.Where("organization_id = ?", orgID)
 
-	if v := string(r.RequestCtx.QueryArgs().Peek("resource_type")); v != "" {
+	if v := r.URL.Query().Get("resource_type"); v != "" {
 		baseQuery = baseQuery.Where("resource_type = ?", v)
 	}
 
-	if v := string(r.RequestCtx.QueryArgs().Peek("resource_id")); v != "" {
+	if v := r.URL.Query().Get("resource_id"); v != "" {
 		if id, err := uuid.Parse(v); err == nil {
 			baseQuery = baseQuery.Where("resource_id = ?", id)
 		}
 	}
 
-	if v := string(r.RequestCtx.QueryArgs().Peek("user_id")); v != "" {
+	if v := r.URL.Query().Get("user_id"); v != "" {
 		if id, err := uuid.Parse(v); err == nil {
 			baseQuery = baseQuery.Where("user_id = ?", id)
 		}
 	}
 
-	if v := string(r.RequestCtx.QueryArgs().Peek("action")); v != "" {
+	if v := r.URL.Query().Get("action"); v != "" {
 		baseQuery = baseQuery.Where("action = ?", v)
 	}
 
-	if v := string(r.RequestCtx.QueryArgs().Peek("from")); v != "" {
+	if v := r.URL.Query().Get("from"); v != "" {
 		if t, err := time.Parse(time.DateOnly, v); err == nil {
 			baseQuery = baseQuery.Where("created_at >= ?", t)
 		} else if t, err := time.Parse(time.RFC3339, v); err == nil {
@@ -61,7 +60,7 @@ func (a *App) ListAuditLogs(r *fastglue.Request) error {
 		}
 	}
 
-	if v := string(r.RequestCtx.QueryArgs().Peek("to")); v != "" {
+	if v := r.URL.Query().Get("to"); v != "" {
 		if t, err := time.Parse(time.DateOnly, v); err == nil {
 			// End of day
 			baseQuery = baseQuery.Where("created_at <= ?", t.Add(24*time.Hour-time.Second))
@@ -70,7 +69,7 @@ func (a *App) ListAuditLogs(r *fastglue.Request) error {
 		}
 	}
 
-	pg := parsePagination(r)
+	pg := parsePaginationHTTP(r)
 
 	var logs []models.AuditLog
 	var total int64
@@ -80,8 +79,8 @@ func (a *App) ListAuditLogs(r *fastglue.Request) error {
 
 	if err := pg.Apply(baseQuery.Order("created_at DESC")).Find(&logs).Error; err != nil {
 		a.Log.Error("Failed to list audit logs", "error", err)
-		return r.SendErrorEnvelope(fasthttp.StatusInternalServerError,
-			"Failed to list audit logs", nil, "")
+		SendErrorEnvelope(w, http.StatusInternalServerError, "Failed to list audit logs", nil, "")
+		return
 	}
 
 	response := make([]AuditLogResponse, len(logs))
@@ -98,27 +97,29 @@ func (a *App) ListAuditLogs(r *fastglue.Request) error {
 		}
 	}
 
-	return r.SendEnvelope(listEnvelope("audit_logs", response, total, pg))
+	SendEnvelope(w, listEnvelope("audit_logs", response, total, pg))
+	return
 }
 
 // GetAuditLog returns a single audit log entry by ID
-func (a *App) GetAuditLog(r *fastglue.Request) error {
-	orgID, _, err := a.requireAuth(r, models.ResourceAuditLogs, models.ActionRead)
+func (a *App) GetAuditLog(w http.ResponseWriter, r *http.Request) {
+	orgID, _, err := a.requireAuthHTTP(w, r, models.ResourceAuditLogs, models.ActionRead)
 	if err != nil {
-		return nil
+		return
 	}
 
-	logID, err := parsePathUUID(r, "id", "audit log")
+	logID, err := parsePathUUIDHTTP(w, r, "id", "audit log")
 	if err != nil {
-		return nil
+		return
 	}
 
 	var log models.AuditLog
 	if err := a.DB.Where("id = ? AND organization_id = ?", logID, orgID).First(&log).Error; err != nil {
-		return r.SendErrorEnvelope(fasthttp.StatusNotFound, "Audit log not found", nil, "")
+		SendErrorEnvelope(w, http.StatusNotFound, "Audit log not found", nil, "")
+		return
 	}
 
-	return r.SendEnvelope(AuditLogResponse{
+	SendEnvelope(w, AuditLogResponse{
 		ID:           log.ID,
 		ResourceType: log.ResourceType,
 		ResourceID:   log.ResourceID,
@@ -128,4 +129,5 @@ func (a *App) GetAuditLog(r *fastglue.Request) error {
 		Changes:      log.Changes,
 		CreatedAt:    log.CreatedAt,
 	})
+	return
 }

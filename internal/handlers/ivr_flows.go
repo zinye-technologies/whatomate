@@ -5,15 +5,15 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
 
+	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"github.com/shridarpatil/whatomate/internal/models"
-	"github.com/valyala/fasthttp"
-	"github.com/zerodha/fastglue"
 	"gorm.io/gorm"
 )
 
@@ -30,14 +30,14 @@ type IVRFlowRequest struct {
 }
 
 // ListIVRFlows returns all IVR flows for the organization
-func (a *App) ListIVRFlows(r *fastglue.Request) error {
-	orgID, _, err := a.requireAuth(r, models.ResourceIVRFlows, models.ActionRead)
+func (a *App) ListIVRFlows(w http.ResponseWriter, r *http.Request) {
+	orgID, _, err := a.requireAuthHTTP(w, r, models.ResourceIVRFlows, models.ActionRead)
 	if err != nil {
-		return nil
+		return
 	}
 
-	pg := parsePagination(r)
-	account := string(r.RequestCtx.QueryArgs().Peek("account"))
+	pg := parsePaginationHTTP(r)
+	account := r.URL.Query().Get("account")
 
 	query := a.DB.Where("organization_id = ?", orgID).Order("created_at DESC")
 	if account != "" {
@@ -50,49 +50,54 @@ func (a *App) ListIVRFlows(r *fastglue.Request) error {
 	var flows []models.IVRFlow
 	if err := pg.Apply(query).Find(&flows).Error; err != nil {
 		a.Log.Error("Failed to fetch IVR flows", "error", err)
-		return r.SendErrorEnvelope(fasthttp.StatusInternalServerError, "Failed to fetch IVR flows", nil, "")
+		SendErrorEnvelope(w, http.StatusInternalServerError, "Failed to fetch IVR flows", nil, "")
+		return
 	}
 
-	return r.SendEnvelope(listEnvelope("ivr_flows", flows, total, pg))
+	SendEnvelope(w, listEnvelope("ivr_flows", flows, total, pg))
+	return
 }
 
 // GetIVRFlow returns a single IVR flow by ID
-func (a *App) GetIVRFlow(r *fastglue.Request) error {
-	orgID, _, err := a.requireAuth(r, models.ResourceIVRFlows, models.ActionRead)
+func (a *App) GetIVRFlow(w http.ResponseWriter, r *http.Request) {
+	orgID, _, err := a.requireAuthHTTP(w, r, models.ResourceIVRFlows, models.ActionRead)
 	if err != nil {
-		return nil
+		return
 	}
 
-	flowID, err := parsePathUUID(r, "id", "IVR flow")
+	flowID, err := parsePathUUIDHTTP(w, r, "id", "IVR flow")
 	if err != nil {
-		return nil
+		return
 	}
 
-	flow, err := findByIDAndOrg[models.IVRFlow](a.DB.Preload("CreatedBy").Preload("UpdatedBy"), r, flowID, orgID, "IVR Flow")
+	flow, err := findByIDAndOrgHTTP[models.IVRFlow](a.DB.Preload("CreatedBy").Preload("UpdatedBy"), w, flowID, orgID, "IVR Flow")
 	if err != nil {
-		return nil
+		return
 	}
 
-	return r.SendEnvelope(flow)
+	SendEnvelope(w, flow)
+	return
 }
 
 // CreateIVRFlow creates a new IVR flow
-func (a *App) CreateIVRFlow(r *fastglue.Request) error {
-	orgID, userID, err := a.requireAuth(r, models.ResourceIVRFlows, models.ActionWrite)
+func (a *App) CreateIVRFlow(w http.ResponseWriter, r *http.Request) {
+	orgID, userID, err := a.requireAuthHTTP(w, r, models.ResourceIVRFlows, models.ActionWrite)
 	if err != nil {
-		return nil
+		return
 	}
 
 	var req IVRFlowRequest
-	if err := a.decodeRequest(r, &req); err != nil {
-		return nil
+	if err := a.decodeRequestHTTP(w, r, &req); err != nil {
+		return
 	}
 
 	if req.Name == "" {
-		return r.SendErrorEnvelope(fasthttp.StatusBadRequest, "Name is required", nil, "")
+		SendErrorEnvelope(w, http.StatusBadRequest, "Name is required", nil, "")
+		return
 	}
 	if req.WhatsAppAccount == "" {
-		return r.SendErrorEnvelope(fasthttp.StatusBadRequest, "WhatsApp account is required", nil, "")
+		SendErrorEnvelope(w, http.StatusBadRequest, "WhatsApp account is required", nil, "")
+		return
 	}
 
 	// If marking this as call start, unset others for the same account
@@ -112,18 +117,19 @@ func (a *App) CreateIVRFlow(r *fastglue.Request) error {
 	// Validate and generate TTS for v2 flow graph
 	if req.Menu != nil {
 		if err := validateFlowGraph(req.Menu); err != nil {
-			return r.SendErrorEnvelope(fasthttp.StatusBadRequest, "Invalid flow graph: "+err.Error(), nil, "")
+			SendErrorEnvelope(w, http.StatusBadRequest, "Invalid flow graph: "+err.Error(), nil, "")
+			return
 		}
 		if a.TTS == nil {
 			if menuHasGreetingText(req.Menu) {
-				return r.SendErrorEnvelope(fasthttp.StatusBadRequest,
-					"Text-to-speech is not configured on this server. Please upload audio files instead.", nil, "")
+				SendErrorEnvelope(w, http.StatusBadRequest, "Text-to-speech is not configured on this server. Please upload audio files instead.", nil, "")
+				return
 			}
 		} else {
 			if err := a.generateIVRAudio(req.Menu); err != nil {
 				a.Log.Error("TTS generation failed", "error", err)
-				return r.SendErrorEnvelope(fasthttp.StatusBadRequest,
-					"Text-to-speech generation failed: "+err.Error(), nil, "")
+				SendErrorEnvelope(w, http.StatusBadRequest, "Text-to-speech generation failed: "+err.Error(), nil, "")
+				return
 			}
 		}
 	}
@@ -145,7 +151,8 @@ func (a *App) CreateIVRFlow(r *fastglue.Request) error {
 
 	if err := a.DB.Create(&flow).Error; err != nil {
 		a.Log.Error("Failed to create IVR flow", "error", err)
-		return r.SendErrorEnvelope(fasthttp.StatusInternalServerError, "Failed to create IVR flow", nil, "")
+		SendErrorEnvelope(w, http.StatusInternalServerError, "Failed to create IVR flow", nil, "")
+		return
 	}
 
 	if a.CallManager != nil {
@@ -155,31 +162,32 @@ func (a *App) CreateIVRFlow(r *fastglue.Request) error {
 	a.logAudit(orgID, userID,
 		"ivr_flow", flow.ID, models.AuditActionCreated, nil, &flow)
 
-	return r.SendEnvelope(flow)
+	SendEnvelope(w, flow)
+	return
 }
 
 // UpdateIVRFlow updates an existing IVR flow
-func (a *App) UpdateIVRFlow(r *fastglue.Request) error {
-	orgID, userID, err := a.requireAuth(r, models.ResourceIVRFlows, models.ActionWrite)
+func (a *App) UpdateIVRFlow(w http.ResponseWriter, r *http.Request) {
+	orgID, userID, err := a.requireAuthHTTP(w, r, models.ResourceIVRFlows, models.ActionWrite)
 	if err != nil {
-		return nil
+		return
 	}
 
-	flowID, err := parsePathUUID(r, "id", "IVR flow")
+	flowID, err := parsePathUUIDHTTP(w, r, "id", "IVR flow")
 	if err != nil {
-		return nil
+		return
 	}
 
-	flow, err := findByIDAndOrg[models.IVRFlow](a.DB, r, flowID, orgID, "IVR Flow")
+	flow, err := findByIDAndOrgHTTP[models.IVRFlow](a.DB, w, flowID, orgID, "IVR Flow")
 	if err != nil {
-		return nil
+		return
 	}
 
 	oldFlow := *flow // value copy for audit
 
 	var req IVRFlowRequest
-	if err := a.decodeRequest(r, &req); err != nil {
-		return nil
+	if err := a.decodeRequestHTTP(w, r, &req); err != nil {
+		return
 	}
 
 	// If marking this as call start, unset others for the same account
@@ -201,18 +209,19 @@ func (a *App) UpdateIVRFlow(r *fastglue.Request) error {
 	// Validate and generate TTS for v2 flow graph
 	if req.Menu != nil {
 		if err := validateFlowGraph(req.Menu); err != nil {
-			return r.SendErrorEnvelope(fasthttp.StatusBadRequest, "Invalid flow graph: "+err.Error(), nil, "")
+			SendErrorEnvelope(w, http.StatusBadRequest, "Invalid flow graph: "+err.Error(), nil, "")
+			return
 		}
 		if a.TTS == nil {
 			if menuHasGreetingText(req.Menu) {
-				return r.SendErrorEnvelope(fasthttp.StatusBadRequest,
-					"Text-to-speech is not configured on this server. Please upload audio files instead.", nil, "")
+				SendErrorEnvelope(w, http.StatusBadRequest, "Text-to-speech is not configured on this server. Please upload audio files instead.", nil, "")
+				return
 			}
 		} else {
 			if err := a.generateIVRAudio(req.Menu); err != nil {
 				a.Log.Error("TTS generation failed", "error", err)
-				return r.SendErrorEnvelope(fasthttp.StatusBadRequest,
-					"Text-to-speech generation failed: "+err.Error(), nil, "")
+				SendErrorEnvelope(w, http.StatusBadRequest, "Text-to-speech generation failed: "+err.Error(), nil, "")
+				return
 			}
 		}
 	}
@@ -244,7 +253,8 @@ func (a *App) UpdateIVRFlow(r *fastglue.Request) error {
 
 	if err := a.DB.Model(flow).Updates(updates).Error; err != nil {
 		a.Log.Error("Failed to update IVR flow", "error", err)
-		return r.SendErrorEnvelope(fasthttp.StatusInternalServerError, "Failed to update IVR flow", nil, "")
+		SendErrorEnvelope(w, http.StatusInternalServerError, "Failed to update IVR flow", nil, "")
+		return
 	}
 
 	// Reload for response
@@ -263,7 +273,8 @@ func (a *App) UpdateIVRFlow(r *fastglue.Request) error {
 	a.logAudit(orgID, userID,
 		"ivr_flow", flow.ID, models.AuditActionUpdated, &oldFlow, flow, extraChanges...)
 
-	return r.SendEnvelope(flow)
+	SendEnvelope(w, flow)
+	return
 }
 
 // diffIVRMenuNodes compares old and new IVR menu JSONB to find node-level changes
@@ -415,25 +426,26 @@ func extractLabel(val any) any {
 }
 
 // DeleteIVRFlow soft-deletes an IVR flow
-func (a *App) DeleteIVRFlow(r *fastglue.Request) error {
-	orgID, userID, err := a.requireAuth(r, models.ResourceIVRFlows, models.ActionDelete)
+func (a *App) DeleteIVRFlow(w http.ResponseWriter, r *http.Request) {
+	orgID, userID, err := a.requireAuthHTTP(w, r, models.ResourceIVRFlows, models.ActionDelete)
 	if err != nil {
-		return nil
+		return
 	}
 
-	flowID, err := parsePathUUID(r, "id", "IVR flow")
+	flowID, err := parsePathUUIDHTTP(w, r, "id", "IVR flow")
 	if err != nil {
-		return nil
+		return
 	}
 
-	flow, err := findByIDAndOrg[models.IVRFlow](a.DB, r, flowID, orgID, "IVR Flow")
+	flow, err := findByIDAndOrgHTTP[models.IVRFlow](a.DB, w, flowID, orgID, "IVR Flow")
 	if err != nil {
-		return nil
+		return
 	}
 
 	if err := a.DB.Delete(flow).Error; err != nil {
 		a.Log.Error("Failed to delete IVR flow", "error", err)
-		return r.SendErrorEnvelope(fasthttp.StatusInternalServerError, "Failed to delete IVR flow", nil, "")
+		SendErrorEnvelope(w, http.StatusInternalServerError, "Failed to delete IVR flow", nil, "")
+		return
 	}
 
 	if a.CallManager != nil {
@@ -443,7 +455,8 @@ func (a *App) DeleteIVRFlow(r *fastglue.Request) error {
 	a.logAudit(orgID, userID,
 		"ivr_flow", flow.ID, models.AuditActionDeleted, flow, nil)
 
-	return r.SendEnvelope(map[string]string{"message": "IVR flow deleted"})
+	SendEnvelope(w, map[string]string{"message": "IVR flow deleted"})
+	return
 }
 
 // getAudioDir returns the configured audio directory path.
@@ -456,32 +469,35 @@ func (a *App) getAudioDir() string {
 }
 
 // UploadIVRAudio handles multipart audio file uploads for IVR greetings.
-func (a *App) UploadIVRAudio(r *fastglue.Request) error {
-	_, _, err := a.requireAuth(r, models.ResourceIVRFlows, models.ActionWrite)
+func (a *App) UploadIVRAudio(w http.ResponseWriter, r *http.Request) {
+	_, _, err := a.requireAuthHTTP(w, r, models.ResourceIVRFlows, models.ActionWrite)
 	if err != nil {
-		return nil
+		return
 	}
 
 	// Parse multipart form
-	contentType := string(r.RequestCtx.Request.Header.ContentType())
-	a.Log.Debug("IVR audio upload", "content_type", contentType, "body_size", len(r.RequestCtx.Request.Body()))
+	contentType := r.Header.Get("Content-Type")
+	a.Log.Debug("IVR audio upload", "content_type", contentType, "body_size", r.ContentLength)
 
-	form, err := r.RequestCtx.MultipartForm()
-	if err != nil {
+	if err := r.ParseMultipartForm(6 << 20); err != nil {
 		a.Log.Error("Multipart parse failed", "error", err, "content_type", contentType)
-		return r.SendErrorEnvelope(fasthttp.StatusBadRequest, "Invalid multipart form: "+err.Error(), nil, "")
+		SendErrorEnvelope(w, http.StatusBadRequest, "Invalid multipart form: "+err.Error(), nil, "")
+		return
 	}
+	form := r.MultipartForm
 
 	files := form.File["file"]
 	if len(files) == 0 {
 		a.Log.Error("No file in multipart form", "form_keys", fmt.Sprintf("%v", form.Value))
-		return r.SendErrorEnvelope(fasthttp.StatusBadRequest, "No file provided", nil, "")
+		SendErrorEnvelope(w, http.StatusBadRequest, "No file provided", nil, "")
+		return
 	}
 
 	fileHeader := files[0]
 	file, err := fileHeader.Open()
 	if err != nil {
-		return r.SendErrorEnvelope(fasthttp.StatusBadRequest, "Failed to open file", nil, "")
+		SendErrorEnvelope(w, http.StatusBadRequest, "Failed to open file", nil, "")
+		return
 	}
 	defer func() { _ = file.Close() }()
 
@@ -490,10 +506,12 @@ func (a *App) UploadIVRAudio(r *fastglue.Request) error {
 	data, err := io.ReadAll(io.LimitReader(file, maxAudioSize+1))
 	if err != nil {
 		a.Log.Error("Failed to read IVR audio file", "error", err)
-		return r.SendErrorEnvelope(fasthttp.StatusInternalServerError, "Failed to read file", nil, "")
+		SendErrorEnvelope(w, http.StatusInternalServerError, "Failed to read file", nil, "")
+		return
 	}
 	if len(data) > maxAudioSize {
-		return r.SendErrorEnvelope(fasthttp.StatusBadRequest, "File too large. Maximum size is 5MB", nil, "")
+		SendErrorEnvelope(w, http.StatusBadRequest, "File too large. Maximum size is 5MB", nil, "")
+		return
 	}
 
 	// Validate MIME type
@@ -519,28 +537,32 @@ func (a *App) UploadIVRAudio(r *fastglue.Request) error {
 	}
 	if !allowedAudio[mimeType] {
 		a.Log.Error("Unsupported audio MIME type", "mime_type", mimeType, "filename", fileHeader.Filename)
-		return r.SendErrorEnvelope(fasthttp.StatusBadRequest, "Unsupported audio type: "+mimeType, nil, "")
+		SendErrorEnvelope(w, http.StatusBadRequest, "Unsupported audio type: "+mimeType, nil, "")
+		return
 	}
 
 	// Ensure audio directory exists
 	audioDir := a.getAudioDir()
 	if err := os.MkdirAll(audioDir, 0755); err != nil {
 		a.Log.Error("Failed to create audio directory", "error", err)
-		return r.SendErrorEnvelope(fasthttp.StatusInternalServerError, "Failed to create audio directory", nil, "")
+		SendErrorEnvelope(w, http.StatusInternalServerError, "Failed to create audio directory", nil, "")
+		return
 	}
 
 	// Save uploaded file to a temp location for transcoding
 	tmpInput, err := os.CreateTemp("", "ivr-audio-input-*")
 	if err != nil {
 		a.Log.Error("Failed to create IVR temp file", "error", err)
-		return r.SendErrorEnvelope(fasthttp.StatusInternalServerError, "Failed to create temp file", nil, "")
+		SendErrorEnvelope(w, http.StatusInternalServerError, "Failed to create temp file", nil, "")
+		return
 	}
 	defer func() { _ = os.Remove(tmpInput.Name()) }()
 
 	if _, err := tmpInput.Write(data); err != nil {
 		_ = tmpInput.Close()
 		a.Log.Error("Failed to write IVR temp file", "error", err)
-		return r.SendErrorEnvelope(fasthttp.StatusInternalServerError, "Failed to write temp file", nil, "")
+		SendErrorEnvelope(w, http.StatusInternalServerError, "Failed to write temp file", nil, "")
+		return
 	}
 	_ = tmpInput.Close()
 
@@ -550,95 +572,104 @@ func (a *App) UploadIVRAudio(r *fastglue.Request) error {
 
 	if err := transcodeToOpus(tmpInput.Name(), filePath); err != nil {
 		a.Log.Error("IVR audio transcoding failed", "error", err, "original_mime", mimeType)
-		return r.SendErrorEnvelope(fasthttp.StatusInternalServerError, "Failed to transcode audio to Opus format", nil, "")
+		SendErrorEnvelope(w, http.StatusInternalServerError, "Failed to transcode audio to Opus format", nil, "")
+		return
 	}
 
 	a.Log.Info("IVR audio uploaded", "filename", filename, "original_mime", mimeType, "size", len(data))
 
-	return r.SendEnvelope(map[string]any{
+	SendEnvelope(w, map[string]any{
 		"filename":  filename,
 		"mime_type": mimeType,
 		"size":      len(data),
 	})
+	return
 }
 
 // ServeIVRAudio serves audio files from the IVR audio directory.
-func (a *App) ServeIVRAudio(r *fastglue.Request) error {
-	_, _, err := a.requireAuth(r, models.ResourceIVRFlows, models.ActionRead)
+func (a *App) ServeIVRAudio(w http.ResponseWriter, r *http.Request) {
+	_, _, err := a.requireAuthHTTP(w, r, models.ResourceIVRFlows, models.ActionRead)
 	if err != nil {
-		return nil
+		return
 	}
 
-	filename := r.RequestCtx.UserValue("filename").(string)
-	filename = sanitizeFilename(filename)
+	filename := sanitizeFilename(chi.URLParam(r, "filename"))
 
 	// Security: prevent directory traversal and symlink attacks
 	audioDir := a.getAudioDir()
 	baseDir, err := filepath.Abs(audioDir)
 	if err != nil {
 		a.Log.Error("Failed to resolve audio directory", "error", err, "audio_dir", audioDir)
-		return r.SendErrorEnvelope(fasthttp.StatusInternalServerError, "Storage configuration error", nil, "")
+		SendErrorEnvelope(w, http.StatusInternalServerError, "Storage configuration error", nil, "")
+		return
 	}
 	fullPath, err := filepath.Abs(filepath.Join(baseDir, filename))
 	if err != nil || !strings.HasPrefix(fullPath, baseDir+string(os.PathSeparator)) {
-		return r.SendErrorEnvelope(fasthttp.StatusBadRequest, "Invalid file path", nil, "")
+		SendErrorEnvelope(w, http.StatusBadRequest, "Invalid file path", nil, "")
+		return
 	}
 
 	// Reject symlinks
 	info, err := os.Lstat(fullPath)
 	if err != nil {
-		return r.SendErrorEnvelope(fasthttp.StatusNotFound, "File not found", nil, "")
+		SendErrorEnvelope(w, http.StatusNotFound, "File not found", nil, "")
+		return
 	}
 	if info.Mode()&os.ModeSymlink != 0 {
-		return r.SendErrorEnvelope(fasthttp.StatusBadRequest, "Invalid file path", nil, "")
+		SendErrorEnvelope(w, http.StatusBadRequest, "Invalid file path", nil, "")
+		return
 	}
 
 	// Read file
 	data, err := os.ReadFile(fullPath)
 	if err != nil {
 		a.Log.Error("Failed to read audio file", "path", fullPath, "error", err)
-		return r.SendErrorEnvelope(fasthttp.StatusInternalServerError, "Failed to read file", nil, "")
+		SendErrorEnvelope(w, http.StatusInternalServerError, "Failed to read file", nil, "")
+		return
 	}
 
 	// Determine content type from extension
 	ext := strings.ToLower(filepath.Ext(filename))
 	contentType := getMimeTypeFromExtension(ext)
 
-	r.RequestCtx.Response.Header.Set("Content-Type", contentType)
-	r.RequestCtx.Response.Header.Set("Cache-Control", "private, max-age=3600")
-	r.RequestCtx.SetBody(data)
-
-	return nil
+	w.Header().Set("Content-Type", contentType)
+	w.Header().Set("Cache-Control", "private, max-age=3600")
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write(data)
 }
 
 // UploadOrgAudio handles multipart audio file uploads for org-level hold music and ringback tones.
 // The "type" query parameter must be "hold_music" or "ringback".
-func (a *App) UploadOrgAudio(r *fastglue.Request) error {
-	orgID, _, err := a.requireAuth(r, models.ResourceOrganizations, models.ActionWrite)
+func (a *App) UploadOrgAudio(w http.ResponseWriter, r *http.Request) {
+	orgID, _, err := a.requireAuthHTTP(w, r, models.ResourceOrganizations, models.ActionWrite)
 	if err != nil {
-		return nil
+		return
 	}
 
-	audioType := string(r.RequestCtx.QueryArgs().Peek("type"))
+	audioType := r.URL.Query().Get("type")
 	if audioType != "hold_music" && audioType != "ringback" {
-		return r.SendErrorEnvelope(fasthttp.StatusBadRequest, "Query parameter 'type' must be 'hold_music' or 'ringback'", nil, "")
+		SendErrorEnvelope(w, http.StatusBadRequest, "Query parameter 'type' must be 'hold_music' or 'ringback'", nil, "")
+		return
 	}
 
 	// Parse multipart form
-	form, err := r.RequestCtx.MultipartForm()
-	if err != nil {
-		return r.SendErrorEnvelope(fasthttp.StatusBadRequest, "Invalid multipart form: "+err.Error(), nil, "")
+	if err := r.ParseMultipartForm(6 << 20); err != nil {
+		SendErrorEnvelope(w, http.StatusBadRequest, "Invalid multipart form: "+err.Error(), nil, "")
+		return
 	}
+	form := r.MultipartForm
 
 	files := form.File["file"]
 	if len(files) == 0 {
-		return r.SendErrorEnvelope(fasthttp.StatusBadRequest, "No file provided", nil, "")
+		SendErrorEnvelope(w, http.StatusBadRequest, "No file provided", nil, "")
+		return
 	}
 
 	fileHeader := files[0]
 	file, err := fileHeader.Open()
 	if err != nil {
-		return r.SendErrorEnvelope(fasthttp.StatusBadRequest, "Failed to open file", nil, "")
+		SendErrorEnvelope(w, http.StatusBadRequest, "Failed to open file", nil, "")
+		return
 	}
 	defer func() { _ = file.Close() }()
 
@@ -647,10 +678,12 @@ func (a *App) UploadOrgAudio(r *fastglue.Request) error {
 	data, err := io.ReadAll(io.LimitReader(file, maxAudioSize+1))
 	if err != nil {
 		a.Log.Error("Failed to read org audio file", "error", err)
-		return r.SendErrorEnvelope(fasthttp.StatusInternalServerError, "Failed to read file", nil, "")
+		SendErrorEnvelope(w, http.StatusInternalServerError, "Failed to read file", nil, "")
+		return
 	}
 	if len(data) > maxAudioSize {
-		return r.SendErrorEnvelope(fasthttp.StatusBadRequest, "File too large. Maximum size is 5MB", nil, "")
+		SendErrorEnvelope(w, http.StatusBadRequest, "File too large. Maximum size is 5MB", nil, "")
+		return
 	}
 
 	// Validate MIME type
@@ -663,28 +696,32 @@ func (a *App) UploadOrgAudio(r *fastglue.Request) error {
 		"video/ogg": true,
 	}
 	if !allowedAudio[mimeType] {
-		return r.SendErrorEnvelope(fasthttp.StatusBadRequest, "Unsupported audio type: "+mimeType, nil, "")
+		SendErrorEnvelope(w, http.StatusBadRequest, "Unsupported audio type: "+mimeType, nil, "")
+		return
 	}
 
 	// Ensure audio directory exists
 	audioDir := a.getAudioDir()
 	if err := os.MkdirAll(audioDir, 0755); err != nil {
 		a.Log.Error("Failed to create org audio directory", "error", err, "audio_dir", audioDir)
-		return r.SendErrorEnvelope(fasthttp.StatusInternalServerError, "Failed to create audio directory", nil, "")
+		SendErrorEnvelope(w, http.StatusInternalServerError, "Failed to create audio directory", nil, "")
+		return
 	}
 
 	// Save uploaded file to a temp location for transcoding
 	tmpInput, err := os.CreateTemp("", "org-audio-input-*")
 	if err != nil {
 		a.Log.Error("Failed to create org temp file", "error", err)
-		return r.SendErrorEnvelope(fasthttp.StatusInternalServerError, "Failed to create temp file", nil, "")
+		SendErrorEnvelope(w, http.StatusInternalServerError, "Failed to create temp file", nil, "")
+		return
 	}
 	defer func() { _ = os.Remove(tmpInput.Name()) }()
 
 	if _, err := tmpInput.Write(data); err != nil {
 		_ = tmpInput.Close()
 		a.Log.Error("Failed to write org temp file", "error", err)
-		return r.SendErrorEnvelope(fasthttp.StatusInternalServerError, "Failed to write temp file", nil, "")
+		SendErrorEnvelope(w, http.StatusInternalServerError, "Failed to write temp file", nil, "")
+		return
 	}
 	_ = tmpInput.Close()
 
@@ -694,14 +731,16 @@ func (a *App) UploadOrgAudio(r *fastglue.Request) error {
 
 	if err := transcodeToOpus(tmpInput.Name(), filePath); err != nil {
 		a.Log.Error("Audio transcoding failed", "error", err, "org_id", orgID, "type", audioType)
-		return r.SendErrorEnvelope(fasthttp.StatusInternalServerError, "Failed to transcode audio to Opus format", nil, "")
+		SendErrorEnvelope(w, http.StatusInternalServerError, "Failed to transcode audio to Opus format", nil, "")
+		return
 	}
 
 	// Update org settings with the new filename
 	var org models.Organization
 	if err := a.DB.Where("id = ?", orgID).First(&org).Error; err != nil {
 		a.Log.Error("Failed to load organization for audio update", "error", err, "org_id", orgID)
-		return r.SendErrorEnvelope(fasthttp.StatusInternalServerError, "Failed to load organization", nil, "")
+		SendErrorEnvelope(w, http.StatusInternalServerError, "Failed to load organization", nil, "")
+		return
 	}
 	if org.Settings == nil {
 		org.Settings = models.JSONB{}
@@ -710,17 +749,19 @@ func (a *App) UploadOrgAudio(r *fastglue.Request) error {
 	org.Settings[settingsKey] = filename
 	if err := a.DB.Save(&org).Error; err != nil {
 		a.Log.Error("Failed to update organization audio settings", "error", err, "org_id", orgID, "audio_type", audioType)
-		return r.SendErrorEnvelope(fasthttp.StatusInternalServerError, "Failed to update organization settings", nil, "")
+		SendErrorEnvelope(w, http.StatusInternalServerError, "Failed to update organization settings", nil, "")
+		return
 	}
 
 	a.Log.Info("Org audio uploaded", "org_id", orgID, "type", audioType, "filename", filename, "size", len(data))
 
-	return r.SendEnvelope(map[string]any{
+	SendEnvelope(w, map[string]any{
 		"filename":  filename,
 		"type":      audioType,
 		"mime_type": mimeType,
 		"size":      len(data),
 	})
+	return
 }
 
 // transcodeToOpus converts any audio file to OGG/Opus 48kHz mono using ffmpeg.

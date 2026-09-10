@@ -29,8 +29,7 @@ func TestGetEmbeddedSignupConfig(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, user.ID)
 
 	// Call handler
-	err := app.GetEmbeddedSignupConfig(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.GetEmbeddedSignupConfig, req)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	// Parse response body
@@ -41,7 +40,7 @@ func TestGetEmbeddedSignupConfig(t *testing.T) {
 			WhatsAppAPIVersion string `json:"whatsapp_api_version"`
 		} `json:"data"`
 	}
-	err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+	err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 	require.NoError(t, err)
 	assert.Equal(t, "test-app-id-123", resp.Data.WhatsAppAppID)
 	assert.Equal(t, "test-config-id-456", resp.Data.WhatsAppConfigID)
@@ -66,8 +65,7 @@ func TestGetEmbeddedSignupConfig_EmptyValues(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, user.ID)
 
 	// Call handler
-	err := app.GetEmbeddedSignupConfig(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.GetEmbeddedSignupConfig, req)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	body := string(testutil.GetResponseBody(req))
@@ -83,7 +81,7 @@ func TestGetEmbeddedSignupConfig_EmptyValues(t *testing.T) {
 			WhatsAppAPIVersion string `json:"whatsapp_api_version"`
 		} `json:"data"`
 	}
-	err = json.Unmarshal([]byte(body), &resp)
+	err := json.Unmarshal([]byte(body), &resp)
 	require.NoError(t, err)
 	assert.Equal(t, "", resp.Data.WhatsAppAppID)
 	assert.Equal(t, "", resp.Data.WhatsAppConfigID)

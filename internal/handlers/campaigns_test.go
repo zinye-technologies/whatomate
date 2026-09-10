@@ -63,8 +63,7 @@ func TestApp_ListCampaigns_Success(t *testing.T) {
 	req := testutil.NewGETRequest(t)
 	testutil.SetAuthContext(req, org.ID, user.ID)
 
-	err := app.ListCampaigns(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.ListCampaigns, req)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	var resp struct {
@@ -73,7 +72,7 @@ func TestApp_ListCampaigns_Success(t *testing.T) {
 			Total     int                         `json:"total"`
 		} `json:"data"`
 	}
-	err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+	err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 	require.NoError(t, err)
 	assert.Equal(t, 2, resp.Data.Total)
 	assert.Len(t, resp.Data.Campaigns, 2)
@@ -94,8 +93,7 @@ func TestApp_ListCampaigns_FilterByStatus(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, user.ID)
 	testutil.SetQueryParam(req, "status", models.CampaignStatusDraft)
 
-	err := app.ListCampaigns(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.ListCampaigns, req)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	var resp struct {
@@ -104,7 +102,7 @@ func TestApp_ListCampaigns_FilterByStatus(t *testing.T) {
 			Total     int                         `json:"total"`
 		} `json:"data"`
 	}
-	err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+	err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 	require.NoError(t, err)
 	assert.Equal(t, 1, resp.Data.Total)
 	assert.Equal(t, models.CampaignStatusDraft, resp.Data.Campaigns[0].Status)
@@ -117,8 +115,7 @@ func TestApp_ListCampaigns_Unauthorized(t *testing.T) {
 	req := testutil.NewGETRequest(t)
 	// No auth context set
 
-	err := app.ListCampaigns(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.ListCampaigns, req)
 	assert.Equal(t, fasthttp.StatusUnauthorized, testutil.GetResponseStatusCode(req))
 }
 
@@ -139,14 +136,13 @@ func TestApp_CreateCampaign_Success(t *testing.T) {
 	})
 	testutil.SetAuthContext(req, org.ID, user.ID)
 
-	err := app.CreateCampaign(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.CreateCampaign, req)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	var resp struct {
 		Data handlers.CampaignResponse `json:"data"`
 	}
-	err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+	err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 	require.NoError(t, err)
 	assert.Equal(t, "Test Campaign", resp.Data.Name)
 	assert.Equal(t, models.CampaignStatusDraft, resp.Data.Status)
@@ -171,14 +167,13 @@ func TestApp_CreateCampaign_WithScheduledAt(t *testing.T) {
 	})
 	testutil.SetAuthContext(req, org.ID, user.ID)
 
-	err := app.CreateCampaign(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.CreateCampaign, req)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	var resp struct {
 		Data handlers.CampaignResponse `json:"data"`
 	}
-	err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+	err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 	require.NoError(t, err)
 	assert.NotNil(t, resp.Data.ScheduledAt)
 }
@@ -197,8 +192,7 @@ func TestApp_CreateCampaign_InvalidTemplateID(t *testing.T) {
 	})
 	testutil.SetAuthContext(req, org.ID, user.ID)
 
-	err := app.CreateCampaign(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.CreateCampaign, req)
 	assert.Equal(t, fasthttp.StatusBadRequest, testutil.GetResponseStatusCode(req))
 }
 
@@ -216,8 +210,7 @@ func TestApp_CreateCampaign_TemplateNotFound(t *testing.T) {
 	})
 	testutil.SetAuthContext(req, org.ID, user.ID)
 
-	err := app.CreateCampaign(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.CreateCampaign, req)
 	assert.Equal(t, fasthttp.StatusNotFound, testutil.GetResponseStatusCode(req))
 }
 
@@ -236,8 +229,7 @@ func TestApp_CreateCampaign_AccountNotFound(t *testing.T) {
 	})
 	testutil.SetAuthContext(req, org.ID, user.ID)
 
-	err := app.CreateCampaign(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.CreateCampaign, req)
 	assert.Equal(t, fasthttp.StatusBadRequest, testutil.GetResponseStatusCode(req))
 }
 
@@ -252,8 +244,7 @@ func TestApp_CreateCampaign_InvalidRequestBody(t *testing.T) {
 	req.RequestCtx.Request.Header.SetContentType("application/json")
 	testutil.SetAuthContext(req, org.ID, user.ID)
 
-	err := app.CreateCampaign(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.CreateCampaign, req)
 	assert.Equal(t, fasthttp.StatusBadRequest, testutil.GetResponseStatusCode(req))
 }
 
@@ -276,14 +267,13 @@ func TestApp_GetCampaign_Success(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, user.ID)
 	testutil.SetPathParam(req, "id", campaign.ID.String())
 
-	err := app.GetCampaign(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.GetCampaign, req)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	var resp struct {
 		Data handlers.CampaignResponse `json:"data"`
 	}
-	err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+	err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 	require.NoError(t, err)
 	assert.Equal(t, campaign.ID, resp.Data.ID)
 	assert.Equal(t, campaign.Name, resp.Data.Name)
@@ -300,8 +290,7 @@ func TestApp_GetCampaign_NotFound(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, user.ID)
 	testutil.SetPathParam(req, "id", uuid.New().String())
 
-	err := app.GetCampaign(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.GetCampaign, req)
 	assert.Equal(t, fasthttp.StatusNotFound, testutil.GetResponseStatusCode(req))
 }
 
@@ -315,8 +304,7 @@ func TestApp_GetCampaign_InvalidID(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, user.ID)
 	testutil.SetPathParam(req, "id", "not-a-uuid")
 
-	err := app.GetCampaign(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.GetCampaign, req)
 	assert.Equal(t, fasthttp.StatusBadRequest, testutil.GetResponseStatusCode(req))
 }
 
@@ -343,14 +331,13 @@ func TestApp_UpdateCampaign_Success(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, user.ID)
 	testutil.SetPathParam(req, "id", campaign.ID.String())
 
-	err := app.UpdateCampaign(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.UpdateCampaign, req)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	var resp struct {
 		Data handlers.CampaignResponse `json:"data"`
 	}
-	err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+	err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 	require.NoError(t, err)
 	assert.Equal(t, "Updated Campaign Name", resp.Data.Name)
 	assert.Equal(t, 12, resp.Data.ReadCount)
@@ -371,8 +358,7 @@ func TestApp_UpdateCampaign_NotDraft(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, user.ID)
 	testutil.SetPathParam(req, "id", campaign.ID.String())
 
-	err := app.UpdateCampaign(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.UpdateCampaign, req)
 	assert.Equal(t, fasthttp.StatusBadRequest, testutil.GetResponseStatusCode(req))
 }
 
@@ -388,8 +374,7 @@ func TestApp_UpdateCampaign_NotFound(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, user.ID)
 	testutil.SetPathParam(req, "id", uuid.New().String())
 
-	err := app.UpdateCampaign(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.UpdateCampaign, req)
 	assert.Equal(t, fasthttp.StatusNotFound, testutil.GetResponseStatusCode(req))
 }
 
@@ -408,8 +393,7 @@ func TestApp_DeleteCampaign_Success(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, user.ID)
 	testutil.SetPathParam(req, "id", campaign.ID.String())
 
-	err := app.DeleteCampaign(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.DeleteCampaign, req)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	// Verify campaign is deleted
@@ -433,8 +417,7 @@ func TestApp_DeleteCampaign_WithRecipients(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, user.ID)
 	testutil.SetPathParam(req, "id", campaign.ID.String())
 
-	err := app.DeleteCampaign(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.DeleteCampaign, req)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	// Verify recipients are also deleted
@@ -456,8 +439,7 @@ func TestApp_DeleteCampaign_RunningCampaign(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, user.ID)
 	testutil.SetPathParam(req, "id", campaign.ID.String())
 
-	err := app.DeleteCampaign(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.DeleteCampaign, req)
 	assert.Equal(t, fasthttp.StatusBadRequest, testutil.GetResponseStatusCode(req))
 }
 
@@ -471,8 +453,7 @@ func TestApp_DeleteCampaign_NotFound(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, user.ID)
 	testutil.SetPathParam(req, "id", uuid.New().String())
 
-	err := app.DeleteCampaign(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.DeleteCampaign, req)
 	assert.Equal(t, fasthttp.StatusNotFound, testutil.GetResponseStatusCode(req))
 }
 
@@ -493,8 +474,7 @@ func TestApp_StartCampaign_Success(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, user.ID)
 	testutil.SetPathParam(req, "id", campaign.ID.String())
 
-	err := app.StartCampaign(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.StartCampaign, req)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	// Verify jobs were enqueued
@@ -521,8 +501,7 @@ func TestApp_StartCampaign_NoPendingRecipients(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, user.ID)
 	testutil.SetPathParam(req, "id", campaign.ID.String())
 
-	err := app.StartCampaign(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.StartCampaign, req)
 	assert.Equal(t, fasthttp.StatusBadRequest, testutil.GetResponseStatusCode(req))
 }
 
@@ -544,8 +523,7 @@ func TestApp_StartCampaign_InvalidStatus(t *testing.T) {
 			testutil.SetAuthContext(req, org.ID, user.ID)
 			testutil.SetPathParam(req, "id", campaign.ID.String())
 
-			err := app.StartCampaign(req)
-			require.NoError(t, err)
+			testutil.InvokeHTTP(t, app.StartCampaign, req)
 			assert.Equal(t, fasthttp.StatusBadRequest, testutil.GetResponseStatusCode(req))
 		})
 	}
@@ -565,8 +543,7 @@ func TestApp_StartCampaign_CanResumePaused(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, user.ID)
 	testutil.SetPathParam(req, "id", campaign.ID.String())
 
-	err := app.StartCampaign(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.StartCampaign, req)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 	assert.Len(t, mockQueue.Jobs, 1)
 }
@@ -586,8 +563,7 @@ func TestApp_PauseCampaign_Success(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, user.ID)
 	testutil.SetPathParam(req, "id", campaign.ID.String())
 
-	err := app.PauseCampaign(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.PauseCampaign, req)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	var updated models.BulkMessageCampaign
@@ -608,8 +584,7 @@ func TestApp_PauseCampaign_NotRunning(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, user.ID)
 	testutil.SetPathParam(req, "id", campaign.ID.String())
 
-	err := app.PauseCampaign(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.PauseCampaign, req)
 	assert.Equal(t, fasthttp.StatusBadRequest, testutil.GetResponseStatusCode(req))
 }
 
@@ -628,8 +603,7 @@ func TestApp_CancelCampaign_Success(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, user.ID)
 	testutil.SetPathParam(req, "id", campaign.ID.String())
 
-	err := app.CancelCampaign(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.CancelCampaign, req)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	var updated models.BulkMessageCampaign
@@ -654,8 +628,7 @@ func TestApp_CancelCampaign_AlreadyFinished(t *testing.T) {
 			testutil.SetAuthContext(req, org.ID, user.ID)
 			testutil.SetPathParam(req, "id", campaign.ID.String())
 
-			err := app.CancelCampaign(req)
-			require.NoError(t, err)
+			testutil.InvokeHTTP(t, app.CancelCampaign, req)
 			assert.Equal(t, fasthttp.StatusBadRequest, testutil.GetResponseStatusCode(req))
 		})
 	}
@@ -681,8 +654,7 @@ func TestApp_ImportRecipients_Success(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, user.ID)
 	testutil.SetPathParam(req, "id", campaign.ID.String())
 
-	err := app.ImportRecipients(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.ImportRecipients, req)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	var resp struct {
@@ -692,7 +664,7 @@ func TestApp_ImportRecipients_Success(t *testing.T) {
 			TotalRecipients int64  `json:"total_recipients"`
 		} `json:"data"`
 	}
-	err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+	err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 	require.NoError(t, err)
 	assert.Equal(t, 2, resp.Data.AddedCount)
 	assert.Equal(t, int64(2), resp.Data.TotalRecipients)
@@ -719,8 +691,7 @@ func TestApp_ImportRecipients_WithTemplateParams(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, user.ID)
 	testutil.SetPathParam(req, "id", campaign.ID.String())
 
-	err := app.ImportRecipients(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.ImportRecipients, req)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	// Verify recipient has template params
@@ -755,8 +726,7 @@ func TestApp_ImportRecipients_WithHeaderParams(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, user.ID)
 	testutil.SetPathParam(req, "id", campaign.ID.String())
 
-	err := app.ImportRecipients(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.ImportRecipients, req)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	var recipient models.BulkMessageRecipient
@@ -787,8 +757,7 @@ func TestApp_ImportRecipients_NotDraft(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, user.ID)
 	testutil.SetPathParam(req, "id", campaign.ID.String())
 
-	err := app.ImportRecipients(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.ImportRecipients, req)
 	assert.Equal(t, fasthttp.StatusBadRequest, testutil.GetResponseStatusCode(req))
 }
 
@@ -809,8 +778,7 @@ func TestApp_GetCampaignRecipients_Success(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, user.ID)
 	testutil.SetPathParam(req, "id", campaign.ID.String())
 
-	err := app.GetCampaignRecipients(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.GetCampaignRecipients, req)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	var resp struct {
@@ -819,7 +787,7 @@ func TestApp_GetCampaignRecipients_Success(t *testing.T) {
 			Total      int                           `json:"total"`
 		} `json:"data"`
 	}
-	err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+	err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 	require.NoError(t, err)
 	assert.Equal(t, 2, resp.Data.Total)
 }
@@ -834,8 +802,7 @@ func TestApp_GetCampaignRecipients_CampaignNotFound(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, user.ID)
 	testutil.SetPathParam(req, "id", uuid.New().String())
 
-	err := app.GetCampaignRecipients(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.GetCampaignRecipients, req)
 	assert.Equal(t, fasthttp.StatusNotFound, testutil.GetResponseStatusCode(req))
 }
 
@@ -856,8 +823,7 @@ func TestApp_RetryFailed_Success(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, user.ID)
 	testutil.SetPathParam(req, "id", campaign.ID.String())
 
-	err := app.RetryFailed(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.RetryFailed, req)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	// Verify only failed recipients were enqueued
@@ -870,7 +836,7 @@ func TestApp_RetryFailed_Success(t *testing.T) {
 			Status     string `json:"status"`
 		} `json:"data"`
 	}
-	err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+	err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 	require.NoError(t, err)
 	assert.Equal(t, 1, resp.Data.RetryCount)
 	assert.Equal(t, string(models.CampaignStatusProcessing), resp.Data.Status)
@@ -890,8 +856,7 @@ func TestApp_RetryFailed_NoFailedRecipients(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, user.ID)
 	testutil.SetPathParam(req, "id", campaign.ID.String())
 
-	err := app.RetryFailed(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.RetryFailed, req)
 	assert.Equal(t, fasthttp.StatusBadRequest, testutil.GetResponseStatusCode(req))
 }
 
@@ -909,8 +874,7 @@ func TestApp_RetryFailed_InvalidStatus(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, user.ID)
 	testutil.SetPathParam(req, "id", campaign.ID.String())
 
-	err := app.RetryFailed(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.RetryFailed, req)
 	assert.Equal(t, fasthttp.StatusBadRequest, testutil.GetResponseStatusCode(req))
 }
 
@@ -936,7 +900,6 @@ func TestApp_Campaign_CrossOrgIsolation(t *testing.T) {
 	testutil.SetAuthContext(req, org2.ID, user2.ID)
 	testutil.SetPathParam(req, "id", campaign1.ID.String())
 
-	err := app.GetCampaign(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.GetCampaign, req)
 	assert.Equal(t, fasthttp.StatusNotFound, testutil.GetResponseStatusCode(req))
 }

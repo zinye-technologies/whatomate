@@ -3,6 +3,8 @@ package handlers
 import (
 	"context"
 	"fmt"
+	"github.com/go-chi/chi/v5"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
@@ -10,8 +12,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/shridarpatil/whatomate/internal/models"
 	"github.com/shridarpatil/whatomate/pkg/whatsapp"
-	"github.com/valyala/fasthttp"
-	"github.com/zerodha/fastglue"
 )
 
 // getMediaStoragePath returns the base path for media storage
@@ -132,24 +132,26 @@ func (a *App) DownloadAndSaveMedia(ctx context.Context, mediaID string, mimeType
 
 // ServeMedia serves media files from local storage
 // Only authorized users who have access to the message can view the media
-func (a *App) ServeMedia(r *fastglue.Request) error {
+func (a *App) ServeMedia(w http.ResponseWriter, r *http.Request) {
 	// Get auth context
-	orgID, userID, err := a.getOrgAndUserID(r)
+	orgID, userID, err := a.getOrgAndUserIDHTTP(r)
 	if err != nil {
-		return r.SendErrorEnvelope(fasthttp.StatusUnauthorized, "Unauthorized", nil, "")
+		SendErrorEnvelope(w, http.StatusUnauthorized, "Unauthorized", nil, "")
+		return
 	}
 
 	// Get the message ID from URL parameter
-	messageIDStr := r.RequestCtx.UserValue("message_id").(string)
+	messageIDStr := chi.URLParam(r, "message_id")
 	messageID, err := uuid.Parse(messageIDStr)
 	if err != nil {
-		return r.SendErrorEnvelope(fasthttp.StatusBadRequest, "Invalid message ID", nil, "")
+		SendErrorEnvelope(w, http.StatusBadRequest, "Invalid message ID", nil, "")
+		return
 	}
 
 	// Find the message and verify access
-	message, err := findByIDAndOrg[models.Message](a.DB, r, messageID, orgID, "Message")
+	message, err := findByIDAndOrgHTTP[models.Message](a.DB, w, messageID, orgID, "Message")
 	if err != nil {
-		return nil
+		return
 	}
 
 	// Users without contacts:read permission can only access media from contacts
@@ -164,19 +166,22 @@ func (a *App) ServeMedia(r *fastglue.Request) error {
 			var transfer models.AgentTransfer
 			if err := a.DB.Where("contact_id = ? AND organization_id = ? AND status = ? AND team_id IS NOT NULL",
 				message.ContactID, orgID, models.TransferStatusActive).First(&transfer).Error; err != nil {
-				return r.SendErrorEnvelope(fasthttp.StatusForbidden, "Access denied", nil, "")
+				SendErrorEnvelope(w, http.StatusForbidden, "Access denied", nil, "")
+				return
 			}
 			var count int64
 			a.DB.Model(&models.TeamMember{}).Where("team_id = ? AND user_id = ?", transfer.TeamID, userID).Count(&count)
 			if count == 0 {
-				return r.SendErrorEnvelope(fasthttp.StatusForbidden, "Access denied", nil, "")
+				SendErrorEnvelope(w, http.StatusForbidden, "Access denied", nil, "")
+				return
 			}
 		}
 	}
 
 	// Check if message has media
 	if message.MediaURL == "" {
-		return r.SendErrorEnvelope(fasthttp.StatusNotFound, "No media found", nil, "")
+		SendErrorEnvelope(w, http.StatusNotFound, "No media found", nil, "")
+		return
 	}
 
 	// Security: prevent directory traversal and symlink attacks
@@ -184,27 +189,32 @@ func (a *App) ServeMedia(r *fastglue.Request) error {
 	baseDir, err := filepath.Abs(a.getMediaStoragePath())
 	if err != nil {
 		a.Log.Error("Storage configuration error", "error", err)
-		return r.SendErrorEnvelope(fasthttp.StatusInternalServerError, "Storage configuration error", nil, "")
+		SendErrorEnvelope(w, http.StatusInternalServerError, "Storage configuration error", nil, "")
+		return
 	}
 	fullPath, err := filepath.Abs(filepath.Join(baseDir, filePath))
 	if err != nil || !strings.HasPrefix(fullPath, baseDir+string(os.PathSeparator)) {
-		return r.SendErrorEnvelope(fasthttp.StatusBadRequest, "Invalid file path", nil, "")
+		SendErrorEnvelope(w, http.StatusBadRequest, "Invalid file path", nil, "")
+		return
 	}
 
 	// Reject symlinks
 	info, err := os.Lstat(fullPath)
 	if err != nil {
-		return r.SendErrorEnvelope(fasthttp.StatusNotFound, "File not found", nil, "")
+		SendErrorEnvelope(w, http.StatusNotFound, "File not found", nil, "")
+		return
 	}
 	if info.Mode()&os.ModeSymlink != 0 {
-		return r.SendErrorEnvelope(fasthttp.StatusBadRequest, "Invalid file path", nil, "")
+		SendErrorEnvelope(w, http.StatusBadRequest, "Invalid file path", nil, "")
+		return
 	}
 
 	// Read file
 	data, err := os.ReadFile(fullPath)
 	if err != nil {
 		a.Log.Error("Failed to read media file", "path", fullPath, "error", err)
-		return r.SendErrorEnvelope(fasthttp.StatusInternalServerError, "Failed to read file", nil, "")
+		SendErrorEnvelope(w, http.StatusInternalServerError, "Failed to read file", nil, "")
+		return
 	}
 
 	// Determine content type from extension
@@ -247,9 +257,8 @@ func (a *App) ServeMedia(r *fastglue.Request) error {
 		contentType = "text/plain"
 	}
 
-	r.RequestCtx.Response.Header.Set("Content-Type", contentType)
-	r.RequestCtx.Response.Header.Set("Cache-Control", "private, max-age=3600") // Cache for 1 hour, private
-	r.RequestCtx.SetBody(data)
-
-	return nil
+	w.Header().Set("Content-Type", contentType)
+	w.Header().Set("Cache-Control", "private, max-age=3600") // Cache for 1 hour, private
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write(data)
 }

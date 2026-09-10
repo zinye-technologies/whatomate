@@ -1,21 +1,20 @@
 package handlers
 
 import (
+	"net/http"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/shridarpatil/whatomate/internal/models"
 	"github.com/shridarpatil/whatomate/pkg/whatsapp"
-	"github.com/valyala/fasthttp"
-	"github.com/zerodha/fastglue"
 )
 
 // InitiateOutgoingCall handles POST /api/calls/outgoing
 // Lets an agent start a voice call to a WhatsApp consumer.
-func (a *App) InitiateOutgoingCall(r *fastglue.Request) error {
-	orgID, userID, err := a.requireAuth(r, models.ResourceOutgoingCalls, models.ActionWrite)
+func (a *App) InitiateOutgoingCall(w http.ResponseWriter, r *http.Request) {
+	orgID, userID, err := a.requireAuthHTTP(w, r, models.ResourceOutgoingCalls, models.ActionWrite)
 	if err != nil {
-		return nil
+		return
 	}
 
 	var req struct {
@@ -23,35 +22,39 @@ func (a *App) InitiateOutgoingCall(r *fastglue.Request) error {
 		WhatsAppAccount string `json:"whatsapp_account"`
 		SDPOffer        string `json:"sdp_offer"`
 	}
-	if err := a.decodeRequest(r, &req); err != nil {
-		return nil
+	if err := a.decodeRequestHTTP(w, r, &req); err != nil {
+		return
 	}
 
 	if req.ContactID == "" || req.WhatsAppAccount == "" || req.SDPOffer == "" {
-		return r.SendErrorEnvelope(fasthttp.StatusBadRequest, "contact_id, whatsapp_account, and sdp_offer are required", nil, "")
+		SendErrorEnvelope(w, http.StatusBadRequest, "contact_id, whatsapp_account, and sdp_offer are required", nil, "")
+		return
 	}
 
-	if err := a.requireCallingEnabled(r, orgID); err != nil {
-		return nil
+	if err := a.requireCallingEnabledHTTP(w, orgID); err != nil {
+		return
 	}
 
 	// Look up account
 	var account models.WhatsAppAccount
 	if err := a.DB.Where("organization_id = ? AND name = ?", orgID, req.WhatsAppAccount).
 		First(&account).Error; err != nil {
-		return r.SendErrorEnvelope(fasthttp.StatusNotFound, "WhatsApp account not found", nil, "")
+		SendErrorEnvelope(w, http.StatusNotFound, "WhatsApp account not found", nil, "")
+		return
 	}
 
 	// Look up contact by ID
 	contactID, parseErr := uuid.Parse(req.ContactID)
 	if parseErr != nil {
-		return r.SendErrorEnvelope(fasthttp.StatusBadRequest, "Invalid contact_id", nil, "")
+		SendErrorEnvelope(w, http.StatusBadRequest, "Invalid contact_id", nil, "")
+		return
 	}
 
 	var contact models.Contact
 	if err := a.DB.Where("id = ? AND organization_id = ?", contactID, orgID).
 		First(&contact).Error; err != nil {
-		return r.SendErrorEnvelope(fasthttp.StatusNotFound, "Contact not found", nil, "")
+		SendErrorEnvelope(w, http.StatusNotFound, "Contact not found", nil, "")
+		return
 	}
 
 	waAccount := account.ToWAAccount()
@@ -63,33 +66,36 @@ func (a *App) InitiateOutgoingCall(r *fastglue.Request) error {
 	)
 	if err != nil {
 		a.Log.Error("Failed to initiate outgoing call", "error", err)
-		return r.SendErrorEnvelope(fasthttp.StatusInternalServerError, "Failed to initiate call: "+err.Error(), nil, "")
+		SendErrorEnvelope(w, http.StatusInternalServerError, "Failed to initiate call: "+err.Error(), nil, "")
+		return
 	}
 
-	return r.SendEnvelope(map[string]string{
+	SendEnvelope(w, map[string]string{
 		"call_log_id": callLogID.String(),
 		"sdp_answer":  sdpAnswer,
 	})
 }
 
 // HangupOutgoingCall handles POST /api/calls/outgoing/{id}/hangup
-func (a *App) HangupOutgoingCall(r *fastglue.Request) error {
-	_, userID, err := a.requireAuth(r, models.ResourceOutgoingCalls, models.ActionWrite)
+func (a *App) HangupOutgoingCall(w http.ResponseWriter, r *http.Request) {
+	_, userID, err := a.requireAuthHTTP(w, r, models.ResourceOutgoingCalls, models.ActionWrite)
 	if err != nil {
-		return nil
+		return
 	}
 
-	callLogID, err := parsePathUUID(r, "id", "call log")
+	callLogID, err := parsePathUUIDHTTP(w, r, "id", "call log")
 	if err != nil {
-		return nil
+		return
 	}
 
 	if a.CallManager == nil {
-		return r.SendErrorEnvelope(fasthttp.StatusServiceUnavailable, "Calling is not enabled", nil, "")
+		SendErrorEnvelope(w, http.StatusServiceUnavailable, "Calling is not enabled", nil, "")
+		return
 	}
 
 	if err := a.CallManager.HangupOutgoingCall(callLogID, userID); err != nil {
-		return r.SendErrorEnvelope(fasthttp.StatusBadRequest, err.Error(), nil, "")
+		SendErrorEnvelope(w, http.StatusBadRequest, err.Error(), nil, "")
+		return
 	}
 
 	// Mark the call as disconnected by agent
@@ -97,59 +103,64 @@ func (a *App) HangupOutgoingCall(r *fastglue.Request) error {
 		Where("id = ?", callLogID).
 		Update("disconnected_by", models.DisconnectedByAgent)
 
-	return r.SendEnvelope(map[string]string{"status": "ok"})
+	SendEnvelope(w, map[string]string{"status": "ok"})
 }
 
 // SendCallPermissionRequest handles POST /api/calls/permission-request
-func (a *App) SendCallPermissionRequest(r *fastglue.Request) error {
-	orgID, userID, err := a.requireAuth(r, models.ResourceOutgoingCalls, models.ActionWrite)
+func (a *App) SendCallPermissionRequest(w http.ResponseWriter, r *http.Request) {
+	orgID, userID, err := a.requireAuthHTTP(w, r, models.ResourceOutgoingCalls, models.ActionWrite)
 	if err != nil {
-		return nil
+		return
 	}
 
 	var req struct {
 		ContactID       string `json:"contact_id"`
 		WhatsAppAccount string `json:"whatsapp_account"`
 	}
-	if err := a.decodeRequest(r, &req); err != nil {
-		return nil
+	if err := a.decodeRequestHTTP(w, r, &req); err != nil {
+		return
 	}
 
 	if req.ContactID == "" || req.WhatsAppAccount == "" {
-		return r.SendErrorEnvelope(fasthttp.StatusBadRequest, "contact_id and whatsapp_account are required", nil, "")
+		SendErrorEnvelope(w, http.StatusBadRequest, "contact_id and whatsapp_account are required", nil, "")
+		return
 	}
 
-	if err := a.requireCallingEnabled(r, orgID); err != nil {
-		return nil
+	if err := a.requireCallingEnabledHTTP(w, orgID); err != nil {
+		return
 	}
 
 	contactID, parseErr := uuid.Parse(req.ContactID)
 	if parseErr != nil {
-		return r.SendErrorEnvelope(fasthttp.StatusBadRequest, "Invalid contact_id", nil, "")
+		SendErrorEnvelope(w, http.StatusBadRequest, "Invalid contact_id", nil, "")
+		return
 	}
 
 	// Verify contact exists
 	var contact models.Contact
 	if err := a.DB.Where("id = ? AND organization_id = ?", contactID, orgID).First(&contact).Error; err != nil {
-		return r.SendErrorEnvelope(fasthttp.StatusNotFound, "Contact not found", nil, "")
+		SendErrorEnvelope(w, http.StatusNotFound, "Contact not found", nil, "")
+		return
 	}
 
 	// Look up account
 	var account models.WhatsAppAccount
 	if err := a.DB.Where("organization_id = ? AND name = ?", orgID, req.WhatsAppAccount).
 		First(&account).Error; err != nil {
-		return r.SendErrorEnvelope(fasthttp.StatusNotFound, "WhatsApp account not found", nil, "")
+		SendErrorEnvelope(w, http.StatusNotFound, "WhatsApp account not found", nil, "")
+		return
 	}
 
 	waAccount := account.ToWAAccount()
 
 	// Send permission request via WhatsApp Messages API
-	ctx := r.RequestCtx
+	ctx := r.Context()
 	rcpt := whatsapp.Recipient{Phone: contact.PhoneNumber, BSUID: contact.BSUID}
 	messageID, err := a.WhatsApp.SendCallPermissionRequest(ctx, waAccount, rcpt, "")
 	if err != nil {
 		a.Log.Error("Failed to send call permission request", "error", err)
-		return r.SendErrorEnvelope(fasthttp.StatusInternalServerError, "Failed to send permission request", nil, "")
+		SendErrorEnvelope(w, http.StatusInternalServerError, "Failed to send permission request", nil, "")
+		return
 	}
 
 	// Create CallPermission record
@@ -164,20 +175,22 @@ func (a *App) SendCallPermissionRequest(r *fastglue.Request) error {
 	}
 	if err := a.DB.Create(&permission).Error; err != nil {
 		a.Log.Error("Failed to create call permission record", "error", err)
-		return r.SendErrorEnvelope(fasthttp.StatusInternalServerError, "Failed to save permission", nil, "")
+		SendErrorEnvelope(w, http.StatusInternalServerError, "Failed to save permission", nil, "")
+		return
 	}
 
-	return r.SendEnvelope(map[string]string{
+	SendEnvelope(w, map[string]string{
 		"permission_id": permission.ID.String(),
 	})
 }
 
 // GetICEServers handles GET /api/calls/ice-servers
 // Returns the configured ICE (STUN/TURN) servers for the frontend to use in WebRTC peer connections.
-func (a *App) GetICEServers(r *fastglue.Request) error {
-	_, _, err := a.getOrgAndUserID(r)
+func (a *App) GetICEServers(w http.ResponseWriter, r *http.Request) {
+	_, _, err := a.getOrgAndUserIDHTTP(r)
 	if err != nil {
-		return r.SendErrorEnvelope(fasthttp.StatusUnauthorized, "Unauthorized", nil, "")
+		SendErrorEnvelope(w, http.StatusUnauthorized, "Unauthorized", nil, "")
+		return
 	}
 
 	type iceServer struct {
@@ -197,54 +210,58 @@ func (a *App) GetICEServers(r *fastglue.Request) error {
 		})
 	}
 
-	return r.SendEnvelope(map[string]any{
+	SendEnvelope(w, map[string]any{
 		"ice_servers": servers,
 	})
 }
 
 // GetCallPermission handles GET /api/calls/permission/{contactId}?whatsapp_account=X
 // Checks call permission state directly via WhatsApp API.
-func (a *App) GetCallPermission(r *fastglue.Request) error {
-	orgID, _, err := a.requireAuth(r, models.ResourceOutgoingCalls, models.ActionRead)
+func (a *App) GetCallPermission(w http.ResponseWriter, r *http.Request) {
+	orgID, _, err := a.requireAuthHTTP(w, r, models.ResourceOutgoingCalls, models.ActionRead)
 	if err != nil {
-		return nil
+		return
 	}
 
-	contactID, err := parsePathUUID(r, "contactId", "contact")
+	contactID, err := parsePathUUIDHTTP(w, r, "contactId", "contact")
 	if err != nil {
-		return nil
+		return
 	}
 
-	accountName := string(r.RequestCtx.QueryArgs().Peek("whatsapp_account"))
+	accountName := r.URL.Query().Get("whatsapp_account")
 	if accountName == "" {
-		return r.SendErrorEnvelope(fasthttp.StatusBadRequest, "whatsapp_account query param is required", nil, "")
+		SendErrorEnvelope(w, http.StatusBadRequest, "whatsapp_account query param is required", nil, "")
+		return
 	}
 
 	// Look up contact
 	var contact models.Contact
 	if err := a.DB.Where("id = ? AND organization_id = ?", contactID, orgID).First(&contact).Error; err != nil {
-		return r.SendErrorEnvelope(fasthttp.StatusNotFound, "Contact not found", nil, "")
+		SendErrorEnvelope(w, http.StatusNotFound, "Contact not found", nil, "")
+		return
 	}
 
 	// Look up WhatsApp account
 	var account models.WhatsAppAccount
 	if err := a.DB.Where("organization_id = ? AND name = ?", orgID, accountName).First(&account).Error; err != nil {
-		return r.SendErrorEnvelope(fasthttp.StatusNotFound, "WhatsApp account not found", nil, "")
+		SendErrorEnvelope(w, http.StatusNotFound, "WhatsApp account not found", nil, "")
+		return
 	}
 
 	waAccount := account.ToWAAccount()
 
 	// Check permission via WhatsApp API
-	ctx := r.RequestCtx
+	ctx := r.Context()
 	status, err := a.WhatsApp.GetCallPermission(ctx, waAccount, contact.PhoneNumber)
 	if err != nil {
 		a.Log.Error("Failed to check call permission via API", "error", err, "phone", contact.PhoneNumber)
-		return r.SendErrorEnvelope(fasthttp.StatusInternalServerError, "Failed to check permission", nil, "")
+		SendErrorEnvelope(w, http.StatusInternalServerError, "Failed to check permission", nil, "")
+		return
 	}
 
 	a.Log.Info("Call permission check result", "contact_id", contactID, "phone", contact.PhoneNumber, "status", status)
 
-	return r.SendEnvelope(map[string]string{
+	SendEnvelope(w, map[string]string{
 		"status": status,
 	})
 }

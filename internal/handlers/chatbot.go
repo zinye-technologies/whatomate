@@ -2,13 +2,11 @@ package handlers
 
 import (
 	"encoding/json"
-	"time"
-
 	"github.com/google/uuid"
 	"github.com/shridarpatil/whatomate/internal/audit"
 	"github.com/shridarpatil/whatomate/internal/models"
-	"github.com/valyala/fasthttp"
-	"github.com/zerodha/fastglue"
+	"net/http"
+	"time"
 )
 
 // ChatbotSettingsResponse represents the response for chatbot settings
@@ -103,10 +101,11 @@ type AIContextResponse struct {
 }
 
 // GetChatbotSettings returns chatbot settings and stats
-func (a *App) GetChatbotSettings(r *fastglue.Request) error {
-	orgID, err := a.getOrgID(r)
+func (a *App) GetChatbotSettings(w http.ResponseWriter, r *http.Request) {
+	orgID, err := a.getOrgIDHTTP(r)
 	if err != nil {
-		return r.SendErrorEnvelope(fasthttp.StatusUnauthorized, "Unauthorized", nil, "")
+		SendErrorEnvelope(w, http.StatusUnauthorized, "Unauthorized", nil, "")
+		return
 	}
 
 	// Get or create default settings
@@ -193,10 +192,11 @@ func (a *App) GetChatbotSettings(r *fastglue.Request) error {
 		ClientAutoCloseMessage: settings.ClientInactivity.AutoCloseMessage,
 	}
 
-	return r.SendEnvelope(map[string]any{
+	SendEnvelope(w, map[string]any{
 		"settings": settingsResp,
 		"stats":    stats,
 	})
+	return
 }
 
 // UpdateChatbotSettings updates chatbot settings
@@ -264,10 +264,11 @@ func chatbotAISnapshot(s *models.ChatbotSettings) map[string]any {
 	}
 }
 
-func (a *App) UpdateChatbotSettings(r *fastglue.Request) error {
-	orgID, userID, err := a.getOrgAndUserID(r)
+func (a *App) UpdateChatbotSettings(w http.ResponseWriter, r *http.Request) {
+	orgID, userID, err := a.getOrgAndUserIDHTTP(r)
 	if err != nil {
-		return r.SendErrorEnvelope(fasthttp.StatusUnauthorized, "Unauthorized", nil, "")
+		SendErrorEnvelope(w, http.StatusUnauthorized, "Unauthorized", nil, "")
+		return
 	}
 
 	var req struct {
@@ -307,8 +308,9 @@ func (a *App) UpdateChatbotSettings(r *fastglue.Request) error {
 		ClientAutoCloseMessage *string `json:"client_auto_close_message"`
 	}
 
-	if err := json.Unmarshal(r.RequestCtx.PostBody(), &req); err != nil {
-		return r.SendErrorEnvelope(fasthttp.StatusBadRequest, "Invalid request body", nil, "")
+	if err := json.Unmarshal(readBody(r), &req); err != nil {
+		SendErrorEnvelope(w, http.StatusBadRequest, "Invalid request body", nil, "")
+		return
 	}
 
 	// The greeting and fallback buttons go out as free-form interactive
@@ -325,7 +327,8 @@ func (a *App) UpdateChatbotSettings(r *fastglue.Request) error {
 			continue
 		}
 		if err := validateInteractiveButtons(interactiveButtonsFromMaps(*field.buttons)); err != nil {
-			return r.SendErrorEnvelope(fasthttp.StatusBadRequest, field.label+": "+err.Error(), nil, "")
+			SendErrorEnvelope(w, http.StatusBadRequest, field.label+": "+err.Error(), nil, "")
+			return
 		}
 	}
 
@@ -490,7 +493,8 @@ func (a *App) UpdateChatbotSettings(r *fastglue.Request) error {
 
 	if err := a.DB.Save(&settings).Error; err != nil {
 		a.Log.Error("Failed to save settings", "error", err)
-		return r.SendErrorEnvelope(fasthttp.StatusInternalServerError, "Failed to save settings", nil, "")
+		SendErrorEnvelope(w, http.StatusInternalServerError, "Failed to save settings", nil, "")
+		return
 	}
 
 	// GORM skips false (zero-value) bool fields on INSERT when the column has
@@ -511,7 +515,8 @@ func (a *App) UpdateChatbotSettings(r *fastglue.Request) error {
 		if len(zeroOverrides) > 0 {
 			if err := a.DB.Model(&settings).Updates(zeroOverrides).Error; err != nil {
 				a.Log.Error("Failed to save settings", "error", err)
-				return r.SendErrorEnvelope(fasthttp.StatusInternalServerError, "Failed to save settings", nil, "")
+				SendErrorEnvelope(w, http.StatusInternalServerError, "Failed to save settings", nil, "")
+				return
 			}
 		}
 	}
@@ -548,20 +553,22 @@ func (a *App) UpdateChatbotSettings(r *fastglue.Request) error {
 			oldAI, chatbotAISnapshot(&settings))
 	}
 
-	return r.SendEnvelope(map[string]any{
+	SendEnvelope(w, map[string]any{
 		"message": "Settings updated successfully",
 	})
+	return
 }
 
 // ListKeywordRules lists all keyword rules for the organization
-func (a *App) ListKeywordRules(r *fastglue.Request) error {
-	orgID, err := a.getOrgID(r)
+func (a *App) ListKeywordRules(w http.ResponseWriter, r *http.Request) {
+	orgID, err := a.getOrgIDHTTP(r)
 	if err != nil {
-		return r.SendErrorEnvelope(fasthttp.StatusUnauthorized, "Unauthorized", nil, "")
+		SendErrorEnvelope(w, http.StatusUnauthorized, "Unauthorized", nil, "")
+		return
 	}
 
-	pg := parsePagination(r)
-	search := string(r.RequestCtx.QueryArgs().Peek("search"))
+	pg := parsePaginationHTTP(r)
+	search := r.URL.Query().Get("search")
 
 	query := a.DB.Model(&models.KeywordRule{}).Where("organization_id = ?", orgID)
 
@@ -579,7 +586,8 @@ func (a *App) ListKeywordRules(r *fastglue.Request) error {
 	if err := pg.Apply(query.Preload("CreatedBy").Preload("UpdatedBy").Order("priority DESC, created_at DESC")).
 		Find(&rules).Error; err != nil {
 		a.Log.Error("Failed to fetch keyword rules", "error", err)
-		return r.SendErrorEnvelope(fasthttp.StatusInternalServerError, "Failed to fetch keyword rules", nil, "")
+		SendErrorEnvelope(w, http.StatusInternalServerError, "Failed to fetch keyword rules", nil, "")
+		return
 	}
 
 	response := make([]KeywordRuleResponse, len(rules))
@@ -606,14 +614,16 @@ func (a *App) ListKeywordRules(r *fastglue.Request) error {
 		response[i] = resp
 	}
 
-	return r.SendEnvelope(listEnvelope("rules", response, total, pg))
+	SendEnvelope(w, listEnvelope("rules", response, total, pg))
+	return
 }
 
 // CreateKeywordRule creates a new keyword rule
-func (a *App) CreateKeywordRule(r *fastglue.Request) error {
-	orgID, userID, err := a.getOrgAndUserID(r)
+func (a *App) CreateKeywordRule(w http.ResponseWriter, r *http.Request) {
+	orgID, userID, err := a.getOrgAndUserIDHTTP(r)
 	if err != nil {
-		return r.SendErrorEnvelope(fasthttp.StatusUnauthorized, "Unauthorized", nil, "")
+		SendErrorEnvelope(w, http.StatusUnauthorized, "Unauthorized", nil, "")
+		return
 	}
 
 	var req struct {
@@ -626,12 +636,14 @@ func (a *App) CreateKeywordRule(r *fastglue.Request) error {
 		Enabled         bool                `json:"enabled"`
 	}
 
-	if err := json.Unmarshal(r.RequestCtx.PostBody(), &req); err != nil {
-		return r.SendErrorEnvelope(fasthttp.StatusBadRequest, "Invalid request body", nil, "")
+	if err := json.Unmarshal(readBody(r), &req); err != nil {
+		SendErrorEnvelope(w, http.StatusBadRequest, "Invalid request body", nil, "")
+		return
 	}
 
 	if len(req.Keywords) == 0 {
-		return r.SendErrorEnvelope(fasthttp.StatusBadRequest, "At least one keyword is required", nil, "")
+		SendErrorEnvelope(w, http.StatusBadRequest, "At least one keyword is required", nil, "")
+		return
 	}
 
 	// Set defaults
@@ -661,7 +673,8 @@ func (a *App) CreateKeywordRule(r *fastglue.Request) error {
 
 	if err := a.DB.Create(&rule).Error; err != nil {
 		a.Log.Error("Failed to create keyword rule", "error", err)
-		return r.SendErrorEnvelope(fasthttp.StatusInternalServerError, "Failed to create keyword rule", nil, "")
+		SendErrorEnvelope(w, http.StatusInternalServerError, "Failed to create keyword rule", nil, "")
+		return
 	}
 
 	// Invalidate cache
@@ -669,29 +682,32 @@ func (a *App) CreateKeywordRule(r *fastglue.Request) error {
 
 	a.logAudit(orgID, userID, "keyword_rule", rule.ID, models.AuditActionCreated, nil, &rule)
 
-	return r.SendEnvelope(map[string]any{
+	SendEnvelope(w, map[string]any{
 		"id":      rule.ID.String(),
 		"message": "Keyword rule created successfully",
 	})
+	return
 }
 
 // GetKeywordRule gets a single keyword rule
-func (a *App) GetKeywordRule(r *fastglue.Request) error {
-	orgID, err := a.getOrgID(r)
+func (a *App) GetKeywordRule(w http.ResponseWriter, r *http.Request) {
+	orgID, err := a.getOrgIDHTTP(r)
 	if err != nil {
-		return r.SendErrorEnvelope(fasthttp.StatusUnauthorized, "Unauthorized", nil, "")
+		SendErrorEnvelope(w, http.StatusUnauthorized, "Unauthorized", nil, "")
+		return
 	}
 
-	id, err := parsePathUUID(r, "id", "rule")
+	id, err := parsePathUUIDHTTP(w, r, "id", "rule")
 	if err != nil {
-		return nil
+		return
 	}
 
 	var rule models.KeywordRule
 	if err := a.DB.Where("id = ? AND organization_id = ?", id, orgID).
 		Preload("CreatedBy").Preload("UpdatedBy").
 		First(&rule).Error; err != nil {
-		return r.SendErrorEnvelope(fasthttp.StatusNotFound, "Keyword rule not found", nil, "")
+		SendErrorEnvelope(w, http.StatusNotFound, "Keyword rule not found", nil, "")
+		return
 	}
 
 	responseContent, _ := json.Marshal(rule.ResponseContent)
@@ -714,24 +730,26 @@ func (a *App) GetKeywordRule(r *fastglue.Request) error {
 		response.UpdatedByName = rule.UpdatedBy.FullName
 	}
 
-	return r.SendEnvelope(response)
+	SendEnvelope(w, response)
+	return
 }
 
 // UpdateKeywordRule updates a keyword rule
-func (a *App) UpdateKeywordRule(r *fastglue.Request) error {
-	orgID, userID, err := a.getOrgAndUserID(r)
+func (a *App) UpdateKeywordRule(w http.ResponseWriter, r *http.Request) {
+	orgID, userID, err := a.getOrgAndUserIDHTTP(r)
 	if err != nil {
-		return r.SendErrorEnvelope(fasthttp.StatusUnauthorized, "Unauthorized", nil, "")
+		SendErrorEnvelope(w, http.StatusUnauthorized, "Unauthorized", nil, "")
+		return
 	}
 
-	id, err := parsePathUUID(r, "id", "rule")
+	id, err := parsePathUUIDHTTP(w, r, "id", "rule")
 	if err != nil {
-		return nil
+		return
 	}
 
-	rule, err := findByIDAndOrg[models.KeywordRule](a.DB, r, id, orgID, "Keyword rule")
+	rule, err := findByIDAndOrgHTTP[models.KeywordRule](a.DB, w, id, orgID, "Keyword rule")
 	if err != nil {
-		return nil
+		return
 	}
 
 	// Capture old state for audit
@@ -747,8 +765,9 @@ func (a *App) UpdateKeywordRule(r *fastglue.Request) error {
 		Enabled         *bool                `json:"enabled"`
 	}
 
-	if err := json.Unmarshal(r.RequestCtx.PostBody(), &req); err != nil {
-		return r.SendErrorEnvelope(fasthttp.StatusBadRequest, "Invalid request body", nil, "")
+	if err := json.Unmarshal(readBody(r), &req); err != nil {
+		SendErrorEnvelope(w, http.StatusBadRequest, "Invalid request body", nil, "")
+		return
 	}
 
 	// Update fields if provided
@@ -777,7 +796,8 @@ func (a *App) UpdateKeywordRule(r *fastglue.Request) error {
 
 	if err := a.DB.Save(rule).Error; err != nil {
 		a.Log.Error("Failed to update keyword rule", "error", err)
-		return r.SendErrorEnvelope(fasthttp.StatusInternalServerError, "Failed to update keyword rule", nil, "")
+		SendErrorEnvelope(w, http.StatusInternalServerError, "Failed to update keyword rule", nil, "")
+		return
 	}
 
 	// Invalidate cache
@@ -785,32 +805,36 @@ func (a *App) UpdateKeywordRule(r *fastglue.Request) error {
 
 	a.logAudit(orgID, userID, "keyword_rule", rule.ID, models.AuditActionUpdated, &oldRule, rule)
 
-	return r.SendEnvelope(map[string]any{
+	SendEnvelope(w, map[string]any{
 		"message": "Keyword rule updated successfully",
 	})
+	return
 }
 
 // DeleteKeywordRule deletes a keyword rule
-func (a *App) DeleteKeywordRule(r *fastglue.Request) error {
-	orgID, userID, err := a.getOrgAndUserID(r)
+func (a *App) DeleteKeywordRule(w http.ResponseWriter, r *http.Request) {
+	orgID, userID, err := a.getOrgAndUserIDHTTP(r)
 	if err != nil {
-		return r.SendErrorEnvelope(fasthttp.StatusUnauthorized, "Unauthorized", nil, "")
+		SendErrorEnvelope(w, http.StatusUnauthorized, "Unauthorized", nil, "")
+		return
 	}
 
-	id, err := parsePathUUID(r, "id", "rule")
+	id, err := parsePathUUIDHTTP(w, r, "id", "rule")
 	if err != nil {
-		return nil
+		return
 	}
 
 	// Load the rule before deleting for audit
 	var rule models.KeywordRule
 	if err := a.DB.Where("id = ? AND organization_id = ?", id, orgID).First(&rule).Error; err != nil {
-		return r.SendErrorEnvelope(fasthttp.StatusNotFound, "Keyword rule not found", nil, "")
+		SendErrorEnvelope(w, http.StatusNotFound, "Keyword rule not found", nil, "")
+		return
 	}
 
 	if err := a.DB.Delete(&rule).Error; err != nil {
 		a.Log.Error("Failed to delete keyword rule", "error", err)
-		return r.SendErrorEnvelope(fasthttp.StatusInternalServerError, "Failed to delete keyword rule", nil, "")
+		SendErrorEnvelope(w, http.StatusInternalServerError, "Failed to delete keyword rule", nil, "")
+		return
 	}
 
 	// Invalidate cache
@@ -818,24 +842,27 @@ func (a *App) DeleteKeywordRule(r *fastglue.Request) error {
 
 	a.logAudit(orgID, userID, "keyword_rule", id, models.AuditActionDeleted, &rule, nil)
 
-	return r.SendEnvelope(map[string]any{
+	SendEnvelope(w, map[string]any{
 		"message": "Keyword rule deleted successfully",
 	})
+	return
 }
 
 // ListChatbotFlows lists all chatbot flows
-func (a *App) ListChatbotFlows(r *fastglue.Request) error {
-	orgID, userID, err := a.getOrgAndUserID(r)
+func (a *App) ListChatbotFlows(w http.ResponseWriter, r *http.Request) {
+	orgID, userID, err := a.getOrgAndUserIDHTTP(r)
 	if err != nil {
-		return r.SendErrorEnvelope(fasthttp.StatusUnauthorized, "Unauthorized", nil, "")
+		SendErrorEnvelope(w, http.StatusUnauthorized, "Unauthorized", nil, "")
+		return
 	}
 
 	if !a.HasPermission(userID, models.ResourceFlowsChatbot, models.ActionRead, orgID) {
-		return r.SendErrorEnvelope(fasthttp.StatusForbidden, "Permission denied", nil, "")
+		SendErrorEnvelope(w, http.StatusForbidden, "Permission denied", nil, "")
+		return
 	}
 
-	pg := parsePagination(r)
-	search := string(r.RequestCtx.QueryArgs().Peek("search"))
+	pg := parsePaginationHTTP(r)
+	search := r.URL.Query().Get("search")
 
 	query := a.DB.Model(&models.ChatbotFlow{}).Where("organization_id = ?", orgID)
 
@@ -852,7 +879,8 @@ func (a *App) ListChatbotFlows(r *fastglue.Request) error {
 	if err := pg.Apply(query.Order("created_at DESC")).
 		Find(&flows).Error; err != nil {
 		a.Log.Error("Failed to fetch flows", "error", err)
-		return r.SendErrorEnvelope(fasthttp.StatusInternalServerError, "Failed to fetch flows", nil, "")
+		SendErrorEnvelope(w, http.StatusInternalServerError, "Failed to fetch flows", nil, "")
+		return
 	}
 
 	response := make([]ChatbotFlowResponse, len(flows))
@@ -867,18 +895,21 @@ func (a *App) ListChatbotFlows(r *fastglue.Request) error {
 		}
 	}
 
-	return r.SendEnvelope(listEnvelope("flows", response, total, pg))
+	SendEnvelope(w, listEnvelope("flows", response, total, pg))
+	return
 }
 
 // CreateChatbotFlow creates a new chatbot flow
-func (a *App) CreateChatbotFlow(r *fastglue.Request) error {
-	orgID, userID, err := a.getOrgAndUserID(r)
+func (a *App) CreateChatbotFlow(w http.ResponseWriter, r *http.Request) {
+	orgID, userID, err := a.getOrgAndUserIDHTTP(r)
 	if err != nil {
-		return r.SendErrorEnvelope(fasthttp.StatusUnauthorized, "Unauthorized", nil, "")
+		SendErrorEnvelope(w, http.StatusUnauthorized, "Unauthorized", nil, "")
+		return
 	}
 
 	if !a.HasPermission(userID, models.ResourceFlowsChatbot, models.ActionWrite, orgID) {
-		return r.SendErrorEnvelope(fasthttp.StatusForbidden, "Permission denied", nil, "")
+		SendErrorEnvelope(w, http.StatusForbidden, "Permission denied", nil, "")
+		return
 	}
 
 	var req struct {
@@ -894,12 +925,14 @@ func (a *App) CreateChatbotFlow(r *fastglue.Request) error {
 		Enabled           bool           `json:"enabled"`
 	}
 
-	if err := json.Unmarshal(r.RequestCtx.PostBody(), &req); err != nil {
-		return r.SendErrorEnvelope(fasthttp.StatusBadRequest, "Invalid request body", nil, "")
+	if err := json.Unmarshal(readBody(r), &req); err != nil {
+		SendErrorEnvelope(w, http.StatusBadRequest, "Invalid request body", nil, "")
+		return
 	}
 
 	if req.Name == "" {
-		return r.SendErrorEnvelope(fasthttp.StatusBadRequest, "Name is required", nil, "")
+		SendErrorEnvelope(w, http.StatusBadRequest, "Name is required", nil, "")
+		return
 	}
 
 	flow := models.ChatbotFlow{
@@ -921,7 +954,8 @@ func (a *App) CreateChatbotFlow(r *fastglue.Request) error {
 
 	if err := a.DB.Create(&flow).Error; err != nil {
 		a.Log.Error("Failed to create flow", "error", err)
-		return r.SendErrorEnvelope(fasthttp.StatusInternalServerError, "Failed to create flow", nil, "")
+		SendErrorEnvelope(w, http.StatusInternalServerError, "Failed to create flow", nil, "")
+		return
 	}
 
 	// Invalidate cache
@@ -930,57 +964,64 @@ func (a *App) CreateChatbotFlow(r *fastglue.Request) error {
 	a.logAudit(orgID, userID,
 		"chatbot_flow", flow.ID, models.AuditActionCreated, nil, &flow)
 
-	return r.SendEnvelope(map[string]any{
+	SendEnvelope(w, map[string]any{
 		"id":      flow.ID.String(),
 		"message": "Flow created successfully",
 	})
+	return
 }
 
 // GetChatbotFlow gets a single chatbot flow with steps
-func (a *App) GetChatbotFlow(r *fastglue.Request) error {
-	orgID, userID, err := a.getOrgAndUserID(r)
+func (a *App) GetChatbotFlow(w http.ResponseWriter, r *http.Request) {
+	orgID, userID, err := a.getOrgAndUserIDHTTP(r)
 	if err != nil {
-		return r.SendErrorEnvelope(fasthttp.StatusUnauthorized, "Unauthorized", nil, "")
+		SendErrorEnvelope(w, http.StatusUnauthorized, "Unauthorized", nil, "")
+		return
 	}
 
 	if !a.HasPermission(userID, models.ResourceFlowsChatbot, models.ActionRead, orgID) {
-		return r.SendErrorEnvelope(fasthttp.StatusForbidden, "Permission denied", nil, "")
+		SendErrorEnvelope(w, http.StatusForbidden, "Permission denied", nil, "")
+		return
 	}
 
-	id, err := parsePathUUID(r, "id", "flow")
+	id, err := parsePathUUIDHTTP(w, r, "id", "flow")
 	if err != nil {
-		return nil
+		return
 	}
 
 	var flow models.ChatbotFlow
 	if err := a.DB.Where("id = ? AND organization_id = ?", id, orgID).
 		Preload("CreatedBy").Preload("UpdatedBy").
 		First(&flow).Error; err != nil {
-		return r.SendErrorEnvelope(fasthttp.StatusNotFound, "Flow not found", nil, "")
+		SendErrorEnvelope(w, http.StatusNotFound, "Flow not found", nil, "")
+		return
 	}
 
-	return r.SendEnvelope(flow)
+	SendEnvelope(w, flow)
+	return
 }
 
 // UpdateChatbotFlow updates a chatbot flow
-func (a *App) UpdateChatbotFlow(r *fastglue.Request) error {
-	orgID, userID, err := a.getOrgAndUserID(r)
+func (a *App) UpdateChatbotFlow(w http.ResponseWriter, r *http.Request) {
+	orgID, userID, err := a.getOrgAndUserIDHTTP(r)
 	if err != nil {
-		return r.SendErrorEnvelope(fasthttp.StatusUnauthorized, "Unauthorized", nil, "")
+		SendErrorEnvelope(w, http.StatusUnauthorized, "Unauthorized", nil, "")
+		return
 	}
 
 	if !a.HasPermission(userID, models.ResourceFlowsChatbot, models.ActionWrite, orgID) {
-		return r.SendErrorEnvelope(fasthttp.StatusForbidden, "Permission denied", nil, "")
+		SendErrorEnvelope(w, http.StatusForbidden, "Permission denied", nil, "")
+		return
 	}
 
-	id, err := parsePathUUID(r, "id", "flow")
+	id, err := parsePathUUIDHTTP(w, r, "id", "flow")
 	if err != nil {
-		return nil
+		return
 	}
 
-	flow, err := findByIDAndOrg[models.ChatbotFlow](a.DB, r, id, orgID, "Flow")
+	flow, err := findByIDAndOrgHTTP[models.ChatbotFlow](a.DB, w, id, orgID, "Flow")
 	if err != nil {
-		return nil
+		return
 	}
 
 	oldFlow := *flow // value copy for audit
@@ -998,8 +1039,9 @@ func (a *App) UpdateChatbotFlow(r *fastglue.Request) error {
 		Enabled           *bool          `json:"enabled"`
 	}
 
-	if err := json.Unmarshal(r.RequestCtx.PostBody(), &req); err != nil {
-		return r.SendErrorEnvelope(fasthttp.StatusBadRequest, "Invalid request body", nil, "")
+	if err := json.Unmarshal(readBody(r), &req); err != nil {
+		SendErrorEnvelope(w, http.StatusBadRequest, "Invalid request body", nil, "")
+		return
 	}
 
 	if req.Name != nil {
@@ -1036,7 +1078,8 @@ func (a *App) UpdateChatbotFlow(r *fastglue.Request) error {
 
 	if err := a.DB.Save(flow).Error; err != nil {
 		a.Log.Error("Failed to update flow", "error", err)
-		return r.SendErrorEnvelope(fasthttp.StatusInternalServerError, "Failed to update flow", nil, "")
+		SendErrorEnvelope(w, http.StatusInternalServerError, "Failed to update flow", nil, "")
+		return
 	}
 
 	a.InvalidateChatbotFlowsCache(orgID)
@@ -1044,25 +1087,28 @@ func (a *App) UpdateChatbotFlow(r *fastglue.Request) error {
 	a.logAudit(orgID, userID,
 		"chatbot_flow", flow.ID, models.AuditActionUpdated, &oldFlow, flow)
 
-	return r.SendEnvelope(map[string]any{
+	SendEnvelope(w, map[string]any{
 		"message": "Flow updated successfully",
 	})
+	return
 }
 
 // DeleteChatbotFlow deletes a chatbot flow
-func (a *App) DeleteChatbotFlow(r *fastglue.Request) error {
-	orgID, userID, err := a.getOrgAndUserID(r)
+func (a *App) DeleteChatbotFlow(w http.ResponseWriter, r *http.Request) {
+	orgID, userID, err := a.getOrgAndUserIDHTTP(r)
 	if err != nil {
-		return r.SendErrorEnvelope(fasthttp.StatusUnauthorized, "Unauthorized", nil, "")
+		SendErrorEnvelope(w, http.StatusUnauthorized, "Unauthorized", nil, "")
+		return
 	}
 
 	if !a.HasPermission(userID, models.ResourceFlowsChatbot, models.ActionDelete, orgID) {
-		return r.SendErrorEnvelope(fasthttp.StatusForbidden, "Permission denied", nil, "")
+		SendErrorEnvelope(w, http.StatusForbidden, "Permission denied", nil, "")
+		return
 	}
 
-	id, err := parsePathUUID(r, "id", "flow")
+	id, err := parsePathUUIDHTTP(w, r, "id", "flow")
 	if err != nil {
-		return nil
+		return
 	}
 
 	// Load flow for audit before deleting
@@ -1076,7 +1122,8 @@ func (a *App) DeleteChatbotFlow(r *fastglue.Request) error {
 	if err := tx.Where("flow_id = ?", id).Delete(&models.ChatbotFlowStep{}).Error; err != nil {
 		tx.Rollback()
 		a.Log.Error("Failed to delete flow steps", "error", err)
-		return r.SendErrorEnvelope(fasthttp.StatusInternalServerError, "Failed to delete flow steps", nil, "")
+		SendErrorEnvelope(w, http.StatusInternalServerError, "Failed to delete flow steps", nil, "")
+		return
 	}
 
 	// Delete flow
@@ -1084,11 +1131,13 @@ func (a *App) DeleteChatbotFlow(r *fastglue.Request) error {
 	if result.Error != nil {
 		tx.Rollback()
 		a.Log.Error("Failed to delete flow", "error", result.Error)
-		return r.SendErrorEnvelope(fasthttp.StatusInternalServerError, "Failed to delete flow", nil, "")
+		SendErrorEnvelope(w, http.StatusInternalServerError, "Failed to delete flow", nil, "")
+		return
 	}
 	if result.RowsAffected == 0 {
 		tx.Rollback()
-		return r.SendErrorEnvelope(fasthttp.StatusNotFound, "Flow not found", nil, "")
+		SendErrorEnvelope(w, http.StatusNotFound, "Flow not found", nil, "")
+		return
 	}
 
 	tx.Commit()
@@ -1099,20 +1148,22 @@ func (a *App) DeleteChatbotFlow(r *fastglue.Request) error {
 	a.logAudit(orgID, userID,
 		"chatbot_flow", id, models.AuditActionDeleted, &flowForAudit, nil)
 
-	return r.SendEnvelope(map[string]any{
+	SendEnvelope(w, map[string]any{
 		"message": "Flow deleted successfully",
 	})
+	return
 }
 
 // ListAIContexts lists all AI contexts
-func (a *App) ListAIContexts(r *fastglue.Request) error {
-	orgID, err := a.getOrgID(r)
+func (a *App) ListAIContexts(w http.ResponseWriter, r *http.Request) {
+	orgID, err := a.getOrgIDHTTP(r)
 	if err != nil {
-		return r.SendErrorEnvelope(fasthttp.StatusUnauthorized, "Unauthorized", nil, "")
+		SendErrorEnvelope(w, http.StatusUnauthorized, "Unauthorized", nil, "")
+		return
 	}
 
-	pg := parsePagination(r)
-	search := string(r.RequestCtx.QueryArgs().Peek("search"))
+	pg := parsePaginationHTTP(r)
+	search := r.URL.Query().Get("search")
 
 	query := a.DB.Model(&models.AIContext{}).Where("organization_id = ?", orgID)
 
@@ -1129,7 +1180,8 @@ func (a *App) ListAIContexts(r *fastglue.Request) error {
 	if err := pg.Apply(query.Preload("CreatedBy").Preload("UpdatedBy").Order("priority DESC, created_at DESC")).
 		Find(&contexts).Error; err != nil {
 		a.Log.Error("Failed to fetch AI contexts", "error", err)
-		return r.SendErrorEnvelope(fasthttp.StatusInternalServerError, "Failed to fetch AI contexts", nil, "")
+		SendErrorEnvelope(w, http.StatusInternalServerError, "Failed to fetch AI contexts", nil, "")
+		return
 	}
 
 	response := make([]AIContextResponse, len(contexts))
@@ -1155,14 +1207,16 @@ func (a *App) ListAIContexts(r *fastglue.Request) error {
 		response[i] = resp
 	}
 
-	return r.SendEnvelope(listEnvelope("contexts", response, total, pg))
+	SendEnvelope(w, listEnvelope("contexts", response, total, pg))
+	return
 }
 
 // CreateAIContext creates a new AI context
-func (a *App) CreateAIContext(r *fastglue.Request) error {
-	orgID, userID, err := a.getOrgAndUserID(r)
+func (a *App) CreateAIContext(w http.ResponseWriter, r *http.Request) {
+	orgID, userID, err := a.getOrgAndUserIDHTTP(r)
 	if err != nil {
-		return r.SendErrorEnvelope(fasthttp.StatusUnauthorized, "Unauthorized", nil, "")
+		SendErrorEnvelope(w, http.StatusUnauthorized, "Unauthorized", nil, "")
+		return
 	}
 
 	var req struct {
@@ -1175,12 +1229,14 @@ func (a *App) CreateAIContext(r *fastglue.Request) error {
 		Enabled         bool               `json:"enabled"`
 	}
 
-	if err := json.Unmarshal(r.RequestCtx.PostBody(), &req); err != nil {
-		return r.SendErrorEnvelope(fasthttp.StatusBadRequest, "Invalid request body", nil, "")
+	if err := json.Unmarshal(readBody(r), &req); err != nil {
+		SendErrorEnvelope(w, http.StatusBadRequest, "Invalid request body", nil, "")
+		return
 	}
 
 	if req.Name == "" {
-		return r.SendErrorEnvelope(fasthttp.StatusBadRequest, "Name is required", nil, "")
+		SendErrorEnvelope(w, http.StatusBadRequest, "Name is required", nil, "")
+		return
 	}
 	if req.ContextType == "" {
 		req.ContextType = models.ContextTypeStatic
@@ -1202,7 +1258,8 @@ func (a *App) CreateAIContext(r *fastglue.Request) error {
 
 	if err := a.DB.Create(&ctx).Error; err != nil {
 		a.Log.Error("Failed to create AI context", "error", err)
-		return r.SendErrorEnvelope(fasthttp.StatusInternalServerError, "Failed to create AI context", nil, "")
+		SendErrorEnvelope(w, http.StatusInternalServerError, "Failed to create AI context", nil, "")
+		return
 	}
 
 	// Invalidate cache
@@ -1210,29 +1267,32 @@ func (a *App) CreateAIContext(r *fastglue.Request) error {
 
 	a.logAudit(orgID, userID, "ai_context", ctx.ID, models.AuditActionCreated, nil, &ctx)
 
-	return r.SendEnvelope(map[string]any{
+	SendEnvelope(w, map[string]any{
 		"id":      ctx.ID.String(),
 		"message": "AI context created successfully",
 	})
+	return
 }
 
 // GetAIContext gets a single AI context
-func (a *App) GetAIContext(r *fastglue.Request) error {
-	orgID, err := a.getOrgID(r)
+func (a *App) GetAIContext(w http.ResponseWriter, r *http.Request) {
+	orgID, err := a.getOrgIDHTTP(r)
 	if err != nil {
-		return r.SendErrorEnvelope(fasthttp.StatusUnauthorized, "Unauthorized", nil, "")
+		SendErrorEnvelope(w, http.StatusUnauthorized, "Unauthorized", nil, "")
+		return
 	}
 
-	id, err := parsePathUUID(r, "id", "context")
+	id, err := parsePathUUIDHTTP(w, r, "id", "context")
 	if err != nil {
-		return nil
+		return
 	}
 
 	var aiCtx models.AIContext
 	if err := a.DB.Where("id = ? AND organization_id = ?", id, orgID).
 		Preload("CreatedBy").Preload("UpdatedBy").
 		First(&aiCtx).Error; err != nil {
-		return r.SendErrorEnvelope(fasthttp.StatusNotFound, "AI context not found", nil, "")
+		SendErrorEnvelope(w, http.StatusNotFound, "AI context not found", nil, "")
+		return
 	}
 
 	response := AIContextResponse{
@@ -1254,24 +1314,26 @@ func (a *App) GetAIContext(r *fastglue.Request) error {
 		response.UpdatedByName = aiCtx.UpdatedBy.FullName
 	}
 
-	return r.SendEnvelope(response)
+	SendEnvelope(w, response)
+	return
 }
 
 // UpdateAIContext updates an AI context
-func (a *App) UpdateAIContext(r *fastglue.Request) error {
-	orgID, userID, err := a.getOrgAndUserID(r)
+func (a *App) UpdateAIContext(w http.ResponseWriter, r *http.Request) {
+	orgID, userID, err := a.getOrgAndUserIDHTTP(r)
 	if err != nil {
-		return r.SendErrorEnvelope(fasthttp.StatusUnauthorized, "Unauthorized", nil, "")
+		SendErrorEnvelope(w, http.StatusUnauthorized, "Unauthorized", nil, "")
+		return
 	}
 
-	id, err := parsePathUUID(r, "id", "context")
+	id, err := parsePathUUIDHTTP(w, r, "id", "context")
 	if err != nil {
-		return nil
+		return
 	}
 
-	aiCtx, err := findByIDAndOrg[models.AIContext](a.DB, r, id, orgID, "AI context")
+	aiCtx, err := findByIDAndOrgHTTP[models.AIContext](a.DB, w, id, orgID, "AI context")
 	if err != nil {
-		return nil
+		return
 	}
 
 	// Capture old state for audit
@@ -1287,8 +1349,9 @@ func (a *App) UpdateAIContext(r *fastglue.Request) error {
 		Enabled         *bool               `json:"enabled"`
 	}
 
-	if err := json.Unmarshal(r.RequestCtx.PostBody(), &req); err != nil {
-		return r.SendErrorEnvelope(fasthttp.StatusBadRequest, "Invalid request body", nil, "")
+	if err := json.Unmarshal(readBody(r), &req); err != nil {
+		SendErrorEnvelope(w, http.StatusBadRequest, "Invalid request body", nil, "")
+		return
 	}
 
 	if req.Name != nil {
@@ -1316,7 +1379,8 @@ func (a *App) UpdateAIContext(r *fastglue.Request) error {
 
 	if err := a.DB.Save(aiCtx).Error; err != nil {
 		a.Log.Error("Failed to update AI context", "error", err)
-		return r.SendErrorEnvelope(fasthttp.StatusInternalServerError, "Failed to update AI context", nil, "")
+		SendErrorEnvelope(w, http.StatusInternalServerError, "Failed to update AI context", nil, "")
+		return
 	}
 
 	// Invalidate cache
@@ -1324,32 +1388,36 @@ func (a *App) UpdateAIContext(r *fastglue.Request) error {
 
 	a.logAudit(orgID, userID, "ai_context", aiCtx.ID, models.AuditActionUpdated, &oldCtx, aiCtx)
 
-	return r.SendEnvelope(map[string]any{
+	SendEnvelope(w, map[string]any{
 		"message": "AI context updated successfully",
 	})
+	return
 }
 
 // DeleteAIContext deletes an AI context
-func (a *App) DeleteAIContext(r *fastglue.Request) error {
-	orgID, userID, err := a.getOrgAndUserID(r)
+func (a *App) DeleteAIContext(w http.ResponseWriter, r *http.Request) {
+	orgID, userID, err := a.getOrgAndUserIDHTTP(r)
 	if err != nil {
-		return r.SendErrorEnvelope(fasthttp.StatusUnauthorized, "Unauthorized", nil, "")
+		SendErrorEnvelope(w, http.StatusUnauthorized, "Unauthorized", nil, "")
+		return
 	}
 
-	id, err := parsePathUUID(r, "id", "context")
+	id, err := parsePathUUIDHTTP(w, r, "id", "context")
 	if err != nil {
-		return nil
+		return
 	}
 
 	// Load the context before deleting for audit
 	var aiCtx models.AIContext
 	if err := a.DB.Where("id = ? AND organization_id = ?", id, orgID).First(&aiCtx).Error; err != nil {
-		return r.SendErrorEnvelope(fasthttp.StatusNotFound, "AI context not found", nil, "")
+		SendErrorEnvelope(w, http.StatusNotFound, "AI context not found", nil, "")
+		return
 	}
 
 	if err := a.DB.Delete(&aiCtx).Error; err != nil {
 		a.Log.Error("Failed to delete AI context", "error", err)
-		return r.SendErrorEnvelope(fasthttp.StatusInternalServerError, "Failed to delete AI context", nil, "")
+		SendErrorEnvelope(w, http.StatusInternalServerError, "Failed to delete AI context", nil, "")
+		return
 	}
 
 	// Invalidate cache
@@ -1357,19 +1425,21 @@ func (a *App) DeleteAIContext(r *fastglue.Request) error {
 
 	a.logAudit(orgID, userID, "ai_context", id, models.AuditActionDeleted, &aiCtx, nil)
 
-	return r.SendEnvelope(map[string]any{
+	SendEnvelope(w, map[string]any{
 		"message": "AI context deleted successfully",
 	})
+	return
 }
 
 // ListChatbotSessions lists chatbot sessions
-func (a *App) ListChatbotSessions(r *fastglue.Request) error {
-	orgID, err := a.getOrgID(r)
+func (a *App) ListChatbotSessions(w http.ResponseWriter, r *http.Request) {
+	orgID, err := a.getOrgIDHTTP(r)
 	if err != nil {
-		return r.SendErrorEnvelope(fasthttp.StatusUnauthorized, "Unauthorized", nil, "")
+		SendErrorEnvelope(w, http.StatusUnauthorized, "Unauthorized", nil, "")
+		return
 	}
 
-	status := string(r.RequestCtx.QueryArgs().Peek("status"))
+	status := r.URL.Query().Get("status")
 
 	query := a.DB.Where("organization_id = ?", orgID).
 		Preload("Contact").
@@ -1382,24 +1452,27 @@ func (a *App) ListChatbotSessions(r *fastglue.Request) error {
 	var sessions []models.ChatbotSession
 	if err := query.Limit(100).Find(&sessions).Error; err != nil {
 		a.Log.Error("Failed to fetch sessions", "error", err)
-		return r.SendErrorEnvelope(fasthttp.StatusInternalServerError, "Failed to fetch sessions", nil, "")
+		SendErrorEnvelope(w, http.StatusInternalServerError, "Failed to fetch sessions", nil, "")
+		return
 	}
 
-	return r.SendEnvelope(map[string]any{
+	SendEnvelope(w, map[string]any{
 		"sessions": sessions,
 	})
+	return
 }
 
 // GetChatbotSession gets a single chatbot session with messages
-func (a *App) GetChatbotSession(r *fastglue.Request) error {
-	orgID, err := a.getOrgID(r)
+func (a *App) GetChatbotSession(w http.ResponseWriter, r *http.Request) {
+	orgID, err := a.getOrgIDHTTP(r)
 	if err != nil {
-		return r.SendErrorEnvelope(fasthttp.StatusUnauthorized, "Unauthorized", nil, "")
+		SendErrorEnvelope(w, http.StatusUnauthorized, "Unauthorized", nil, "")
+		return
 	}
 
-	id, err := parsePathUUID(r, "id", "session")
+	id, err := parsePathUUIDHTTP(w, r, "id", "session")
 	if err != nil {
-		return nil
+		return
 	}
 
 	var session models.ChatbotSession
@@ -1407,10 +1480,12 @@ func (a *App) GetChatbotSession(r *fastglue.Request) error {
 		Preload("Contact").
 		Preload("Messages").
 		First(&session).Error; err != nil {
-		return r.SendErrorEnvelope(fasthttp.StatusNotFound, "Session not found", nil, "")
+		SendErrorEnvelope(w, http.StatusNotFound, "Session not found", nil, "")
+		return
 	}
 
-	return r.SendEnvelope(session)
+	SendEnvelope(w, session)
+	return
 }
 
 // getChatbotStats returns chatbot statistics for an organization

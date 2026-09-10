@@ -27,8 +27,7 @@ func TestApp_Login_Success(t *testing.T) {
 		"password": password,
 	})
 
-	err := app.Login(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.Login, req)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	// Parse the response — tokens are in cookies, not body
@@ -42,7 +41,7 @@ func TestApp_Login_Success(t *testing.T) {
 			} `json:"user"`
 		} `json:"data"`
 	}
-	err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+	err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 	require.NoError(t, err)
 
 	assert.Equal(t, "success", resp.Status)
@@ -66,8 +65,7 @@ func TestApp_Login_WrongPassword(t *testing.T) {
 		"password": "wrongpassword",
 	})
 
-	err := app.Login(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.Login, req)
 	testutil.AssertErrorResponse(t, req, fasthttp.StatusUnauthorized, "Invalid credentials")
 }
 
@@ -79,8 +77,7 @@ func TestApp_Login_UserNotFound(t *testing.T) {
 		"password": "anypassword",
 	})
 
-	err := app.Login(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.Login, req)
 	testutil.AssertErrorResponse(t, req, fasthttp.StatusUnauthorized, "Invalid credentials")
 }
 
@@ -95,8 +92,7 @@ func TestApp_Login_InactiveUser(t *testing.T) {
 		"password": "validpassword123",
 	})
 
-	err := app.Login(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.Login, req)
 	testutil.AssertErrorResponse(t, req, fasthttp.StatusUnauthorized, "Account is disabled")
 }
 
@@ -107,8 +103,7 @@ func TestApp_Login_InvalidRequestBody(t *testing.T) {
 	req.RequestCtx.Request.SetBody([]byte("invalid json"))
 	req.RequestCtx.Request.Header.SetContentType("application/json")
 
-	err := app.Login(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.Login, req)
 	assert.Equal(t, fasthttp.StatusBadRequest, testutil.GetResponseStatusCode(req))
 }
 
@@ -134,8 +129,7 @@ func TestApp_Login_UserWithRole(t *testing.T) {
 		"password": password,
 	})
 
-	err := app.Login(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.Login, req)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 }
 
@@ -154,8 +148,7 @@ func TestApp_Register_Success(t *testing.T) {
 		"organization_id": org.ID.String(),
 	})
 
-	err := app.Register(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.Register, req)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	var resp struct {
@@ -171,7 +164,7 @@ func TestApp_Register_Success(t *testing.T) {
 			} `json:"user"`
 		} `json:"data"`
 	}
-	err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+	err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 	require.NoError(t, err)
 
 	assert.Equal(t, "success", resp.Status)
@@ -216,8 +209,7 @@ func TestApp_Register_EmailAlreadyExists_WrongPassword(t *testing.T) {
 		"organization_id": org2.ID.String(),
 	})
 
-	err := app.Register(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.Register, req)
 	testutil.AssertErrorResponse(t, req, fasthttp.StatusConflict, "An account with this email already exists")
 }
 
@@ -238,8 +230,7 @@ func TestApp_Register_ExistingUser_JoinsNewOrg(t *testing.T) {
 		"organization_id": org2.ID.String(),
 	})
 
-	err := app.Register(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.Register, req)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	// Tokens should be in cookies, not body
@@ -253,8 +244,7 @@ func TestApp_Register_InvalidRequestBody(t *testing.T) {
 	req.RequestCtx.Request.SetBody([]byte("invalid json"))
 	req.RequestCtx.Request.Header.SetContentType("application/json")
 
-	err := app.Register(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.Register, req)
 	assert.Equal(t, fasthttp.StatusBadRequest, testutil.GetResponseStatusCode(req))
 }
 
@@ -268,8 +258,7 @@ func TestApp_RefreshToken_Success(t *testing.T) {
 		"refresh_token": refreshToken,
 	})
 
-	err := app.RefreshToken(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.RefreshToken, req)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	var resp struct {
@@ -278,7 +267,7 @@ func TestApp_RefreshToken_Success(t *testing.T) {
 			ExpiresIn int `json:"expires_in"`
 		} `json:"data"`
 	}
-	err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+	err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 	require.NoError(t, err)
 
 	assert.Equal(t, "success", resp.Status)
@@ -299,8 +288,7 @@ func TestApp_RefreshToken_Expired(t *testing.T) {
 		"refresh_token": expiredToken,
 	})
 
-	err := app.RefreshToken(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.RefreshToken, req)
 	testutil.AssertErrorResponse(t, req, fasthttp.StatusUnauthorized, "Invalid refresh token")
 }
 
@@ -314,8 +302,7 @@ func TestApp_RefreshToken_InvalidSignature(t *testing.T) {
 		"refresh_token": wrongSecretToken,
 	})
 
-	err := app.RefreshToken(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.RefreshToken, req)
 	testutil.AssertErrorResponse(t, req, fasthttp.StatusUnauthorized, "Invalid refresh token")
 }
 
@@ -334,8 +321,7 @@ func TestApp_RefreshToken_UserNotFound(t *testing.T) {
 		"refresh_token": token,
 	})
 
-	err := app.RefreshToken(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.RefreshToken, req)
 	testutil.AssertErrorResponse(t, req, fasthttp.StatusUnauthorized, "User not found")
 }
 
@@ -349,8 +335,7 @@ func TestApp_RefreshToken_DisabledUser(t *testing.T) {
 		"refresh_token": token,
 	})
 
-	err := app.RefreshToken(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.RefreshToken, req)
 	testutil.AssertErrorResponse(t, req, fasthttp.StatusUnauthorized, "Account is disabled")
 }
 
@@ -361,8 +346,7 @@ func TestApp_RefreshToken_MalformedToken(t *testing.T) {
 		"refresh_token": "not.a.valid.jwt.token",
 	})
 
-	err := app.RefreshToken(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.RefreshToken, req)
 	testutil.AssertErrorResponse(t, req, fasthttp.StatusUnauthorized, "Invalid refresh token")
 }
 
@@ -373,8 +357,7 @@ func TestApp_RefreshToken_InvalidRequestBody(t *testing.T) {
 	req.RequestCtx.Request.SetBody([]byte("invalid json"))
 	req.RequestCtx.Request.Header.SetContentType("application/json")
 
-	err := app.RefreshToken(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.RefreshToken, req)
 	// No cookie and no valid body → 401 "Missing refresh token"
 	testutil.AssertErrorResponse(t, req, fasthttp.StatusUnauthorized, "Missing refresh token")
 }
@@ -390,8 +373,7 @@ func TestApp_GeneratedTokensAreValid(t *testing.T) {
 		"password": "password123",
 	})
 
-	err := app.Login(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.Login, req)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	// Read tokens from cookies

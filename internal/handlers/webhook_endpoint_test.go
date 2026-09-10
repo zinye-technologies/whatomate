@@ -46,7 +46,7 @@ func TestApp_WebhookVerify_GlobalTokenSucceeds(t *testing.T) {
 	testutil.SetQueryParam(req, "hub.verify_token", "shared-secret")
 	testutil.SetQueryParam(req, "hub.challenge", "challenge-xyz")
 
-	require.NoError(t, app.WebhookVerify(req))
+	testutil.InvokeHTTP(t, app.WebhookVerify, req)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 	assert.Equal(t, "challenge-xyz", string(testutil.GetResponseBody(req)),
 		"verify must echo the hub.challenge value")
@@ -73,7 +73,7 @@ func TestApp_WebhookVerify_AccountTokenSucceeds(t *testing.T) {
 	testutil.SetQueryParam(req, "hub.verify_token", "per-account-token")
 	testutil.SetQueryParam(req, "hub.challenge", "ch-2")
 
-	require.NoError(t, app.WebhookVerify(req))
+	testutil.InvokeHTTP(t, app.WebhookVerify, req)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 	assert.Equal(t, "ch-2", string(testutil.GetResponseBody(req)))
 }
@@ -86,7 +86,7 @@ func TestApp_WebhookVerify_WrongModeRejected(t *testing.T) {
 	testutil.SetQueryParam(req, "hub.verify_token", "shared-secret")
 	testutil.SetQueryParam(req, "hub.challenge", "x")
 
-	require.NoError(t, app.WebhookVerify(req))
+	testutil.InvokeHTTP(t, app.WebhookVerify, req)
 	assert.Equal(t, fasthttp.StatusForbidden, testutil.GetResponseStatusCode(req))
 }
 
@@ -98,7 +98,7 @@ func TestApp_WebhookVerify_UnknownTokenRejected(t *testing.T) {
 	testutil.SetQueryParam(req, "hub.verify_token", "wrong-secret")
 	testutil.SetQueryParam(req, "hub.challenge", "x")
 
-	require.NoError(t, app.WebhookVerify(req))
+	testutil.InvokeHTTP(t, app.WebhookVerify, req)
 	assert.Equal(t, fasthttp.StatusForbidden, testutil.GetResponseStatusCode(req))
 }
 
@@ -124,7 +124,7 @@ func TestApp_WebhookVerify_EmptyTokenWithEmptyConfigRejected(t *testing.T) {
 	testutil.SetQueryParam(req, "hub.verify_token", "")
 	testutil.SetQueryParam(req, "hub.challenge", "x")
 
-	require.NoError(t, app.WebhookVerify(req))
+	testutil.InvokeHTTP(t, app.WebhookVerify, req)
 	assert.Equal(t, fasthttp.StatusForbidden, testutil.GetResponseStatusCode(req))
 }
 
@@ -177,7 +177,7 @@ func TestApp_WebhookHandler_NoSignatureNoAppSecret_Accepted(t *testing.T) {
 	req.RequestCtx.Request.Header.SetContentType("application/json")
 	req.RequestCtx.Request.SetBody(body)
 
-	require.NoError(t, app.WebhookHandler(req))
+	testutil.InvokeHTTP(t, app.WebhookHandler, req)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 }
 
@@ -208,7 +208,7 @@ func TestApp_WebhookHandler_ValidSignature_Accepted(t *testing.T) {
 	req.RequestCtx.Request.Header.Set("X-Hub-Signature-256", sig)
 	req.RequestCtx.Request.SetBody(body)
 
-	require.NoError(t, app.WebhookHandler(req))
+	testutil.InvokeHTTP(t, app.WebhookHandler, req)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 }
 
@@ -238,7 +238,7 @@ func TestApp_WebhookHandler_InvalidSignature_Rejected(t *testing.T) {
 	req.RequestCtx.Request.Header.Set("X-Hub-Signature-256", sig)
 	req.RequestCtx.Request.SetBody(body)
 
-	require.NoError(t, app.WebhookHandler(req))
+	testutil.InvokeHTTP(t, app.WebhookHandler, req)
 	assert.Equal(t, fasthttp.StatusForbidden, testutil.GetResponseStatusCode(req),
 		"invalid signature must be rejected before any processing")
 }
@@ -251,7 +251,7 @@ func TestApp_WebhookHandler_MalformedJSONRejected(t *testing.T) {
 	req.RequestCtx.Request.Header.SetContentType("application/json")
 	req.RequestCtx.Request.SetBody([]byte("{not json"))
 
-	require.NoError(t, app.WebhookHandler(req))
+	testutil.InvokeHTTP(t, app.WebhookHandler, req)
 	assert.Equal(t, fasthttp.StatusBadRequest, testutil.GetResponseStatusCode(req))
 }
 
@@ -281,7 +281,7 @@ func TestApp_WebhookHandler_BadlyFormattedSignatureRejected(t *testing.T) {
 	req.RequestCtx.Request.Header.Set("X-Hub-Signature-256", "md5=deadbeef")
 	req.RequestCtx.Request.SetBody(body)
 
-	require.NoError(t, app.WebhookHandler(req))
+	testutil.InvokeHTTP(t, app.WebhookHandler, req)
 	assert.Equal(t, fasthttp.StatusForbidden, testutil.GetResponseStatusCode(req))
 }
 
@@ -299,6 +299,6 @@ func TestApp_WebhookHandler_EmptyEntryAccepted(t *testing.T) {
 	req.RequestCtx.Request.Header.SetContentType("application/json")
 	req.RequestCtx.Request.SetBody(body)
 
-	require.NoError(t, app.WebhookHandler(req))
+	testutil.InvokeHTTP(t, app.WebhookHandler, req)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 }

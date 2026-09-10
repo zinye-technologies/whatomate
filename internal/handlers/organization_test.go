@@ -34,8 +34,7 @@ func TestApp_GetOrganizationSettings_Success(t *testing.T) {
 	req := testutil.NewGETRequest(t)
 	testutil.SetAuthContext(req, org.ID, user.ID)
 
-	err := app.GetOrganizationSettings(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.GetOrganizationSettings, req)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	var resp struct {
@@ -44,7 +43,7 @@ func TestApp_GetOrganizationSettings_Success(t *testing.T) {
 			Name     string                        `json:"name"`
 		} `json:"data"`
 	}
-	err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+	err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 	require.NoError(t, err)
 
 	assert.Equal(t, true, resp.Data.Settings.MaskPhoneNumbers)
@@ -64,8 +63,7 @@ func TestApp_GetOrganizationSettings_Defaults(t *testing.T) {
 	req := testutil.NewGETRequest(t)
 	testutil.SetAuthContext(req, org.ID, user.ID)
 
-	err := app.GetOrganizationSettings(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.GetOrganizationSettings, req)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	var resp struct {
@@ -74,7 +72,7 @@ func TestApp_GetOrganizationSettings_Defaults(t *testing.T) {
 			Name     string                        `json:"name"`
 		} `json:"data"`
 	}
-	err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+	err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 	require.NoError(t, err)
 
 	assert.Equal(t, false, resp.Data.Settings.MaskPhoneNumbers)
@@ -90,8 +88,7 @@ func TestApp_GetOrganizationSettings_Unauthorized(t *testing.T) {
 	req := testutil.NewGETRequest(t)
 	// No auth context set
 
-	err := app.GetOrganizationSettings(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.GetOrganizationSettings, req)
 	assert.Equal(t, fasthttp.StatusUnauthorized, testutil.GetResponseStatusCode(req))
 }
 
@@ -117,8 +114,7 @@ func TestApp_UpdateOrganizationSettings_Success(t *testing.T) {
 	})
 	testutil.SetAuthContext(req, org.ID, user.ID)
 
-	err := app.UpdateOrganizationSettings(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.UpdateOrganizationSettings, req)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	var resp struct {
@@ -126,7 +122,7 @@ func TestApp_UpdateOrganizationSettings_Success(t *testing.T) {
 			Message string `json:"message"`
 		} `json:"data"`
 	}
-	err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+	err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 	require.NoError(t, err)
 	assert.Equal(t, "Settings updated successfully", resp.Data.Message)
 
@@ -162,8 +158,7 @@ func TestApp_UpdateOrganizationSettings_PartialUpdate(t *testing.T) {
 	})
 	testutil.SetAuthContext(req, org.ID, user.ID)
 
-	err := app.UpdateOrganizationSettings(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.UpdateOrganizationSettings, req)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	// Verify only timezone changed, other fields remain the same
@@ -186,8 +181,7 @@ func TestApp_UpdateOrganizationSettings_Unauthorized(t *testing.T) {
 	})
 	// No auth context set
 
-	err := app.UpdateOrganizationSettings(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.UpdateOrganizationSettings, req)
 	assert.Equal(t, fasthttp.StatusUnauthorized, testutil.GetResponseStatusCode(req))
 }
 
@@ -205,8 +199,7 @@ func TestApp_UpdateOrganizationSettings_EmptyNameIgnored(t *testing.T) {
 	})
 	testutil.SetAuthContext(req, org.ID, user.ID)
 
-	err := app.UpdateOrganizationSettings(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.UpdateOrganizationSettings, req)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	// Verify name was not changed
@@ -229,8 +222,7 @@ func TestApp_UpdateOrganizationSettings_InvalidJSON(t *testing.T) {
 	req.RequestCtx.Request.SetBody([]byte(`{invalid json`))
 	testutil.SetAuthContext(req, org.ID, user.ID)
 
-	err := app.UpdateOrganizationSettings(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.UpdateOrganizationSettings, req)
 	assert.Equal(t, fasthttp.StatusBadRequest, testutil.GetResponseStatusCode(req))
 }
 
@@ -246,14 +238,13 @@ func TestApp_GetCurrentOrganization_Success(t *testing.T) {
 	req := testutil.NewGETRequest(t)
 	testutil.SetAuthContext(req, org.ID, user.ID)
 
-	err := app.GetCurrentOrganization(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.GetCurrentOrganization, req)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	var resp struct {
 		Data handlers.OrganizationResponse `json:"data"`
 	}
-	err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+	err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 	require.NoError(t, err)
 
 	assert.Equal(t, org.ID, resp.Data.ID)
@@ -270,8 +261,7 @@ func TestApp_GetCurrentOrganization_Unauthorized(t *testing.T) {
 	req := testutil.NewGETRequest(t)
 	// No auth context set
 
-	err := app.GetCurrentOrganization(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.GetCurrentOrganization, req)
 	assert.Equal(t, fasthttp.StatusUnauthorized, testutil.GetResponseStatusCode(req))
 }
 
@@ -286,8 +276,7 @@ func TestApp_GetCurrentOrganization_NotFound(t *testing.T) {
 	req := testutil.NewGETRequest(t)
 	testutil.SetAuthContext(req, uuid.New(), user.ID)
 
-	err := app.GetCurrentOrganization(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.GetCurrentOrganization, req)
 	assert.Equal(t, fasthttp.StatusNotFound, testutil.GetResponseStatusCode(req))
 }
 
@@ -307,8 +296,7 @@ func TestApp_GetOrganizationSettings_CallingDefaults(t *testing.T) {
 	req := testutil.NewGETRequest(t)
 	testutil.SetAuthContext(req, org.ID, user.ID)
 
-	err := app.GetOrganizationSettings(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.GetOrganizationSettings, req)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	var resp struct {
@@ -316,7 +304,7 @@ func TestApp_GetOrganizationSettings_CallingDefaults(t *testing.T) {
 			Settings handlers.OrganizationSettings `json:"settings"`
 		} `json:"data"`
 	}
-	err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+	err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 	require.NoError(t, err)
 
 	// Calling should be disabled by default, with global config fallbacks
@@ -346,8 +334,7 @@ func TestApp_GetOrganizationSettings_CallingOverrides(t *testing.T) {
 	req := testutil.NewGETRequest(t)
 	testutil.SetAuthContext(req, org.ID, user.ID)
 
-	err := app.GetOrganizationSettings(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.GetOrganizationSettings, req)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	var resp struct {
@@ -355,7 +342,7 @@ func TestApp_GetOrganizationSettings_CallingOverrides(t *testing.T) {
 			Settings handlers.OrganizationSettings `json:"settings"`
 		} `json:"data"`
 	}
-	err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+	err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 	require.NoError(t, err)
 
 	assert.Equal(t, true, resp.Data.Settings.CallingEnabled)
@@ -378,8 +365,7 @@ func TestApp_UpdateOrganizationSettings_CallingFields(t *testing.T) {
 	})
 	testutil.SetAuthContext(req, org.ID, user.ID)
 
-	err := app.UpdateOrganizationSettings(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.UpdateOrganizationSettings, req)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	// Verify persisted in DB
@@ -413,8 +399,7 @@ func TestApp_UpdateOrganizationSettings_CallingPartialUpdate(t *testing.T) {
 	})
 	testutil.SetAuthContext(req, org.ID, user.ID)
 
-	err := app.UpdateOrganizationSettings(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.UpdateOrganizationSettings, req)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	// Verify only transfer_timeout_secs changed
@@ -445,8 +430,7 @@ func TestApp_UpdateOrganizationSettings_CallingDisable(t *testing.T) {
 	})
 	testutil.SetAuthContext(req, org.ID, user.ID)
 
-	err := app.UpdateOrganizationSettings(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.UpdateOrganizationSettings, req)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	var updatedOrg models.Organization
@@ -474,8 +458,7 @@ func TestApp_UpdateOrganizationSettings_CallingZeroDurationIgnored(t *testing.T)
 	})
 	testutil.SetAuthContext(req, org.ID, user.ID)
 
-	err := app.UpdateOrganizationSettings(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.UpdateOrganizationSettings, req)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	var updatedOrg models.Organization

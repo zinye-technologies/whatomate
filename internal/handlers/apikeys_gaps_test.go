@@ -29,7 +29,7 @@ func TestApp_GetAPIKey_Success(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, user.ID)
 	testutil.SetPathParam(req, "id", key.ID.String())
 
-	require.NoError(t, app.GetAPIKey(req))
+	testutil.InvokeHTTP(t, app.GetAPIKey, req)
 	require.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	var resp struct {
@@ -51,7 +51,7 @@ func TestApp_GetAPIKey_NotFound(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, user.ID)
 	testutil.SetPathParam(req, "id", uuid.New().String())
 
-	require.NoError(t, app.GetAPIKey(req))
+	testutil.InvokeHTTP(t, app.GetAPIKey, req)
 	testutil.AssertErrorResponse(t, req, fasthttp.StatusNotFound, "API key not found")
 }
 
@@ -71,7 +71,7 @@ func TestApp_GetAPIKey_CrossOrgIsolation(t *testing.T) {
 	testutil.SetAuthContext(req, org2.ID, user2.ID)
 	testutil.SetPathParam(req, "id", key.ID.String())
 
-	require.NoError(t, app.GetAPIKey(req))
+	testutil.InvokeHTTP(t, app.GetAPIKey, req)
 	assert.Equal(t, fasthttp.StatusNotFound, testutil.GetResponseStatusCode(req),
 		"cross-org fetch must look like not-found, never expose the row")
 }
@@ -87,7 +87,7 @@ func TestApp_GetAPIKey_InvalidID(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, user.ID)
 	testutil.SetPathParam(req, "id", "not-a-uuid")
 
-	require.NoError(t, app.GetAPIKey(req))
+	testutil.InvokeHTTP(t, app.GetAPIKey, req)
 	assert.Equal(t, fasthttp.StatusBadRequest, testutil.GetResponseStatusCode(req))
 }
 
@@ -104,7 +104,7 @@ func TestApp_GetAPIKey_PermissionDenied(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, user.ID)
 	testutil.SetPathParam(req, "id", key.ID.String())
 
-	require.NoError(t, app.GetAPIKey(req))
+	testutil.InvokeHTTP(t, app.GetAPIKey, req)
 	assert.Equal(t, fasthttp.StatusForbidden, testutil.GetResponseStatusCode(req))
 }
 
@@ -125,7 +125,7 @@ func TestApp_UpdateAPIKey_TogglesIsActive(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, user.ID)
 	testutil.SetPathParam(req, "id", key.ID.String())
 
-	require.NoError(t, app.UpdateAPIKey(req))
+	testutil.InvokeHTTP(t, app.UpdateAPIKey, req)
 	require.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	var got models.APIKey
@@ -136,7 +136,7 @@ func TestApp_UpdateAPIKey_TogglesIsActive(t *testing.T) {
 	req2 := testutil.NewJSONRequest(t, map[string]any{"is_active": true})
 	testutil.SetAuthContext(req2, org.ID, user.ID)
 	testutil.SetPathParam(req2, "id", key.ID.String())
-	require.NoError(t, app.UpdateAPIKey(req2))
+	testutil.InvokeHTTP(t, app.UpdateAPIKey, req2)
 	require.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req2))
 
 	require.NoError(t, app.DB.Where("id = ?", key.ID).First(&got).Error)
@@ -157,7 +157,7 @@ func TestApp_UpdateAPIKey_NilIsActiveLeavesUnchanged(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, user.ID)
 	testutil.SetPathParam(req, "id", key.ID.String())
 
-	require.NoError(t, app.UpdateAPIKey(req))
+	testutil.InvokeHTTP(t, app.UpdateAPIKey, req)
 	require.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	var got models.APIKey
@@ -176,7 +176,7 @@ func TestApp_UpdateAPIKey_NotFound(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, user.ID)
 	testutil.SetPathParam(req, "id", uuid.New().String())
 
-	require.NoError(t, app.UpdateAPIKey(req))
+	testutil.InvokeHTTP(t, app.UpdateAPIKey, req)
 	testutil.AssertErrorResponse(t, req, fasthttp.StatusNotFound, "API key not found")
 }
 
@@ -196,7 +196,7 @@ func TestApp_UpdateAPIKey_CrossOrgIsolation(t *testing.T) {
 	testutil.SetAuthContext(req, org2.ID, user2.ID)
 	testutil.SetPathParam(req, "id", key.ID.String())
 
-	require.NoError(t, app.UpdateAPIKey(req))
+	testutil.InvokeHTTP(t, app.UpdateAPIKey, req)
 	assert.Equal(t, fasthttp.StatusNotFound, testutil.GetResponseStatusCode(req))
 
 	// Original is still active in org1.
@@ -217,7 +217,7 @@ func TestApp_UpdateAPIKey_PermissionDenied(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, user.ID)
 	testutil.SetPathParam(req, "id", key.ID.String())
 
-	require.NoError(t, app.UpdateAPIKey(req))
+	testutil.InvokeHTTP(t, app.UpdateAPIKey, req)
 	assert.Equal(t, fasthttp.StatusForbidden, testutil.GetResponseStatusCode(req))
 }
 
@@ -233,7 +233,7 @@ func TestApp_CreateAPIKey_EmptyNameRejected(t *testing.T) {
 	req := testutil.NewJSONRequest(t, map[string]any{"name": ""})
 	testutil.SetAuthContext(req, org.ID, user.ID)
 
-	require.NoError(t, app.CreateAPIKey(req))
+	testutil.InvokeHTTP(t, app.CreateAPIKey, req)
 	testutil.AssertErrorResponse(t, req, fasthttp.StatusBadRequest, "Name is required")
 }
 
@@ -251,7 +251,7 @@ func TestApp_CreateAPIKey_ExpiresAtParsedAndStored(t *testing.T) {
 	})
 	testutil.SetAuthContext(req, org.ID, user.ID)
 
-	require.NoError(t, app.CreateAPIKey(req))
+	testutil.InvokeHTTP(t, app.CreateAPIKey, req)
 	require.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	var resp struct {
@@ -280,7 +280,7 @@ func TestApp_CreateAPIKey_InvalidExpiresAtFormat(t *testing.T) {
 	})
 	testutil.SetAuthContext(req, org.ID, user.ID)
 
-	require.NoError(t, app.CreateAPIKey(req))
+	testutil.InvokeHTTP(t, app.CreateAPIKey, req)
 	testutil.AssertErrorResponse(t, req, fasthttp.StatusBadRequest, "expires_at format")
 }
 
@@ -294,7 +294,7 @@ func TestApp_CreateAPIKey_HashIsBcryptOfFullKey(t *testing.T) {
 	req := testutil.NewJSONRequest(t, map[string]any{"name": "hash-test"})
 	testutil.SetAuthContext(req, org.ID, user.ID)
 
-	require.NoError(t, app.CreateAPIKey(req))
+	testutil.InvokeHTTP(t, app.CreateAPIKey, req)
 	require.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	var resp struct {
@@ -319,7 +319,7 @@ func TestApp_CreateAPIKey_PermissionDenied(t *testing.T) {
 	req := testutil.NewJSONRequest(t, map[string]any{"name": "blocked"})
 	testutil.SetAuthContext(req, org.ID, user.ID)
 
-	require.NoError(t, app.CreateAPIKey(req))
+	testutil.InvokeHTTP(t, app.CreateAPIKey, req)
 	assert.Equal(t, fasthttp.StatusForbidden, testutil.GetResponseStatusCode(req))
 }
 
@@ -340,7 +340,7 @@ func TestApp_ListAPIKeys_SearchFilter(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, user.ID)
 	testutil.SetQueryParam(req, "search", "prod")
 
-	require.NoError(t, app.ListAPIKeys(req))
+	testutil.InvokeHTTP(t, app.ListAPIKeys, req)
 	require.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	var resp struct {

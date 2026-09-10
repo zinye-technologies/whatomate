@@ -18,6 +18,7 @@ import {
   Zap,
   Shield,
   LineChart,
+  Gauge,
   Tags,
   PhoneCall,
   PhoneForwarded,
@@ -123,6 +124,12 @@ export const navigationSections: NavSection[] = [
         name: 'nav.metaInsights',
         path: '/analytics/meta-insights',
         icon: LineChart,
+        permission: 'analytics'
+      },
+      {
+        name: 'nav.usage',
+        path: '/analytics/usage',
+        icon: Gauge,
         permission: 'analytics'
       },
     ]

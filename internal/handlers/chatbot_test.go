@@ -99,8 +99,7 @@ func TestApp_GetChatbotSettings(t *testing.T) {
 		req := testutil.NewGETRequest(t)
 		testutil.SetAuthContext(req, org.ID, user.ID)
 
-		err := app.GetChatbotSettings(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.GetChatbotSettings, req)
 		assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 		var resp struct {
@@ -109,7 +108,7 @@ func TestApp_GetChatbotSettings(t *testing.T) {
 				Stats    handlers.ChatbotStatsResponse    `json:"stats"`
 			} `json:"data"`
 		}
-		err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+		err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 		require.NoError(t, err)
 
 		// Default settings should have chatbot disabled
@@ -155,8 +154,7 @@ func TestApp_UpdateChatbotSettings(t *testing.T) {
 		})
 		testutil.SetAuthContext(req, org.ID, user.ID)
 
-		err := app.UpdateChatbotSettings(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.UpdateChatbotSettings, req)
 		assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 		var resp struct {
@@ -164,7 +162,7 @@ func TestApp_UpdateChatbotSettings(t *testing.T) {
 				Message string `json:"message"`
 			} `json:"data"`
 		}
-		err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+		err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 		require.NoError(t, err)
 		assert.Equal(t, "Settings updated successfully", resp.Data.Message)
 
@@ -172,8 +170,7 @@ func TestApp_UpdateChatbotSettings(t *testing.T) {
 		getReq := testutil.NewGETRequest(t)
 		testutil.SetAuthContext(getReq, org.ID, user.ID)
 
-		err = app.GetChatbotSettings(getReq)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.GetChatbotSettings, getReq)
 		assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(getReq))
 
 		var getResp struct {
@@ -215,8 +212,7 @@ func TestApp_ListKeywordRules(t *testing.T) {
 		req := testutil.NewGETRequest(t)
 		testutil.SetAuthContext(req, org.ID, user.ID)
 
-		err := app.ListKeywordRules(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.ListKeywordRules, req)
 		assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 		var resp struct {
@@ -224,7 +220,7 @@ func TestApp_ListKeywordRules(t *testing.T) {
 				Rules []handlers.KeywordRuleResponse `json:"rules"`
 			} `json:"data"`
 		}
-		err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+		err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 		require.NoError(t, err)
 		assert.Len(t, resp.Data.Rules, 2)
 	})
@@ -237,8 +233,7 @@ func TestApp_ListKeywordRules(t *testing.T) {
 		req := testutil.NewGETRequest(t)
 		testutil.SetAuthContext(req, org.ID, user.ID)
 
-		err := app.ListKeywordRules(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.ListKeywordRules, req)
 		assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 		var resp struct {
@@ -246,7 +241,7 @@ func TestApp_ListKeywordRules(t *testing.T) {
 				Rules []handlers.KeywordRuleResponse `json:"rules"`
 			} `json:"data"`
 		}
-		err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+		err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 		require.NoError(t, err)
 		assert.Len(t, resp.Data.Rules, 0)
 	})
@@ -277,8 +272,7 @@ func TestApp_CreateKeywordRule(t *testing.T) {
 		})
 		testutil.SetAuthContext(req, org.ID, user.ID)
 
-		err := app.CreateKeywordRule(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.CreateKeywordRule, req)
 		assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 		var resp struct {
@@ -287,7 +281,7 @@ func TestApp_CreateKeywordRule(t *testing.T) {
 				Message string `json:"message"`
 			} `json:"data"`
 		}
-		err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+		err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 		require.NoError(t, err)
 		assert.NotEmpty(t, resp.Data.ID)
 		assert.Equal(t, "Keyword rule created successfully", resp.Data.Message)
@@ -319,8 +313,7 @@ func TestApp_CreateKeywordRule(t *testing.T) {
 		})
 		testutil.SetAuthContext(req, org.ID, user.ID)
 
-		err := app.CreateKeywordRule(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.CreateKeywordRule, req)
 		assert.Equal(t, fasthttp.StatusBadRequest, testutil.GetResponseStatusCode(req))
 	})
 
@@ -339,8 +332,7 @@ func TestApp_CreateKeywordRule(t *testing.T) {
 		})
 		testutil.SetAuthContext(req, org.ID, user.ID)
 
-		err := app.CreateKeywordRule(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.CreateKeywordRule, req)
 		assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 		var resp struct {
@@ -348,7 +340,7 @@ func TestApp_CreateKeywordRule(t *testing.T) {
 				ID string `json:"id"`
 			} `json:"data"`
 		}
-		err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+		err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 		require.NoError(t, err)
 
 		parsedID, err := uuid.Parse(resp.Data.ID)
@@ -377,14 +369,13 @@ func TestApp_GetKeywordRule(t *testing.T) {
 		testutil.SetAuthContext(req, org.ID, user.ID)
 		testutil.SetPathParam(req, "id", rule.ID.String())
 
-		err := app.GetKeywordRule(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.GetKeywordRule, req)
 		assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 		var resp struct {
 			Data handlers.KeywordRuleResponse `json:"data"`
 		}
-		err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+		err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 		require.NoError(t, err)
 		assert.Equal(t, rule.ID.String(), resp.Data.ID)
 		assert.Equal(t, "Greeting", resp.Data.Name)
@@ -402,8 +393,7 @@ func TestApp_GetKeywordRule(t *testing.T) {
 		testutil.SetAuthContext(req, org.ID, user.ID)
 		testutil.SetPathParam(req, "id", uuid.New().String())
 
-		err := app.GetKeywordRule(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.GetKeywordRule, req)
 		assert.Equal(t, fasthttp.StatusNotFound, testutil.GetResponseStatusCode(req))
 	})
 }
@@ -434,8 +424,7 @@ func TestApp_UpdateKeywordRule(t *testing.T) {
 		testutil.SetAuthContext(req, org.ID, user.ID)
 		testutil.SetPathParam(req, "id", rule.ID.String())
 
-		err := app.UpdateKeywordRule(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.UpdateKeywordRule, req)
 		assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 		var resp struct {
@@ -443,7 +432,7 @@ func TestApp_UpdateKeywordRule(t *testing.T) {
 				Message string `json:"message"`
 			} `json:"data"`
 		}
-		err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+		err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 		require.NoError(t, err)
 		assert.Equal(t, "Keyword rule updated successfully", resp.Data.Message)
 
@@ -474,8 +463,7 @@ func TestApp_DeleteKeywordRule(t *testing.T) {
 		testutil.SetAuthContext(req, org.ID, user.ID)
 		testutil.SetPathParam(req, "id", rule.ID.String())
 
-		err := app.DeleteKeywordRule(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.DeleteKeywordRule, req)
 		assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 		var resp struct {
@@ -483,7 +471,7 @@ func TestApp_DeleteKeywordRule(t *testing.T) {
 				Message string `json:"message"`
 			} `json:"data"`
 		}
-		err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+		err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 		require.NoError(t, err)
 		assert.Equal(t, "Keyword rule deleted successfully", resp.Data.Message)
 
@@ -502,8 +490,7 @@ func TestApp_DeleteKeywordRule(t *testing.T) {
 		testutil.SetAuthContext(req, org.ID, user.ID)
 		testutil.SetPathParam(req, "id", uuid.New().String())
 
-		err := app.DeleteKeywordRule(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.DeleteKeywordRule, req)
 		assert.Equal(t, fasthttp.StatusNotFound, testutil.GetResponseStatusCode(req))
 	})
 }
@@ -531,8 +518,7 @@ func TestApp_ListChatbotFlows(t *testing.T) {
 		req := testutil.NewGETRequest(t)
 		testutil.SetAuthContext(req, org.ID, user.ID)
 
-		err := app.ListChatbotFlows(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.ListChatbotFlows, req)
 		assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 		var resp struct {
@@ -540,7 +526,7 @@ func TestApp_ListChatbotFlows(t *testing.T) {
 				Flows []handlers.ChatbotFlowResponse `json:"flows"`
 			} `json:"data"`
 		}
-		err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+		err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 		require.NoError(t, err)
 		assert.Len(t, resp.Data.Flows, 2)
 	})
@@ -558,8 +544,7 @@ func TestApp_ListChatbotFlows(t *testing.T) {
 		req := testutil.NewGETRequest(t)
 		testutil.SetAuthContext(req, org.ID, user.ID)
 
-		err := app.ListChatbotFlows(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.ListChatbotFlows, req)
 		assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 		var resp struct {
@@ -567,7 +552,7 @@ func TestApp_ListChatbotFlows(t *testing.T) {
 				Flows []handlers.ChatbotFlowResponse `json:"flows"`
 			} `json:"data"`
 		}
-		err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+		err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 		require.NoError(t, err)
 		assert.Len(t, resp.Data.Flows, 0)
 	})
@@ -620,8 +605,7 @@ func TestApp_CreateChatbotFlow(t *testing.T) {
 		})
 		testutil.SetAuthContext(req, org.ID, user.ID)
 
-		err := app.CreateChatbotFlow(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.CreateChatbotFlow, req)
 		assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 		var resp struct {
@@ -630,7 +614,7 @@ func TestApp_CreateChatbotFlow(t *testing.T) {
 				Message string `json:"message"`
 			} `json:"data"`
 		}
-		err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+		err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 		require.NoError(t, err)
 		assert.NotEmpty(t, resp.Data.ID)
 		assert.Equal(t, "Flow created successfully", resp.Data.Message)
@@ -668,14 +652,13 @@ func TestApp_GetChatbotFlow(t *testing.T) {
 		testutil.SetAuthContext(req, org.ID, user.ID)
 		testutil.SetPathParam(req, "id", flow.ID.String())
 
-		err := app.GetChatbotFlow(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.GetChatbotFlow, req)
 		assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 		var resp struct {
 			Data models.ChatbotFlow `json:"data"`
 		}
-		err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+		err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 		require.NoError(t, err)
 		assert.Equal(t, flow.ID, resp.Data.ID)
 		assert.Equal(t, "My Flow", resp.Data.Name)
@@ -695,8 +678,7 @@ func TestApp_GetChatbotFlow(t *testing.T) {
 		testutil.SetAuthContext(req, org.ID, user.ID)
 		testutil.SetPathParam(req, "id", uuid.New().String())
 
-		err := app.GetChatbotFlow(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.GetChatbotFlow, req)
 		assert.Equal(t, fasthttp.StatusNotFound, testutil.GetResponseStatusCode(req))
 	})
 }
@@ -731,8 +713,7 @@ func TestApp_UpdateChatbotFlow(t *testing.T) {
 		testutil.SetAuthContext(req, org.ID, user.ID)
 		testutil.SetPathParam(req, "id", flow.ID.String())
 
-		err := app.UpdateChatbotFlow(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.UpdateChatbotFlow, req)
 		assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 		var resp struct {
@@ -740,7 +721,7 @@ func TestApp_UpdateChatbotFlow(t *testing.T) {
 				Message string `json:"message"`
 			} `json:"data"`
 		}
-		err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+		err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 		require.NoError(t, err)
 		assert.Equal(t, "Flow updated successfully", resp.Data.Message)
 
@@ -775,8 +756,7 @@ func TestApp_DeleteChatbotFlow(t *testing.T) {
 		testutil.SetAuthContext(req, org.ID, user.ID)
 		testutil.SetPathParam(req, "id", flow.ID.String())
 
-		err := app.DeleteChatbotFlow(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.DeleteChatbotFlow, req)
 		assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 		var resp struct {
@@ -784,7 +764,7 @@ func TestApp_DeleteChatbotFlow(t *testing.T) {
 				Message string `json:"message"`
 			} `json:"data"`
 		}
-		err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+		err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 		require.NoError(t, err)
 		assert.Equal(t, "Flow deleted successfully", resp.Data.Message)
 
@@ -808,8 +788,7 @@ func TestApp_DeleteChatbotFlow(t *testing.T) {
 		testutil.SetAuthContext(req, org.ID, user.ID)
 		testutil.SetPathParam(req, "id", uuid.New().String())
 
-		err := app.DeleteChatbotFlow(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.DeleteChatbotFlow, req)
 		assert.Equal(t, fasthttp.StatusNotFound, testutil.GetResponseStatusCode(req))
 	})
 }
@@ -832,8 +811,7 @@ func TestApp_ListAIContexts(t *testing.T) {
 		req := testutil.NewGETRequest(t)
 		testutil.SetAuthContext(req, org.ID, user.ID)
 
-		err := app.ListAIContexts(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.ListAIContexts, req)
 		assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 		var resp struct {
@@ -841,7 +819,7 @@ func TestApp_ListAIContexts(t *testing.T) {
 				Contexts []handlers.AIContextResponse `json:"contexts"`
 			} `json:"data"`
 		}
-		err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+		err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 		require.NoError(t, err)
 		assert.Len(t, resp.Data.Contexts, 2)
 	})
@@ -854,8 +832,7 @@ func TestApp_ListAIContexts(t *testing.T) {
 		req := testutil.NewGETRequest(t)
 		testutil.SetAuthContext(req, org.ID, user.ID)
 
-		err := app.ListAIContexts(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.ListAIContexts, req)
 		assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 		var resp struct {
@@ -863,7 +840,7 @@ func TestApp_ListAIContexts(t *testing.T) {
 				Contexts []handlers.AIContextResponse `json:"contexts"`
 			} `json:"data"`
 		}
-		err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+		err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 		require.NoError(t, err)
 		assert.Len(t, resp.Data.Contexts, 0)
 	})
@@ -891,8 +868,7 @@ func TestApp_CreateAIContext(t *testing.T) {
 		})
 		testutil.SetAuthContext(req, org.ID, user.ID)
 
-		err := app.CreateAIContext(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.CreateAIContext, req)
 		assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 		var resp struct {
@@ -901,7 +877,7 @@ func TestApp_CreateAIContext(t *testing.T) {
 				Message string `json:"message"`
 			} `json:"data"`
 		}
-		err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+		err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 		require.NoError(t, err)
 		assert.NotEmpty(t, resp.Data.ID)
 		assert.Equal(t, "AI context created successfully", resp.Data.Message)
@@ -936,14 +912,13 @@ func TestApp_GetAIContext(t *testing.T) {
 		testutil.SetAuthContext(req, org.ID, user.ID)
 		testutil.SetPathParam(req, "id", ctx.ID.String())
 
-		err := app.GetAIContext(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.GetAIContext, req)
 		assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 		var resp struct {
 			Data models.AIContext `json:"data"`
 		}
-		err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+		err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 		require.NoError(t, err)
 		assert.Equal(t, ctx.ID, resp.Data.ID)
 		assert.Equal(t, "FAQ Context", resp.Data.Name)
@@ -959,8 +934,7 @@ func TestApp_GetAIContext(t *testing.T) {
 		testutil.SetAuthContext(req, org.ID, user.ID)
 		testutil.SetPathParam(req, "id", uuid.New().String())
 
-		err := app.GetAIContext(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.GetAIContext, req)
 		assert.Equal(t, fasthttp.StatusNotFound, testutil.GetResponseStatusCode(req))
 	})
 }
@@ -982,8 +956,7 @@ func TestApp_DeleteAIContext(t *testing.T) {
 		testutil.SetAuthContext(req, org.ID, user.ID)
 		testutil.SetPathParam(req, "id", ctx.ID.String())
 
-		err := app.DeleteAIContext(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.DeleteAIContext, req)
 		assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 		var resp struct {
@@ -991,7 +964,7 @@ func TestApp_DeleteAIContext(t *testing.T) {
 				Message string `json:"message"`
 			} `json:"data"`
 		}
-		err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+		err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 		require.NoError(t, err)
 		assert.Equal(t, "AI context deleted successfully", resp.Data.Message)
 
@@ -1010,8 +983,7 @@ func TestApp_DeleteAIContext(t *testing.T) {
 		testutil.SetAuthContext(req, org.ID, user.ID)
 		testutil.SetPathParam(req, "id", uuid.New().String())
 
-		err := app.DeleteAIContext(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.DeleteAIContext, req)
 		assert.Equal(t, fasthttp.StatusNotFound, testutil.GetResponseStatusCode(req))
 	})
 }
@@ -1047,8 +1019,7 @@ func TestApp_GetChatbotSettings_ExistingSettings(t *testing.T) {
 		req := testutil.NewGETRequest(t)
 		testutil.SetAuthContext(req, org.ID, user.ID)
 
-		err := app.GetChatbotSettings(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.GetChatbotSettings, req)
 		assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 		var resp struct {
@@ -1056,7 +1027,7 @@ func TestApp_GetChatbotSettings_ExistingSettings(t *testing.T) {
 				Settings handlers.ChatbotSettingsResponse `json:"settings"`
 			} `json:"data"`
 		}
-		err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+		err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 		require.NoError(t, err)
 
 		assert.True(t, resp.Data.Settings.Enabled)
@@ -1081,8 +1052,7 @@ func TestApp_GetChatbotSettings_ExistingSettings(t *testing.T) {
 		req := testutil.NewGETRequest(t)
 		testutil.SetAuthContext(req, org.ID, user.ID)
 
-		err := app.GetChatbotSettings(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.GetChatbotSettings, req)
 		assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 		var resp struct {
@@ -1090,7 +1060,7 @@ func TestApp_GetChatbotSettings_ExistingSettings(t *testing.T) {
 				Stats handlers.ChatbotStatsResponse `json:"stats"`
 			} `json:"data"`
 		}
-		err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+		err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 		require.NoError(t, err)
 
 		assert.Equal(t, int64(2), resp.Data.Stats.KeywordsCount)
@@ -1118,30 +1088,27 @@ func TestApp_UpdateChatbotSettings_PartialUpdate(t *testing.T) {
 			"fallback_message":        "Sorry, I did not get that.",
 		})
 		testutil.SetAuthContext(setupReq, org.ID, user.ID)
-		err := app.UpdateChatbotSettings(setupReq)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.UpdateChatbotSettings, setupReq)
 
 		// Now update only the greeting message
 		updateReq := testutil.NewJSONRequest(t, map[string]any{
 			"greeting_message": "Welcome!",
 		})
 		testutil.SetAuthContext(updateReq, org.ID, user.ID)
-		err = app.UpdateChatbotSettings(updateReq)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.UpdateChatbotSettings, updateReq)
 		assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(updateReq))
 
 		// Verify: greeting changed, other fields preserved
 		getReq := testutil.NewGETRequest(t)
 		testutil.SetAuthContext(getReq, org.ID, user.ID)
-		err = app.GetChatbotSettings(getReq)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.GetChatbotSettings, getReq)
 
 		var resp struct {
 			Data struct {
 				Settings handlers.ChatbotSettingsResponse `json:"settings"`
 			} `json:"data"`
 		}
-		err = json.Unmarshal(testutil.GetResponseBody(getReq), &resp)
+		err := json.Unmarshal(testutil.GetResponseBody(getReq), &resp)
 		require.NoError(t, err)
 
 		assert.True(t, resp.Data.Settings.Enabled)
@@ -1162,22 +1129,20 @@ func TestApp_UpdateChatbotSettings_PartialUpdate(t *testing.T) {
 		})
 		testutil.SetAuthContext(req, org.ID, user.ID)
 
-		err := app.UpdateChatbotSettings(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.UpdateChatbotSettings, req)
 		assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 		// Read back
 		getReq := testutil.NewGETRequest(t)
 		testutil.SetAuthContext(getReq, org.ID, user.ID)
-		err = app.GetChatbotSettings(getReq)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.GetChatbotSettings, getReq)
 
 		var resp struct {
 			Data struct {
 				Settings handlers.ChatbotSettingsResponse `json:"settings"`
 			} `json:"data"`
 		}
-		err = json.Unmarshal(testutil.GetResponseBody(getReq), &resp)
+		err := json.Unmarshal(testutil.GetResponseBody(getReq), &resp)
 		require.NoError(t, err)
 
 		assert.True(t, resp.Data.Settings.BusinessHoursEnabled)
@@ -1197,21 +1162,19 @@ func TestApp_UpdateChatbotSettings_PartialUpdate(t *testing.T) {
 		})
 		testutil.SetAuthContext(req, org.ID, user.ID)
 
-		err := app.UpdateChatbotSettings(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.UpdateChatbotSettings, req)
 		assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 		getReq := testutil.NewGETRequest(t)
 		testutil.SetAuthContext(getReq, org.ID, user.ID)
-		err = app.GetChatbotSettings(getReq)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.GetChatbotSettings, getReq)
 
 		var resp struct {
 			Data struct {
 				Settings handlers.ChatbotSettingsResponse `json:"settings"`
 			} `json:"data"`
 		}
-		err = json.Unmarshal(testutil.GetResponseBody(getReq), &resp)
+		err := json.Unmarshal(testutil.GetResponseBody(getReq), &resp)
 		require.NoError(t, err)
 
 		assert.False(t, resp.Data.Settings.AllowAgentQueuePickup)
@@ -1233,21 +1196,19 @@ func TestApp_UpdateChatbotSettings_PartialUpdate(t *testing.T) {
 		})
 		testutil.SetAuthContext(req, org.ID, user.ID)
 
-		err := app.UpdateChatbotSettings(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.UpdateChatbotSettings, req)
 		assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 		getReq := testutil.NewGETRequest(t)
 		testutil.SetAuthContext(getReq, org.ID, user.ID)
-		err = app.GetChatbotSettings(getReq)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.GetChatbotSettings, getReq)
 
 		var resp struct {
 			Data struct {
 				Settings handlers.ChatbotSettingsResponse `json:"settings"`
 			} `json:"data"`
 		}
-		err = json.Unmarshal(testutil.GetResponseBody(getReq), &resp)
+		err := json.Unmarshal(testutil.GetResponseBody(getReq), &resp)
 		require.NoError(t, err)
 
 		assert.True(t, resp.Data.Settings.ClientReminderEnabled)
@@ -1273,21 +1234,19 @@ func TestApp_UpdateChatbotSettings_PartialUpdate(t *testing.T) {
 		})
 		testutil.SetAuthContext(req, org.ID, user.ID)
 
-		err := app.UpdateChatbotSettings(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.UpdateChatbotSettings, req)
 		assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 		getReq := testutil.NewGETRequest(t)
 		testutil.SetAuthContext(getReq, org.ID, user.ID)
-		err = app.GetChatbotSettings(getReq)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.GetChatbotSettings, getReq)
 
 		var resp struct {
 			Data struct {
 				Settings handlers.ChatbotSettingsResponse `json:"settings"`
 			} `json:"data"`
 		}
-		err = json.Unmarshal(testutil.GetResponseBody(getReq), &resp)
+		err := json.Unmarshal(testutil.GetResponseBody(getReq), &resp)
 		require.NoError(t, err)
 
 		assert.True(t, resp.Data.Settings.SLAEnabled)
@@ -1311,8 +1270,7 @@ func TestApp_UpdateChatbotSettings_PartialUpdate(t *testing.T) {
 		req := &fastglue.Request{RequestCtx: ctx}
 		testutil.SetAuthContext(req, org.ID, user.ID)
 
-		err := app.UpdateChatbotSettings(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.UpdateChatbotSettings, req)
 		assert.Equal(t, fasthttp.StatusBadRequest, testutil.GetResponseStatusCode(req))
 	})
 }
@@ -1342,8 +1300,7 @@ func TestApp_CreateKeywordRule_MatchTypes(t *testing.T) {
 		})
 		testutil.SetAuthContext(req, org.ID, user.ID)
 
-		err := app.CreateKeywordRule(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.CreateKeywordRule, req)
 		assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 		var resp struct {
@@ -1351,7 +1308,7 @@ func TestApp_CreateKeywordRule_MatchTypes(t *testing.T) {
 				ID string `json:"id"`
 			} `json:"data"`
 		}
-		err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+		err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 		require.NoError(t, err)
 
 		parsedID, err := uuid.Parse(resp.Data.ID)
@@ -1380,8 +1337,7 @@ func TestApp_CreateKeywordRule_MatchTypes(t *testing.T) {
 		})
 		testutil.SetAuthContext(req, org.ID, user.ID)
 
-		err := app.CreateKeywordRule(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.CreateKeywordRule, req)
 		assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 		var resp struct {
@@ -1389,7 +1345,7 @@ func TestApp_CreateKeywordRule_MatchTypes(t *testing.T) {
 				ID string `json:"id"`
 			} `json:"data"`
 		}
-		err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+		err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 		require.NoError(t, err)
 
 		parsedID, err := uuid.Parse(resp.Data.ID)
@@ -1417,8 +1373,7 @@ func TestApp_CreateKeywordRule_MatchTypes(t *testing.T) {
 		})
 		testutil.SetAuthContext(req, org.ID, user.ID)
 
-		err := app.CreateKeywordRule(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.CreateKeywordRule, req)
 		assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 		var resp struct {
@@ -1426,7 +1381,7 @@ func TestApp_CreateKeywordRule_MatchTypes(t *testing.T) {
 				ID string `json:"id"`
 			} `json:"data"`
 		}
-		err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+		err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 		require.NoError(t, err)
 
 		parsedID, err := uuid.Parse(resp.Data.ID)
@@ -1455,8 +1410,7 @@ func TestApp_CreateKeywordRule_MatchTypes(t *testing.T) {
 		})
 		testutil.SetAuthContext(req, org.ID, user.ID)
 
-		err := app.CreateKeywordRule(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.CreateKeywordRule, req)
 		assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 		var resp struct {
@@ -1464,7 +1418,7 @@ func TestApp_CreateKeywordRule_MatchTypes(t *testing.T) {
 				ID string `json:"id"`
 			} `json:"data"`
 		}
-		err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+		err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 		require.NoError(t, err)
 
 		parsedID, err := uuid.Parse(resp.Data.ID)
@@ -1491,8 +1445,7 @@ func TestApp_CreateKeywordRule_MatchTypes(t *testing.T) {
 		})
 		testutil.SetAuthContext(req, org.ID, user.ID)
 
-		err := app.CreateKeywordRule(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.CreateKeywordRule, req)
 		assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 		var resp struct {
@@ -1500,7 +1453,7 @@ func TestApp_CreateKeywordRule_MatchTypes(t *testing.T) {
 				ID string `json:"id"`
 			} `json:"data"`
 		}
-		err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+		err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 		require.NoError(t, err)
 
 		parsedID, err := uuid.Parse(resp.Data.ID)
@@ -1531,8 +1484,7 @@ func TestApp_UpdateKeywordRule_Additional(t *testing.T) {
 		testutil.SetAuthContext(req, org.ID, user.ID)
 		testutil.SetPathParam(req, "id", uuid.New().String())
 
-		err := app.UpdateKeywordRule(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.UpdateKeywordRule, req)
 		assert.Equal(t, fasthttp.StatusNotFound, testutil.GetResponseStatusCode(req))
 	})
 
@@ -1552,8 +1504,7 @@ func TestApp_UpdateKeywordRule_Additional(t *testing.T) {
 		testutil.SetAuthContext(req, org.ID, user.ID)
 		testutil.SetPathParam(req, "id", rule.ID.String())
 
-		err := app.UpdateKeywordRule(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.UpdateKeywordRule, req)
 		assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 		var updated models.KeywordRule
@@ -1575,8 +1526,7 @@ func TestApp_UpdateKeywordRule_Additional(t *testing.T) {
 		testutil.SetAuthContext(req, org.ID, user.ID)
 		testutil.SetPathParam(req, "id", rule.ID.String())
 
-		err := app.UpdateKeywordRule(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.UpdateKeywordRule, req)
 		assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 		var updated models.KeywordRule
@@ -1609,8 +1559,7 @@ func TestApp_ListKeywordRules_OrgIsolation(t *testing.T) {
 		req := testutil.NewGETRequest(t)
 		testutil.SetAuthContext(req, org1.ID, user1.ID)
 
-		err := app.ListKeywordRules(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.ListKeywordRules, req)
 		assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 		var resp struct {
@@ -1618,7 +1567,7 @@ func TestApp_ListKeywordRules_OrgIsolation(t *testing.T) {
 				Rules []handlers.KeywordRuleResponse `json:"rules"`
 			} `json:"data"`
 		}
-		err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+		err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 		require.NoError(t, err)
 		assert.Len(t, resp.Data.Rules, 1)
 		assert.Equal(t, "Org1 Rule", resp.Data.Rules[0].Name)
@@ -1627,8 +1576,7 @@ func TestApp_ListKeywordRules_OrgIsolation(t *testing.T) {
 		req2 := testutil.NewGETRequest(t)
 		testutil.SetAuthContext(req2, org2.ID, user2.ID)
 
-		err = app.ListKeywordRules(req2)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.ListKeywordRules, req2)
 
 		var resp2 struct {
 			Data struct {
@@ -1666,8 +1614,7 @@ func TestApp_CreateChatbotFlow_Additional(t *testing.T) {
 		})
 		testutil.SetAuthContext(req, org.ID, user.ID)
 
-		err := app.CreateChatbotFlow(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.CreateChatbotFlow, req)
 		assert.Equal(t, fasthttp.StatusBadRequest, testutil.GetResponseStatusCode(req))
 	})
 
@@ -1689,8 +1636,7 @@ func TestApp_CreateChatbotFlow_Additional(t *testing.T) {
 		})
 		testutil.SetAuthContext(req, org.ID, user.ID)
 
-		err := app.CreateChatbotFlow(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.CreateChatbotFlow, req)
 		assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 		var resp struct {
@@ -1698,7 +1644,7 @@ func TestApp_CreateChatbotFlow_Additional(t *testing.T) {
 				ID string `json:"id"`
 			} `json:"data"`
 		}
-		err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+		err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 		require.NoError(t, err)
 
 		parsedID, err := uuid.Parse(resp.Data.ID)
@@ -1742,8 +1688,7 @@ func TestApp_CreateChatbotFlow_Additional(t *testing.T) {
 		})
 		testutil.SetAuthContext(req, org.ID, user.ID)
 
-		err := app.CreateChatbotFlow(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.CreateChatbotFlow, req)
 		assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 		var resp struct {
@@ -1751,7 +1696,7 @@ func TestApp_CreateChatbotFlow_Additional(t *testing.T) {
 				ID string `json:"id"`
 			} `json:"data"`
 		}
-		err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+		err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 		require.NoError(t, err)
 
 		parsedID, err := uuid.Parse(resp.Data.ID)
@@ -1788,8 +1733,7 @@ func TestApp_UpdateChatbotFlow_Additional(t *testing.T) {
 		testutil.SetAuthContext(req, org.ID, user.ID)
 		testutil.SetPathParam(req, "id", uuid.New().String())
 
-		err := app.UpdateChatbotFlow(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.UpdateChatbotFlow, req)
 		assert.Equal(t, fasthttp.StatusNotFound, testutil.GetResponseStatusCode(req))
 	})
 
@@ -1820,15 +1764,14 @@ func TestApp_UpdateChatbotFlow_Additional(t *testing.T) {
 		})
 		testutil.SetAuthContext(createReq, org.ID, user.ID)
 
-		err := app.CreateChatbotFlow(createReq)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.CreateChatbotFlow, createReq)
 
 		var createResp struct {
 			Data struct {
 				ID string `json:"id"`
 			} `json:"data"`
 		}
-		err = json.Unmarshal(testutil.GetResponseBody(createReq), &createResp)
+		err := json.Unmarshal(testutil.GetResponseBody(createReq), &createResp)
 		require.NoError(t, err)
 
 		// Update: replace steps with two new ones
@@ -1853,8 +1796,7 @@ func TestApp_UpdateChatbotFlow_Additional(t *testing.T) {
 		testutil.SetAuthContext(updateReq, org.ID, user.ID)
 		testutil.SetPathParam(updateReq, "id", createResp.Data.ID)
 
-		err = app.UpdateChatbotFlow(updateReq)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.UpdateChatbotFlow, updateReq)
 		assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(updateReq))
 
 		// Flow no longer persists Steps[] — v2 graph is the only wire
@@ -1879,8 +1821,7 @@ func TestApp_UpdateChatbotFlow_Additional(t *testing.T) {
 		testutil.SetAuthContext(req, org.ID, user.ID)
 		testutil.SetPathParam(req, "id", flow.ID.String())
 
-		err := app.UpdateChatbotFlow(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.UpdateChatbotFlow, req)
 		assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 		var updated models.ChatbotFlow
@@ -1919,15 +1860,14 @@ func TestApp_ListChatbotFlows_OrgIsolation(t *testing.T) {
 		req := testutil.NewGETRequest(t)
 		testutil.SetAuthContext(req, org1.ID, user1.ID)
 
-		err := app.ListChatbotFlows(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.ListChatbotFlows, req)
 
 		var resp struct {
 			Data struct {
 				Flows []handlers.ChatbotFlowResponse `json:"flows"`
 			} `json:"data"`
 		}
-		err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+		err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 		require.NoError(t, err)
 		assert.Len(t, resp.Data.Flows, 1)
 		assert.Equal(t, "Org1 Flow", resp.Data.Flows[0].Name)
@@ -1936,8 +1876,7 @@ func TestApp_ListChatbotFlows_OrgIsolation(t *testing.T) {
 		req2 := testutil.NewGETRequest(t)
 		testutil.SetAuthContext(req2, org2.ID, user2.ID)
 
-		err = app.ListChatbotFlows(req2)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.ListChatbotFlows, req2)
 
 		var resp2 struct {
 			Data struct {
@@ -1970,8 +1909,7 @@ func TestApp_CreateAIContext_Additional(t *testing.T) {
 		})
 		testutil.SetAuthContext(req, org.ID, user.ID)
 
-		err := app.CreateAIContext(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.CreateAIContext, req)
 		assert.Equal(t, fasthttp.StatusBadRequest, testutil.GetResponseStatusCode(req))
 	})
 
@@ -1988,8 +1926,7 @@ func TestApp_CreateAIContext_Additional(t *testing.T) {
 		})
 		testutil.SetAuthContext(req, org.ID, user.ID)
 
-		err := app.CreateAIContext(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.CreateAIContext, req)
 		assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 		var resp struct {
@@ -1997,7 +1934,7 @@ func TestApp_CreateAIContext_Additional(t *testing.T) {
 				ID string `json:"id"`
 			} `json:"data"`
 		}
-		err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+		err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 		require.NoError(t, err)
 
 		parsedID, err := uuid.Parse(resp.Data.ID)
@@ -2022,8 +1959,7 @@ func TestApp_CreateAIContext_Additional(t *testing.T) {
 		})
 		testutil.SetAuthContext(req, org.ID, user.ID)
 
-		err := app.CreateAIContext(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.CreateAIContext, req)
 		assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 		var resp struct {
@@ -2031,7 +1967,7 @@ func TestApp_CreateAIContext_Additional(t *testing.T) {
 				ID string `json:"id"`
 			} `json:"data"`
 		}
-		err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+		err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 		require.NoError(t, err)
 
 		parsedID, err := uuid.Parse(resp.Data.ID)
@@ -2061,8 +1997,7 @@ func TestApp_CreateAIContext_Additional(t *testing.T) {
 		})
 		testutil.SetAuthContext(req, org.ID, user.ID)
 
-		err := app.CreateAIContext(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.CreateAIContext, req)
 		assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 		var resp struct {
@@ -2070,7 +2005,7 @@ func TestApp_CreateAIContext_Additional(t *testing.T) {
 				ID string `json:"id"`
 			} `json:"data"`
 		}
-		err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+		err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 		require.NoError(t, err)
 
 		parsedID, err := uuid.Parse(resp.Data.ID)
@@ -2111,8 +2046,7 @@ func TestApp_UpdateAIContext(t *testing.T) {
 		testutil.SetAuthContext(req, org.ID, user.ID)
 		testutil.SetPathParam(req, "id", aiCtx.ID.String())
 
-		err := app.UpdateAIContext(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.UpdateAIContext, req)
 		assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 		var resp struct {
@@ -2120,7 +2054,7 @@ func TestApp_UpdateAIContext(t *testing.T) {
 				Message string `json:"message"`
 			} `json:"data"`
 		}
-		err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+		err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 		require.NoError(t, err)
 		assert.Equal(t, "AI context updated successfully", resp.Data.Message)
 
@@ -2145,8 +2079,7 @@ func TestApp_UpdateAIContext(t *testing.T) {
 		testutil.SetAuthContext(req, org.ID, user.ID)
 		testutil.SetPathParam(req, "id", uuid.New().String())
 
-		err := app.UpdateAIContext(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.UpdateAIContext, req)
 		assert.Equal(t, fasthttp.StatusNotFound, testutil.GetResponseStatusCode(req))
 	})
 
@@ -2163,8 +2096,7 @@ func TestApp_UpdateAIContext(t *testing.T) {
 		testutil.SetAuthContext(req, org.ID, user.ID)
 		testutil.SetPathParam(req, "id", aiCtx.ID.String())
 
-		err := app.UpdateAIContext(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.UpdateAIContext, req)
 		assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 		var updated models.AIContext
@@ -2189,8 +2121,7 @@ func TestApp_UpdateAIContext(t *testing.T) {
 		testutil.SetAuthContext(req, org.ID, user.ID)
 		testutil.SetPathParam(req, "id", aiCtx.ID.String())
 
-		err := app.UpdateAIContext(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.UpdateAIContext, req)
 		assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 		var updated models.AIContext
@@ -2216,8 +2147,7 @@ func TestApp_UpdateAIContext(t *testing.T) {
 		testutil.SetAuthContext(req, org.ID, user.ID)
 		testutil.SetPathParam(req, "id", aiCtx.ID.String())
 
-		err := app.UpdateAIContext(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.UpdateAIContext, req)
 		assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 		var updated models.AIContext
@@ -2253,15 +2183,14 @@ func TestApp_ListAIContexts_OrgIsolation(t *testing.T) {
 		req := testutil.NewGETRequest(t)
 		testutil.SetAuthContext(req, org1.ID, user1.ID)
 
-		err := app.ListAIContexts(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.ListAIContexts, req)
 
 		var resp struct {
 			Data struct {
 				Contexts []handlers.AIContextResponse `json:"contexts"`
 			} `json:"data"`
 		}
-		err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+		err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 		require.NoError(t, err)
 		assert.Len(t, resp.Data.Contexts, 1)
 		assert.Equal(t, "Org1 Context", resp.Data.Contexts[0].Name)
@@ -2269,8 +2198,7 @@ func TestApp_ListAIContexts_OrgIsolation(t *testing.T) {
 		req2 := testutil.NewGETRequest(t)
 		testutil.SetAuthContext(req2, org2.ID, user2.ID)
 
-		err = app.ListAIContexts(req2)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.ListAIContexts, req2)
 
 		var resp2 struct {
 			Data struct {
@@ -2322,8 +2250,7 @@ func TestApp_ListChatbotSessions(t *testing.T) {
 		req := testutil.NewGETRequest(t)
 		testutil.SetAuthContext(req, org.ID, user.ID)
 
-		err := app.ListChatbotSessions(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.ListChatbotSessions, req)
 		assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 		var resp struct {
@@ -2331,7 +2258,7 @@ func TestApp_ListChatbotSessions(t *testing.T) {
 				Sessions []models.ChatbotSession `json:"sessions"`
 			} `json:"data"`
 		}
-		err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+		err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 		require.NoError(t, err)
 		assert.Len(t, resp.Data.Sessions, 2)
 	})
@@ -2344,8 +2271,7 @@ func TestApp_ListChatbotSessions(t *testing.T) {
 		req := testutil.NewGETRequest(t)
 		testutil.SetAuthContext(req, org.ID, user.ID)
 
-		err := app.ListChatbotSessions(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.ListChatbotSessions, req)
 		assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 		var resp struct {
@@ -2353,7 +2279,7 @@ func TestApp_ListChatbotSessions(t *testing.T) {
 				Sessions []models.ChatbotSession `json:"sessions"`
 			} `json:"data"`
 		}
-		err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+		err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 		require.NoError(t, err)
 		assert.Len(t, resp.Data.Sessions, 0)
 	})
@@ -2372,8 +2298,7 @@ func TestApp_ListChatbotSessions(t *testing.T) {
 		testutil.SetAuthContext(req, org.ID, user.ID)
 		testutil.SetQueryParam(req, "status", "active")
 
-		err := app.ListChatbotSessions(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.ListChatbotSessions, req)
 		assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 		var resp struct {
@@ -2381,7 +2306,7 @@ func TestApp_ListChatbotSessions(t *testing.T) {
 				Sessions []models.ChatbotSession `json:"sessions"`
 			} `json:"data"`
 		}
-		err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+		err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 		require.NoError(t, err)
 		assert.Len(t, resp.Data.Sessions, 2)
 		for _, s := range resp.Data.Sessions {
@@ -2402,8 +2327,7 @@ func TestApp_ListChatbotSessions(t *testing.T) {
 		testutil.SetAuthContext(req, org.ID, user.ID)
 		testutil.SetQueryParam(req, "status", "completed")
 
-		err := app.ListChatbotSessions(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.ListChatbotSessions, req)
 		assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 		var resp struct {
@@ -2411,7 +2335,7 @@ func TestApp_ListChatbotSessions(t *testing.T) {
 				Sessions []models.ChatbotSession `json:"sessions"`
 			} `json:"data"`
 		}
-		err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+		err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 		require.NoError(t, err)
 		assert.Len(t, resp.Data.Sessions, 1)
 		assert.Equal(t, models.SessionStatusCompleted, resp.Data.Sessions[0].Status)
@@ -2435,23 +2359,21 @@ func TestApp_ListChatbotSessions(t *testing.T) {
 		req := testutil.NewGETRequest(t)
 		testutil.SetAuthContext(req, org1.ID, user1.ID)
 
-		err := app.ListChatbotSessions(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.ListChatbotSessions, req)
 
 		var resp struct {
 			Data struct {
 				Sessions []models.ChatbotSession `json:"sessions"`
 			} `json:"data"`
 		}
-		err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+		err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 		require.NoError(t, err)
 		assert.Len(t, resp.Data.Sessions, 1)
 
 		req2 := testutil.NewGETRequest(t)
 		testutil.SetAuthContext(req2, org2.ID, user2.ID)
 
-		err = app.ListChatbotSessions(req2)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.ListChatbotSessions, req2)
 
 		var resp2 struct {
 			Data struct {
@@ -2482,14 +2404,13 @@ func TestApp_GetChatbotSession(t *testing.T) {
 		testutil.SetAuthContext(req, org.ID, user.ID)
 		testutil.SetPathParam(req, "id", session.ID.String())
 
-		err := app.GetChatbotSession(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.GetChatbotSession, req)
 		assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 		var resp struct {
 			Data models.ChatbotSession `json:"data"`
 		}
-		err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+		err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 		require.NoError(t, err)
 		assert.Equal(t, session.ID, resp.Data.ID)
 		assert.Equal(t, models.SessionStatusActive, resp.Data.Status)
@@ -2505,8 +2426,7 @@ func TestApp_GetChatbotSession(t *testing.T) {
 		testutil.SetAuthContext(req, org.ID, user.ID)
 		testutil.SetPathParam(req, "id", uuid.New().String())
 
-		err := app.GetChatbotSession(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.GetChatbotSession, req)
 		assert.Equal(t, fasthttp.StatusNotFound, testutil.GetResponseStatusCode(req))
 	})
 
@@ -2539,14 +2459,13 @@ func TestApp_GetChatbotSession(t *testing.T) {
 		testutil.SetAuthContext(req, org.ID, user.ID)
 		testutil.SetPathParam(req, "id", session.ID.String())
 
-		err := app.GetChatbotSession(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.GetChatbotSession, req)
 		assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 		var resp struct {
 			Data models.ChatbotSession `json:"data"`
 		}
-		err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+		err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 		require.NoError(t, err)
 		assert.Equal(t, session.ID, resp.Data.ID)
 		assert.Len(t, resp.Data.Messages, 2)
@@ -2569,8 +2488,7 @@ func TestApp_GetChatbotSession(t *testing.T) {
 		testutil.SetAuthContext(req, org2.ID, user2.ID)
 		testutil.SetPathParam(req, "id", session.ID.String())
 
-		err := app.GetChatbotSession(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.GetChatbotSession, req)
 		assert.Equal(t, fasthttp.StatusNotFound, testutil.GetResponseStatusCode(req))
 	})
 }
@@ -2597,8 +2515,7 @@ func TestApp_DeleteKeywordRule_CrossOrg(t *testing.T) {
 		testutil.SetAuthContext(req, org2.ID, user2.ID)
 		testutil.SetPathParam(req, "id", rule.ID.String())
 
-		err := app.DeleteKeywordRule(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.DeleteKeywordRule, req)
 		assert.Equal(t, fasthttp.StatusNotFound, testutil.GetResponseStatusCode(req))
 
 		// Verify the rule still exists
@@ -2633,8 +2550,7 @@ func TestApp_DeleteChatbotFlow_CrossOrg(t *testing.T) {
 		testutil.SetAuthContext(req, org2.ID, user2.ID)
 		testutil.SetPathParam(req, "id", flow.ID.String())
 
-		err := app.DeleteChatbotFlow(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.DeleteChatbotFlow, req)
 		assert.Equal(t, fasthttp.StatusNotFound, testutil.GetResponseStatusCode(req))
 
 		// Verify the flow still exists
@@ -2666,8 +2582,7 @@ func TestApp_DeleteAIContext_CrossOrg(t *testing.T) {
 		testutil.SetAuthContext(req, org2.ID, user2.ID)
 		testutil.SetPathParam(req, "id", aiCtx.ID.String())
 
-		err := app.DeleteAIContext(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.DeleteAIContext, req)
 		assert.Equal(t, fasthttp.StatusNotFound, testutil.GetResponseStatusCode(req))
 
 		// Verify the context still exists
@@ -2699,8 +2614,7 @@ func TestApp_GetKeywordRule_CrossOrg(t *testing.T) {
 		testutil.SetAuthContext(req, org2.ID, user2.ID)
 		testutil.SetPathParam(req, "id", rule.ID.String())
 
-		err := app.GetKeywordRule(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.GetKeywordRule, req)
 		assert.Equal(t, fasthttp.StatusNotFound, testutil.GetResponseStatusCode(req))
 	})
 }
@@ -2730,8 +2644,7 @@ func TestApp_GetChatbotFlow_CrossOrg(t *testing.T) {
 		testutil.SetAuthContext(req, org2.ID, user2.ID)
 		testutil.SetPathParam(req, "id", flow.ID.String())
 
-		err := app.GetChatbotFlow(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.GetChatbotFlow, req)
 		assert.Equal(t, fasthttp.StatusNotFound, testutil.GetResponseStatusCode(req))
 	})
 }
@@ -2758,8 +2671,7 @@ func TestApp_GetAIContext_CrossOrg(t *testing.T) {
 		testutil.SetAuthContext(req, org2.ID, user2.ID)
 		testutil.SetPathParam(req, "id", aiCtx.ID.String())
 
-		err := app.GetAIContext(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.GetAIContext, req)
 		assert.Equal(t, fasthttp.StatusNotFound, testutil.GetResponseStatusCode(req))
 	})
 }
@@ -2795,14 +2707,13 @@ func TestApp_GetKeywordRule_ResponseFields(t *testing.T) {
 		testutil.SetAuthContext(req, org.ID, user.ID)
 		testutil.SetPathParam(req, "id", rule.ID.String())
 
-		err := app.GetKeywordRule(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.GetKeywordRule, req)
 		assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 		var resp struct {
 			Data handlers.KeywordRuleResponse `json:"data"`
 		}
-		err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+		err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 		require.NoError(t, err)
 
 		assert.Equal(t, rule.ID.String(), resp.Data.ID)
@@ -2869,8 +2780,7 @@ func TestApp_UpdateChatbotSettings_RejectsUnsendableButtons(t *testing.T) {
 			req := testutil.NewJSONRequest(t, map[string]any{tt.field: tt.buttons})
 			testutil.SetAuthContext(req, org.ID, user.ID)
 
-			err := app.UpdateChatbotSettings(req)
-			require.NoError(t, err)
+			testutil.InvokeHTTP(t, app.UpdateChatbotSettings, req)
 			assert.Equal(t, fasthttp.StatusBadRequest, testutil.GetResponseStatusCode(req))
 
 			var resp struct {
@@ -2905,6 +2815,6 @@ func TestApp_UpdateChatbotSettings_AcceptsSingleURLButton(t *testing.T) {
 	})
 	testutil.SetAuthContext(req, org.ID, user.ID)
 
-	require.NoError(t, app.UpdateChatbotSettings(req))
+	testutil.InvokeHTTP(t, app.UpdateChatbotSettings, req)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 }

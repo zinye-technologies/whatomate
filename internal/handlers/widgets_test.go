@@ -69,8 +69,7 @@ func TestApp_ListWidgets_Success(t *testing.T) {
 	req := testutil.NewGETRequest(t)
 	testutil.SetAuthContext(req, org.ID, user.ID)
 
-	err := app.ListWidgets(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.ListWidgets, req)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	var resp struct {
@@ -78,7 +77,7 @@ func TestApp_ListWidgets_Success(t *testing.T) {
 			Widgets []handlers.WidgetResponse `json:"widgets"`
 		} `json:"data"`
 	}
-	err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+	err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 	require.NoError(t, err)
 	assert.Len(t, resp.Data.Widgets, 2)
 }
@@ -92,8 +91,7 @@ func TestApp_ListWidgets_NoPermission(t *testing.T) {
 	req := testutil.NewGETRequest(t)
 	testutil.SetAuthContext(req, org.ID, user.ID)
 
-	err := app.ListWidgets(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.ListWidgets, req)
 	assert.Equal(t, fasthttp.StatusForbidden, testutil.GetResponseStatusCode(req))
 }
 
@@ -119,8 +117,7 @@ func TestApp_ListWidgets_FiltersByOrganization(t *testing.T) {
 	req := testutil.NewGETRequest(t)
 	testutil.SetAuthContext(req, org1.ID, user1.ID)
 
-	err := app.ListWidgets(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.ListWidgets, req)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	var resp struct {
@@ -128,7 +125,7 @@ func TestApp_ListWidgets_FiltersByOrganization(t *testing.T) {
 			Widgets []handlers.WidgetResponse `json:"widgets"`
 		} `json:"data"`
 	}
-	err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+	err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 	require.NoError(t, err)
 	assert.Len(t, resp.Data.Widgets, 1)
 	assert.Equal(t, "Org1 Widget", resp.Data.Widgets[0].Name)
@@ -140,8 +137,7 @@ func TestApp_ListWidgets_Unauthorized(t *testing.T) {
 	req := testutil.NewGETRequest(t)
 	// No auth context set
 
-	err := app.ListWidgets(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.ListWidgets, req)
 	assert.Equal(t, fasthttp.StatusUnauthorized, testutil.GetResponseStatusCode(req))
 }
 
@@ -159,14 +155,13 @@ func TestApp_GetWidget_Success(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, user.ID)
 	testutil.SetPathParam(req, "id", widget.ID.String())
 
-	err := app.GetWidget(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.GetWidget, req)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	var resp struct {
 		Data handlers.WidgetResponse `json:"data"`
 	}
-	err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+	err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 	require.NoError(t, err)
 	assert.Equal(t, widget.ID, resp.Data.ID)
 	assert.Equal(t, "Test Widget", resp.Data.Name)
@@ -187,8 +182,7 @@ func TestApp_GetWidget_NoPermission(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, otherUser.ID)
 	testutil.SetPathParam(req, "id", widget.ID.String())
 
-	err := app.GetWidget(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.GetWidget, req)
 	assert.Equal(t, fasthttp.StatusForbidden, testutil.GetResponseStatusCode(req))
 }
 
@@ -203,8 +197,7 @@ func TestApp_GetWidget_NotFound(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, user.ID)
 	testutil.SetPathParam(req, "id", uuid.New().String())
 
-	err := app.GetWidget(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.GetWidget, req)
 	assert.Equal(t, fasthttp.StatusNotFound, testutil.GetResponseStatusCode(req))
 }
 
@@ -219,8 +212,7 @@ func TestApp_GetWidget_InvalidID(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, user.ID)
 	testutil.SetPathParam(req, "id", "not-a-uuid")
 
-	err := app.GetWidget(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.GetWidget, req)
 	assert.Equal(t, fasthttp.StatusBadRequest, testutil.GetResponseStatusCode(req))
 }
 
@@ -242,14 +234,13 @@ func TestApp_CreateWidget_Success(t *testing.T) {
 	})
 	testutil.SetAuthContext(req, org.ID, user.ID)
 
-	err := app.CreateWidget(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.CreateWidget, req)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	var resp struct {
 		Data handlers.WidgetResponse `json:"data"`
 	}
-	err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+	err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 	require.NoError(t, err)
 	assert.Equal(t, "New Widget", resp.Data.Name)
 	assert.Equal(t, "messages", resp.Data.DataSource)
@@ -271,8 +262,7 @@ func TestApp_CreateWidget_NoPermission(t *testing.T) {
 	})
 	testutil.SetAuthContext(req, org.ID, user.ID)
 
-	err := app.CreateWidget(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.CreateWidget, req)
 	assert.Equal(t, fasthttp.StatusForbidden, testutil.GetResponseStatusCode(req))
 }
 
@@ -297,14 +287,13 @@ func TestApp_CreateWidget_WithFilters(t *testing.T) {
 	})
 	testutil.SetAuthContext(req, org.ID, user.ID)
 
-	err := app.CreateWidget(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.CreateWidget, req)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	var resp struct {
 		Data handlers.WidgetResponse `json:"data"`
 	}
-	err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+	err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 	require.NoError(t, err)
 	assert.Len(t, resp.Data.Filters, 1)
 }
@@ -323,8 +312,7 @@ func TestApp_CreateWidget_InvalidDataSource(t *testing.T) {
 	})
 	testutil.SetAuthContext(req, org.ID, user.ID)
 
-	err := app.CreateWidget(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.CreateWidget, req)
 	assert.Equal(t, fasthttp.StatusBadRequest, testutil.GetResponseStatusCode(req))
 }
 
@@ -341,8 +329,7 @@ func TestApp_CreateWidget_MissingName(t *testing.T) {
 	})
 	testutil.SetAuthContext(req, org.ID, user.ID)
 
-	err := app.CreateWidget(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.CreateWidget, req)
 	assert.Equal(t, fasthttp.StatusBadRequest, testutil.GetResponseStatusCode(req))
 }
 
@@ -356,8 +343,7 @@ func TestApp_CreateWidget_Unauthorized(t *testing.T) {
 	})
 	// No auth context
 
-	err := app.CreateWidget(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.CreateWidget, req)
 	assert.Equal(t, fasthttp.StatusUnauthorized, testutil.GetResponseStatusCode(req))
 }
 
@@ -379,14 +365,13 @@ func TestApp_UpdateWidget_Success(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, user.ID)
 	testutil.SetPathParam(req, "id", widget.ID.String())
 
-	err := app.UpdateWidget(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.UpdateWidget, req)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	var resp struct {
 		Data handlers.WidgetResponse `json:"data"`
 	}
-	err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+	err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 	require.NoError(t, err)
 	assert.Equal(t, "Updated Name", resp.Data.Name)
 	assert.Equal(t, "red", resp.Data.Color)
@@ -410,8 +395,7 @@ func TestApp_UpdateWidget_NoPermission(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, otherUser.ID)
 	testutil.SetPathParam(req, "id", widget.ID.String())
 
-	err := app.UpdateWidget(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.UpdateWidget, req)
 	assert.Equal(t, fasthttp.StatusForbidden, testutil.GetResponseStatusCode(req))
 }
 
@@ -433,8 +417,7 @@ func TestApp_UpdateWidget_OnlyOwnerCanEdit(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, otherUser.ID)
 	testutil.SetPathParam(req, "id", widget.ID.String())
 
-	err := app.UpdateWidget(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.UpdateWidget, req)
 	assert.Equal(t, fasthttp.StatusForbidden, testutil.GetResponseStatusCode(req))
 }
 
@@ -451,8 +434,7 @@ func TestApp_UpdateWidget_NotFound(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, user.ID)
 	testutil.SetPathParam(req, "id", uuid.New().String())
 
-	err := app.UpdateWidget(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.UpdateWidget, req)
 	assert.Equal(t, fasthttp.StatusNotFound, testutil.GetResponseStatusCode(req))
 }
 
@@ -470,8 +452,7 @@ func TestApp_DeleteWidget_Success(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, user.ID)
 	testutil.SetPathParam(req, "id", widget.ID.String())
 
-	err := app.DeleteWidget(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.DeleteWidget, req)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	// Verify widget is deleted
@@ -496,8 +477,7 @@ func TestApp_DeleteWidget_NoPermission(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, otherUser.ID)
 	testutil.SetPathParam(req, "id", widget.ID.String())
 
-	err := app.DeleteWidget(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.DeleteWidget, req)
 	assert.Equal(t, fasthttp.StatusForbidden, testutil.GetResponseStatusCode(req))
 }
 
@@ -517,8 +497,7 @@ func TestApp_DeleteWidget_OnlyOwnerCanDelete(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, otherUser.ID)
 	testutil.SetPathParam(req, "id", widget.ID.String())
 
-	err := app.DeleteWidget(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.DeleteWidget, req)
 	assert.Equal(t, fasthttp.StatusForbidden, testutil.GetResponseStatusCode(req))
 
 	// Widget should still exist
@@ -538,8 +517,7 @@ func TestApp_DeleteWidget_NotFound(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, user.ID)
 	testutil.SetPathParam(req, "id", uuid.New().String())
 
-	err := app.DeleteWidget(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.DeleteWidget, req)
 	assert.Equal(t, fasthttp.StatusNotFound, testutil.GetResponseStatusCode(req))
 }
 
@@ -566,8 +544,7 @@ func TestApp_Widget_CrossOrgIsolation(t *testing.T) {
 	testutil.SetAuthContext(req, org2.ID, user2.ID)
 	testutil.SetPathParam(req, "id", widget1.ID.String())
 
-	err := app.GetWidget(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.GetWidget, req)
 	assert.Equal(t, fasthttp.StatusNotFound, testutil.GetResponseStatusCode(req))
 }
 
@@ -592,8 +569,7 @@ func TestApp_Widget_CrossOrg_CannotDelete(t *testing.T) {
 	testutil.SetAuthContext(req, org2.ID, user2.ID)
 	testutil.SetPathParam(req, "id", widget1.ID.String())
 
-	err := app.DeleteWidget(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.DeleteWidget, req)
 	assert.Equal(t, fasthttp.StatusNotFound, testutil.GetResponseStatusCode(req))
 
 	// Widget should still exist

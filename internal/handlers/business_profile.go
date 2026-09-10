@@ -5,31 +5,30 @@ import (
 	"time"
 
 	"github.com/shridarpatil/whatomate/pkg/whatsapp"
-	"github.com/valyala/fasthttp"
-	"github.com/zerodha/fastglue"
+	"net/http"
 )
 
 // businessProfileHTTPTimeout bounds calls to Meta's profile endpoints. We use a
-// detached context (not r.RequestCtx) so a client disconnect mid-call doesn't
-// cancel an in-flight Meta update — and so that fasthttp.RequestCtx, which has
-// no ctx.Done() implementation outside the server, doesn't crash the http client.
+// detached context (not the request context) so a client disconnect mid-call
+// doesn't cancel an in-flight Meta update.
 const businessProfileHTTPTimeout = 30 * time.Second
 
 // GetBusinessProfile returns the business profile for a WhatsApp account
-func (a *App) GetBusinessProfile(r *fastglue.Request) error {
-	orgID, err := a.getOrgID(r)
+func (a *App) GetBusinessProfile(w http.ResponseWriter, r *http.Request) {
+	orgID, err := a.getOrgIDHTTP(r)
 	if err != nil {
-		return r.SendErrorEnvelope(fasthttp.StatusUnauthorized, "Unauthorized", nil, "")
+		SendErrorEnvelope(w, http.StatusUnauthorized, "Unauthorized", nil, "")
+		return
 	}
 
-	id, err := parsePathUUID(r, "id", "account")
+	id, err := parsePathUUIDHTTP(w, r, "id", "account")
 	if err != nil {
-		return nil
+		return
 	}
 
-	account, err := a.resolveWhatsAppAccountByID(r, id, orgID)
+	account, err := a.resolveWhatsAppAccountByIDHTTP(w, id, orgID)
 	if err != nil {
-		return nil
+		return
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), businessProfileHTTPTimeout)
@@ -38,32 +37,35 @@ func (a *App) GetBusinessProfile(r *fastglue.Request) error {
 	profile, err := a.WhatsApp.GetBusinessProfile(ctx, a.toWhatsAppAccount(account))
 	if err != nil {
 		a.Log.Error("Failed to get business profile", "error", err)
-		return r.SendErrorEnvelope(fasthttp.StatusInternalServerError, "Failed to get business profile", nil, "")
+		SendErrorEnvelope(w, http.StatusInternalServerError, "Failed to get business profile", nil, "")
+		return
 	}
 
-	return r.SendEnvelope(profile)
+	SendEnvelope(w, profile)
+	return
 }
 
 // UpdateBusinessProfile updates the business profile for a WhatsApp account
-func (a *App) UpdateBusinessProfile(r *fastglue.Request) error {
-	orgID, err := a.getOrgID(r)
+func (a *App) UpdateBusinessProfile(w http.ResponseWriter, r *http.Request) {
+	orgID, err := a.getOrgIDHTTP(r)
 	if err != nil {
-		return r.SendErrorEnvelope(fasthttp.StatusUnauthorized, "Unauthorized", nil, "")
+		SendErrorEnvelope(w, http.StatusUnauthorized, "Unauthorized", nil, "")
+		return
 	}
 
-	id, err := parsePathUUID(r, "id", "account")
+	id, err := parsePathUUIDHTTP(w, r, "id", "account")
 	if err != nil {
-		return nil
+		return
 	}
 
-	account, err := a.resolveWhatsAppAccountByID(r, id, orgID)
+	account, err := a.resolveWhatsAppAccountByIDHTTP(w, id, orgID)
 	if err != nil {
-		return nil
+		return
 	}
 
 	var input whatsapp.BusinessProfileInput
-	if err := a.decodeRequest(r, &input); err != nil {
-		return nil
+	if err := a.decodeRequestHTTP(w, r, &input); err != nil {
+		return
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), businessProfileHTTPTimeout)
@@ -72,56 +74,60 @@ func (a *App) UpdateBusinessProfile(r *fastglue.Request) error {
 
 	if err := a.WhatsApp.UpdateBusinessProfile(ctx, waAccount, input); err != nil {
 		a.Log.Error("Failed to update business profile", "error", err)
-		return r.SendErrorEnvelope(fasthttp.StatusInternalServerError, "Failed to update business profile", nil, "")
+		SendErrorEnvelope(w, http.StatusInternalServerError, "Failed to update business profile", nil, "")
+		return
 	}
 
 	// Re-fetch to ensure we have the latest state
 	profile, err := a.WhatsApp.GetBusinessProfile(ctx, waAccount)
 	if err != nil {
 		// If re-fetch fails, just return success message
-		return r.SendEnvelope(map[string]string{"message": "Profile updated successfully"})
+		SendEnvelope(w, map[string]string{"message": "Profile updated successfully"})
+		return
 	}
 
-	return r.SendEnvelope(profile)
+	SendEnvelope(w, profile)
+	return
 }
 
 // UpdateProfilePicture handles the profile picture upload
-func (a *App) UpdateProfilePicture(r *fastglue.Request) error {
-	orgID, err := a.getOrgID(r)
+func (a *App) UpdateProfilePicture(w http.ResponseWriter, r *http.Request) {
+	orgID, err := a.getOrgIDHTTP(r)
 	if err != nil {
-		return r.SendErrorEnvelope(fasthttp.StatusUnauthorized, "Unauthorized", nil, "")
+		SendErrorEnvelope(w, http.StatusUnauthorized, "Unauthorized", nil, "")
+		return
 	}
 
-	id, err := parsePathUUID(r, "id", "account")
+	id, err := parsePathUUIDHTTP(w, r, "id", "account")
 	if err != nil {
-		return nil
+		return
 	}
 
-	account, err := a.resolveWhatsAppAccountByID(r, id, orgID)
+	account, err := a.resolveWhatsAppAccountByIDHTTP(w, id, orgID)
 	if err != nil {
-		return nil
+		return
 	}
 
 	// 1. Get the file from request
-	fileHeader, err := r.RequestCtx.FormFile("file")
-	if err != nil {
-		return r.SendErrorEnvelope(fasthttp.StatusBadRequest, "Missing file", nil, "")
+	if err := r.ParseMultipartForm(10 << 20); err != nil {
+		SendErrorEnvelope(w, http.StatusBadRequest, "Invalid multipart form", nil, "")
+		return
 	}
-
-	// 2. Open and read file
-	file, err := fileHeader.Open()
+	file, fileHeader, err := r.FormFile("file")
 	if err != nil {
-		a.Log.Error("Failed to open file", "error", err)
-		return r.SendErrorEnvelope(fasthttp.StatusInternalServerError, "Failed to open file", nil, "")
+		SendErrorEnvelope(w, http.StatusBadRequest, "Missing file", nil, "")
+		return
 	}
 	defer file.Close() //nolint:errcheck
 
+	// 2. Read file
 	fileSize := fileHeader.Size
 	fileContent := make([]byte, fileSize)
 	_, err = file.Read(fileContent)
 	if err != nil {
 		a.Log.Error("Failed to read file", "error", err)
-		return r.SendErrorEnvelope(fasthttp.StatusInternalServerError, "Failed to read file", nil, "")
+		SendErrorEnvelope(w, http.StatusInternalServerError, "Failed to read file", nil, "")
+		return
 	}
 
 	// Use a longer timeout for upload — profile pictures can be a few MB.
@@ -133,7 +139,8 @@ func (a *App) UpdateProfilePicture(r *fastglue.Request) error {
 	handle, err := a.WhatsApp.UploadProfilePicture(ctx, waAccount, fileContent, fileHeader.Header.Get("Content-Type"))
 	if err != nil {
 		a.Log.Error("Failed to upload profile picture", "error", err)
-		return r.SendErrorEnvelope(fasthttp.StatusInternalServerError, "Failed to upload profile picture", nil, "")
+		SendErrorEnvelope(w, http.StatusInternalServerError, "Failed to upload profile picture", nil, "")
+		return
 	}
 
 	// Update Business Profile with the handle
@@ -146,11 +153,13 @@ func (a *App) UpdateProfilePicture(r *fastglue.Request) error {
 
 	if err != nil {
 		a.Log.Error("Failed to update profile request", "error", err)
-		return r.SendErrorEnvelope(fasthttp.StatusInternalServerError, "Uploaded but failed to set profile picture", nil, "")
+		SendErrorEnvelope(w, http.StatusInternalServerError, "Uploaded but failed to set profile picture", nil, "")
+		return
 	}
 
-	return r.SendEnvelope(map[string]string{
+	SendEnvelope(w, map[string]string{
 		"message": "Profile picture updated successfully",
 		"handle":  handle,
 	})
+	return
 }
