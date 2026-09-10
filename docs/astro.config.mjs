@@ -56,6 +56,7 @@ export default defineConfig({
             { label: 'Custom Actions', slug: 'api-reference/custom-actions' },
             { label: 'Webhooks', slug: 'api-reference/webhooks' },
             { label: 'Analytics', slug: 'api-reference/analytics' },
+            { label: 'Usage', slug: 'api-reference/usage' },
           ],
         },
       ],

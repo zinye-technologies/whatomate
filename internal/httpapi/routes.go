@@ -246,6 +246,8 @@ func mountAuthenticatedAPI(r chi.Router, app *handlers.App) {
 	r.Post("/api/canned-responses/{id}/use", app.IncrementCannedResponseUsage)
 	r.Get("/api/chatbot/sessions", app.ListChatbotSessions)
 	r.Get("/api/chatbot/sessions/{id}", app.GetChatbotSession)
+	r.Get("/api/usage", app.GetUsage)
+	r.Get("/api/billing/usage", app.GetUsage)
 	r.Get("/api/analytics/dashboard", app.GetDashboardStats)
 	r.Get("/api/analytics/messages", app.GetMessageAnalytics)
 	r.Get("/api/analytics/chatbot", app.GetChatbotAnalytics)

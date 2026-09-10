@@ -319,8 +319,9 @@ func (a *App) createOutgoingMessage(req OutgoingMessageRequest, opts MessageSend
 			msg.Content = content
 			msg.TemplateName = req.Template.Name
 			msg.Metadata = models.JSONB{
-				"template_name": req.Template.Name,
-				"template_id":   req.Template.ID.String(),
+				"template_name":     req.Template.Name,
+				"template_id":       req.Template.ID.String(),
+				"template_category": req.Template.Category,
 			}
 			// Store header media so it renders in the chat bubble
 			if req.MediaURL != "" {

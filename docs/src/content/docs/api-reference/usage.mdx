@@ -1,0 +1,94 @@
+---
+title: Usage & billing meter
+description: Approximate outbound message usage by WhatsApp category for cost awareness
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+## Overview
+
+The usage meter APIs estimate outbound WhatsApp send volume by Meta message category.
+They are designed for Kapso-beater / self-hosted cost DX — not a replacement for Meta billing.
+
+**License:** AGPL-3.0 (same as Whatomate).
+
+<Aside type="note">
+  Counts are approximate. Template categories come from local template records.
+  Non-template outbound messages are counted as **service**. Failed sends are still counted as send attempts.
+</Aside>
+
+## Endpoints
+
+Both routes return the same payload:
+
+```bash
+GET /api/usage
+GET /api/billing/usage
+```
+
+Requires `analytics:read` (same permission family as dashboard analytics).
+
+### Query parameters
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `from` | string | Period start `YYYY-MM-DD` (UTC). Required with `to`. |
+| `to` | string | Period end `YYYY-MM-DD` (UTC, inclusive). Required with `from`. |
+| `account` | string | Optional WhatsApp account **name** filter. |
+
+If `from`/`to` are omitted, the current UTC calendar month is used.
+
+### Response
+
+```json
+{
+  "status": "success",
+  "data": {
+    "period": {
+      "start": "2026-09-01T00:00:00Z",
+      "end": "2026-09-30T23:59:59.999999999Z",
+      "label": "2026-09"
+    },
+    "free_service_allowance": 1000,
+    "phones": [
+      {
+        "whatsapp_account": "main",
+        "phone_id": "1234567890",
+        "counts": {
+          "service": 120,
+          "utility": 45,
+          "marketing": 10,
+          "authentication": 5,
+          "unknown": 0,
+          "total_outbound": 180
+        },
+        "service_allowance": {
+          "limit": 1000,
+          "used": 120,
+          "remaining": 880
+        }
+      }
+    ],
+    "totals": {
+      "service": 120,
+      "utility": 45,
+      "marketing": 10,
+      "authentication": 5,
+      "unknown": 0,
+      "total_outbound": 180
+    }
+  }
+}
+```
+
+### Category mapping
+
+| Category | How it is detected |
+|----------|--------------------|
+| `service` | Outbound messages whose `message_type` is not `template` |
+| `utility` / `marketing` / `authentication` | Outbound `template` messages joined to local templates by account + name |
+| `unknown` | Template sends with missing or unmatched template category |
+
+### Free service allowance
+
+`free_service_allowance` / `service_allowance` track Meta's **1,000 free service messages per business phone number per month** (Oct 2026 pricing). Remaining is `max(0, 1000 - service_count)` for the selected period (default: current UTC month). This is an operational estimate only.
