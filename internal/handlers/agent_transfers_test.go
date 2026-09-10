@@ -90,8 +90,7 @@ func TestApp_ListAgentTransfers_Success(t *testing.T) {
 	req := testutil.NewGETRequest(t)
 	testutil.SetAuthContext(req, org.ID, user.ID)
 
-	err := app.ListAgentTransfers(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.ListAgentTransfers, req)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	var result struct {
@@ -131,8 +130,7 @@ func TestApp_ListAgentTransfers_FilterByStatus(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, user.ID)
 	testutil.SetQueryParam(req, "status", models.TransferStatusActive)
 
-	err := app.ListAgentTransfers(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.ListAgentTransfers, req)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	var result struct {
@@ -169,8 +167,7 @@ func TestApp_ListAgentTransfers_AgentRoleFiltering(t *testing.T) {
 	req := testutil.NewGETRequest(t)
 	testutil.SetAuthContext(req, org.ID, agent.ID)
 
-	err := app.ListAgentTransfers(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.ListAgentTransfers, req)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	var result struct {
@@ -206,8 +203,7 @@ func TestApp_ListAgentTransfers_Pagination(t *testing.T) {
 	testutil.SetQueryParam(req, "limit", "2")
 	testutil.SetQueryParam(req, "offset", "1")
 
-	err := app.ListAgentTransfers(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.ListAgentTransfers, req)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	var result struct {
@@ -246,8 +242,7 @@ func TestApp_CreateAgentTransfer_Success(t *testing.T) {
 	})
 	testutil.SetAuthContext(req, org.ID, user.ID)
 
-	err := app.CreateAgentTransfer(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.CreateAgentTransfer, req)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	var result struct {
@@ -284,8 +279,7 @@ func TestApp_CreateAgentTransfer_WithAgent(t *testing.T) {
 	})
 	testutil.SetAuthContext(req, org.ID, user.ID)
 
-	err := app.CreateAgentTransfer(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.CreateAgentTransfer, req)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	var result struct {
@@ -314,8 +308,7 @@ func TestApp_CreateAgentTransfer_ContactNotFound(t *testing.T) {
 	})
 	testutil.SetAuthContext(req, org.ID, user.ID)
 
-	err := app.CreateAgentTransfer(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.CreateAgentTransfer, req)
 	assert.Equal(t, fasthttp.StatusNotFound, testutil.GetResponseStatusCode(req))
 
 	var result map[string]any
@@ -341,8 +334,7 @@ func TestApp_CreateAgentTransfer_DuplicateTransfer(t *testing.T) {
 	})
 	testutil.SetAuthContext(req, org.ID, user.ID)
 
-	err := app.CreateAgentTransfer(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.CreateAgentTransfer, req)
 	assert.Equal(t, fasthttp.StatusConflict, testutil.GetResponseStatusCode(req))
 
 	var result map[string]any
@@ -362,8 +354,7 @@ func TestApp_CreateAgentTransfer_MissingContactID(t *testing.T) {
 	})
 	testutil.SetAuthContext(req, org.ID, user.ID)
 
-	err := app.CreateAgentTransfer(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.CreateAgentTransfer, req)
 	assert.Equal(t, fasthttp.StatusBadRequest, testutil.GetResponseStatusCode(req))
 
 	var result map[string]any
@@ -391,8 +382,7 @@ func TestApp_CreateAgentTransfer_AgentUnavailable(t *testing.T) {
 	})
 	testutil.SetAuthContext(req, org.ID, user.ID)
 
-	err := app.CreateAgentTransfer(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.CreateAgentTransfer, req)
 	assert.Equal(t, fasthttp.StatusBadRequest, testutil.GetResponseStatusCode(req))
 
 	var result map[string]any
@@ -416,8 +406,7 @@ func TestApp_ResumeFromTransfer_Success(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, user.ID)
 	testutil.SetPathParam(req, "id", transfer.ID.String())
 
-	err := app.ResumeFromTransfer(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.ResumeFromTransfer, req)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	var result struct {
@@ -449,8 +438,7 @@ func TestApp_ResumeFromTransfer_NotFound(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, user.ID)
 	testutil.SetPathParam(req, "id", uuid.New().String())
 
-	err := app.ResumeFromTransfer(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.ResumeFromTransfer, req)
 	assert.Equal(t, fasthttp.StatusNotFound, testutil.GetResponseStatusCode(req))
 
 	var result map[string]any
@@ -472,8 +460,7 @@ func TestApp_ResumeFromTransfer_NotActive(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, user.ID)
 	testutil.SetPathParam(req, "id", transfer.ID.String())
 
-	err := app.ResumeFromTransfer(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.ResumeFromTransfer, req)
 	assert.Equal(t, fasthttp.StatusBadRequest, testutil.GetResponseStatusCode(req))
 
 	var result map[string]any
@@ -500,8 +487,7 @@ func TestApp_AssignAgentTransfer_Success(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, user.ID)
 	testutil.SetPathParam(req, "id", transfer.ID.String())
 
-	err := app.AssignAgentTransfer(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.AssignAgentTransfer, req)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	var result struct {
@@ -537,8 +523,7 @@ func TestApp_AssignAgentTransfer_AgentSelfAssign(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, agent.ID)
 	testutil.SetPathParam(req, "id", transfer.ID.String())
 
-	err := app.AssignAgentTransfer(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.AssignAgentTransfer, req)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	// Verify transfer assigned to the agent
@@ -564,8 +549,7 @@ func TestApp_AssignAgentTransfer_AgentCannotAssignToOthers(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, agent.ID)
 	testutil.SetPathParam(req, "id", transfer.ID.String())
 
-	err := app.AssignAgentTransfer(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.AssignAgentTransfer, req)
 	assert.Equal(t, fasthttp.StatusForbidden, testutil.GetResponseStatusCode(req))
 
 	var result map[string]any
@@ -590,8 +574,7 @@ func TestApp_AssignAgentTransfer_NotActive(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, user.ID)
 	testutil.SetPathParam(req, "id", transfer.ID.String())
 
-	err := app.AssignAgentTransfer(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.AssignAgentTransfer, req)
 	assert.Equal(t, fasthttp.StatusBadRequest, testutil.GetResponseStatusCode(req))
 
 	var result map[string]any
@@ -615,8 +598,7 @@ func TestApp_PickNextTransfer_Success(t *testing.T) {
 	req := testutil.NewJSONRequest(t, nil)
 	testutil.SetAuthContext(req, org.ID, agent.ID)
 
-	err := app.PickNextTransfer(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.PickNextTransfer, req)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	var result struct {
@@ -650,8 +632,7 @@ func TestApp_PickNextTransfer_EmptyQueue(t *testing.T) {
 	req := testutil.NewJSONRequest(t, nil)
 	testutil.SetAuthContext(req, org.ID, agent.ID)
 
-	err := app.PickNextTransfer(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.PickNextTransfer, req)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	var result struct {
@@ -702,8 +683,7 @@ func TestApp_PickNextTransfer_FIFO(t *testing.T) {
 	req := testutil.NewJSONRequest(t, nil)
 	testutil.SetAuthContext(req, org.ID, agent.ID)
 
-	err := app.PickNextTransfer(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.PickNextTransfer, req)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	var result struct {
@@ -750,8 +730,7 @@ func TestApp_PickNextTransfer_TeamFiltering(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, agent.ID)
 	testutil.SetQueryParam(req, "team_id", team.ID.String())
 
-	err := app.PickNextTransfer(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.PickNextTransfer, req)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	var result struct {
@@ -795,8 +774,7 @@ func TestApp_AgentTransfers_CrossOrgIsolation(t *testing.T) {
 	req1 := testutil.NewGETRequest(t)
 	testutil.SetAuthContext(req1, org1.ID, user1.ID)
 
-	err := app.ListAgentTransfers(req1)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.ListAgentTransfers, req1)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req1))
 
 	var result1 struct {
@@ -813,8 +791,7 @@ func TestApp_AgentTransfers_CrossOrgIsolation(t *testing.T) {
 	req2 := testutil.NewGETRequest(t)
 	testutil.SetAuthContext(req2, org2.ID, user2.ID)
 
-	err = app.ListAgentTransfers(req2)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.ListAgentTransfers, req2)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req2))
 
 	var result2 struct {
@@ -832,8 +809,7 @@ func TestApp_AgentTransfers_CrossOrgIsolation(t *testing.T) {
 	testutil.SetAuthContext(req3, org1.ID, user1.ID)
 	testutil.SetPathParam(req3, "id", transfer2.ID.String())
 
-	err = app.ResumeFromTransfer(req3)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.ResumeFromTransfer, req3)
 	assert.Equal(t, fasthttp.StatusNotFound, testutil.GetResponseStatusCode(req3))
 }
 
@@ -915,7 +891,7 @@ func TestApp_PickNextTransfer_AssignToSameAgentTrue_PinsRelationshipManager(t *t
 
 	req := testutil.NewJSONRequest(t, nil)
 	testutil.SetAuthContext(req, org.ID, agent.ID)
-	require.NoError(t, app.PickNextTransfer(req))
+	testutil.InvokeHTTP(t, app.PickNextTransfer, req)
 	require.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	got := readContactAssignedUser(t, app, contact.ID)
@@ -935,7 +911,7 @@ func TestApp_PickNextTransfer_AssignToSameAgentFalse_LeavesContactUnassigned(t *
 
 	req := testutil.NewJSONRequest(t, nil)
 	testutil.SetAuthContext(req, org.ID, agent.ID)
-	require.NoError(t, app.PickNextTransfer(req))
+	testutil.InvokeHTTP(t, app.PickNextTransfer, req)
 	require.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	// The contact must NOT be pinned. Visibility during the active transfer
@@ -964,7 +940,7 @@ func TestApp_PickNextTransfer_DoesNotOverwriteExistingRelationshipManager(t *tes
 
 	req := testutil.NewJSONRequest(t, nil)
 	testutil.SetAuthContext(req, org.ID, agent.ID)
-	require.NoError(t, app.PickNextTransfer(req))
+	testutil.InvokeHTTP(t, app.PickNextTransfer, req)
 	require.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	got := readContactAssignedUser(t, app, contact.ID)

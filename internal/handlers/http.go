@@ -3,8 +3,10 @@ package handlers
 import (
 	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
@@ -165,4 +167,26 @@ func parseSuperAdminFieldHTTP(body []byte) *bool {
 		return nil
 	}
 	return f.IsSuperAdmin
+}
+
+// readBody reads the full request body (for handlers that previously used PostBody).
+func readBody(r *http.Request) []byte {
+	b, err := io.ReadAll(r.Body)
+	if err != nil {
+		return nil
+	}
+	return b
+}
+
+// parseDateParamHTTP parses a YYYY-MM-DD date from a query parameter.
+func parseDateParamHTTP(r *http.Request, param string) (time.Time, bool) {
+	s := r.URL.Query().Get(param)
+	if s == "" {
+		return time.Time{}, false
+	}
+	t, err := time.Parse("2006-01-02", s)
+	if err != nil {
+		return time.Time{}, false
+	}
+	return t, true
 }

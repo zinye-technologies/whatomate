@@ -5,6 +5,8 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
+	"github.com/go-chi/chi/v5"
 	"io"
 	"net/http"
 	"regexp"
@@ -12,13 +14,9 @@ import (
 	"sync"
 	"time"
 
-	"fmt"
-
 	"github.com/dop251/goja"
 	"github.com/google/uuid"
 	"github.com/shridarpatil/whatomate/internal/models"
-	"github.com/valyala/fasthttp"
-	"github.com/zerodha/fastglue"
 )
 
 // CustomActionRequest represents the request body for creating/updating a custom action
@@ -77,14 +75,15 @@ type redirectToken struct {
 }
 
 // ListCustomActions returns all custom actions for the organization
-func (a *App) ListCustomActions(r *fastglue.Request) error {
-	orgID, err := a.getOrgID(r)
+func (a *App) ListCustomActions(w http.ResponseWriter, r *http.Request) {
+	orgID, err := a.getOrgIDHTTP(r)
 	if err != nil {
-		return r.SendErrorEnvelope(fasthttp.StatusUnauthorized, "Unauthorized", nil, "")
+		SendErrorEnvelope(w, http.StatusUnauthorized, "Unauthorized", nil, "")
+		return
 	}
 
-	pg := parsePagination(r)
-	search := string(r.RequestCtx.QueryArgs().Peek("search"))
+	pg := parsePaginationHTTP(r)
+	search := r.URL.Query().Get("search")
 
 	query := a.DB.Model(&models.CustomAction{}).Where("organization_id = ?", orgID)
 
@@ -101,7 +100,8 @@ func (a *App) ListCustomActions(r *fastglue.Request) error {
 	if err := pg.Apply(query.Order("display_order ASC, created_at DESC")).
 		Find(&actions).Error; err != nil {
 		a.Log.Error("Failed to list custom actions", "error", err)
-		return r.SendErrorEnvelope(fasthttp.StatusInternalServerError, "Failed to list custom actions", nil, "")
+		SendErrorEnvelope(w, http.StatusInternalServerError, "Failed to list custom actions", nil, "")
+		return
 	}
 
 	result := make([]CustomActionResponse, len(actions))
@@ -109,55 +109,63 @@ func (a *App) ListCustomActions(r *fastglue.Request) error {
 		result[i] = customActionToResponse(action)
 	}
 
-	return r.SendEnvelope(listEnvelope("custom_actions", result, total, pg))
+	SendEnvelope(w, listEnvelope("custom_actions", result, total, pg))
+	return
 }
 
 // GetCustomAction returns a single custom action by ID
-func (a *App) GetCustomAction(r *fastglue.Request) error {
-	orgID, err := a.getOrgID(r)
+func (a *App) GetCustomAction(w http.ResponseWriter, r *http.Request) {
+	orgID, err := a.getOrgIDHTTP(r)
 	if err != nil {
-		return r.SendErrorEnvelope(fasthttp.StatusUnauthorized, "Unauthorized", nil, "")
+		SendErrorEnvelope(w, http.StatusUnauthorized, "Unauthorized", nil, "")
+		return
 	}
 
-	actionID, err := parsePathUUID(r, "id", "action")
+	actionID, err := parsePathUUIDHTTP(w, r, "id", "action")
 	if err != nil {
-		return nil
+		return
 	}
 
-	action, err := findByIDAndOrg[models.CustomAction](a.DB, r, actionID, orgID, "Custom action")
+	action, err := findByIDAndOrgHTTP[models.CustomAction](a.DB, w, actionID, orgID, "Custom action")
 	if err != nil {
-		return nil
+		return
 	}
 
-	return r.SendEnvelope(customActionToResponse(*action))
+	SendEnvelope(w, customActionToResponse(*action))
+	return
 }
 
 // CreateCustomAction creates a new custom action
-func (a *App) CreateCustomAction(r *fastglue.Request) error {
-	orgID, err := a.getOrgID(r)
+func (a *App) CreateCustomAction(w http.ResponseWriter, r *http.Request) {
+	orgID, err := a.getOrgIDHTTP(r)
 	if err != nil {
-		return r.SendErrorEnvelope(fasthttp.StatusUnauthorized, "Unauthorized", nil, "")
+		SendErrorEnvelope(w, http.StatusUnauthorized, "Unauthorized", nil, "")
+		return
 	}
 
 	var req CustomActionRequest
-	if err := a.decodeRequest(r, &req); err != nil {
-		return nil
+	if err := a.decodeRequestHTTP(w, r, &req); err != nil {
+		return
 	}
 
 	// Validate required fields
 	if req.Name == "" {
-		return r.SendErrorEnvelope(fasthttp.StatusBadRequest, "Name is required", nil, "")
+		SendErrorEnvelope(w, http.StatusBadRequest, "Name is required", nil, "")
+		return
 	}
 	if req.ActionType == "" {
-		return r.SendErrorEnvelope(fasthttp.StatusBadRequest, "Action type is required", nil, "")
+		SendErrorEnvelope(w, http.StatusBadRequest, "Action type is required", nil, "")
+		return
 	}
 	if req.ActionType != models.ActionTypeWebhook && req.ActionType != models.ActionTypeURL && req.ActionType != models.ActionTypeJavascript {
-		return r.SendErrorEnvelope(fasthttp.StatusBadRequest, "Invalid action type. Must be webhook, url, or javascript", nil, "")
+		SendErrorEnvelope(w, http.StatusBadRequest, "Invalid action type. Must be webhook, url, or javascript", nil, "")
+		return
 	}
 
 	// Validate config based on action type
 	if err := validateActionConfig(req.ActionType, req.Config); err != nil {
-		return r.SendErrorEnvelope(fasthttp.StatusBadRequest, err.Error(), nil, "")
+		SendErrorEnvelope(w, http.StatusBadRequest, err.Error(), nil, "")
+		return
 	}
 
 	action := models.CustomAction{
@@ -172,33 +180,36 @@ func (a *App) CreateCustomAction(r *fastglue.Request) error {
 
 	if err := a.DB.Create(&action).Error; err != nil {
 		a.Log.Error("Failed to create custom action", "error", err)
-		return r.SendErrorEnvelope(fasthttp.StatusInternalServerError, "Failed to create custom action", nil, "")
+		SendErrorEnvelope(w, http.StatusInternalServerError, "Failed to create custom action", nil, "")
+		return
 	}
 
 	a.Log.Info("Custom action created", "action_id", action.ID, "name", action.Name, "type", action.ActionType)
-	return r.SendEnvelope(customActionToResponse(action))
+	SendEnvelope(w, customActionToResponse(action))
+	return
 }
 
 // UpdateCustomAction updates an existing custom action
-func (a *App) UpdateCustomAction(r *fastglue.Request) error {
-	orgID, err := a.getOrgID(r)
+func (a *App) UpdateCustomAction(w http.ResponseWriter, r *http.Request) {
+	orgID, err := a.getOrgIDHTTP(r)
 	if err != nil {
-		return r.SendErrorEnvelope(fasthttp.StatusUnauthorized, "Unauthorized", nil, "")
+		SendErrorEnvelope(w, http.StatusUnauthorized, "Unauthorized", nil, "")
+		return
 	}
 
-	actionID, err := parsePathUUID(r, "id", "action")
+	actionID, err := parsePathUUIDHTTP(w, r, "id", "action")
 	if err != nil {
-		return nil
+		return
 	}
 
-	action, err := findByIDAndOrg[models.CustomAction](a.DB, r, actionID, orgID, "Custom action")
+	action, err := findByIDAndOrgHTTP[models.CustomAction](a.DB, w, actionID, orgID, "Custom action")
 	if err != nil {
-		return nil
+		return
 	}
 
 	var req CustomActionRequest
-	if err := a.decodeRequest(r, &req); err != nil {
-		return nil
+	if err := a.decodeRequestHTTP(w, r, &req); err != nil {
+		return
 	}
 
 	// Build updates
@@ -211,7 +222,8 @@ func (a *App) UpdateCustomAction(r *fastglue.Request) error {
 	}
 	if req.ActionType != "" {
 		if req.ActionType != models.ActionTypeWebhook && req.ActionType != models.ActionTypeURL && req.ActionType != models.ActionTypeJavascript {
-			return r.SendErrorEnvelope(fasthttp.StatusBadRequest, "Invalid action type", nil, "")
+			SendErrorEnvelope(w, http.StatusBadRequest, "Invalid action type", nil, "")
+			return
 		}
 		updates["action_type"] = req.ActionType
 	}
@@ -221,7 +233,8 @@ func (a *App) UpdateCustomAction(r *fastglue.Request) error {
 			actionType = action.ActionType
 		}
 		if err := validateActionConfig(actionType, req.Config); err != nil {
-			return r.SendErrorEnvelope(fasthttp.StatusBadRequest, err.Error(), nil, "")
+			SendErrorEnvelope(w, http.StatusBadRequest, err.Error(), nil, "")
+			return
 		}
 		configJSON, _ := json.Marshal(req.Config)
 		updates["config"] = configJSON
@@ -231,77 +244,86 @@ func (a *App) UpdateCustomAction(r *fastglue.Request) error {
 
 	if err := a.DB.Model(action).Updates(updates).Error; err != nil {
 		a.Log.Error("Failed to update custom action", "error", err)
-		return r.SendErrorEnvelope(fasthttp.StatusInternalServerError, "Failed to update custom action", nil, "")
+		SendErrorEnvelope(w, http.StatusInternalServerError, "Failed to update custom action", nil, "")
+		return
 	}
 
 	// Reload to get updated values
 	a.DB.First(action, actionID)
 
 	a.Log.Info("Custom action updated", "action_id", action.ID)
-	return r.SendEnvelope(customActionToResponse(*action))
+	SendEnvelope(w, customActionToResponse(*action))
+	return
 }
 
 // DeleteCustomAction deletes a custom action
-func (a *App) DeleteCustomAction(r *fastglue.Request) error {
-	orgID, err := a.getOrgID(r)
+func (a *App) DeleteCustomAction(w http.ResponseWriter, r *http.Request) {
+	orgID, err := a.getOrgIDHTTP(r)
 	if err != nil {
-		return r.SendErrorEnvelope(fasthttp.StatusUnauthorized, "Unauthorized", nil, "")
+		SendErrorEnvelope(w, http.StatusUnauthorized, "Unauthorized", nil, "")
+		return
 	}
 
-	actionID, err := parsePathUUID(r, "id", "action")
+	actionID, err := parsePathUUIDHTTP(w, r, "id", "action")
 	if err != nil {
-		return nil
+		return
 	}
 
 	result := a.DB.Where("id = ? AND organization_id = ?", actionID, orgID).Delete(&models.CustomAction{})
 	if result.Error != nil {
 		a.Log.Error("Failed to delete custom action", "error", result.Error)
-		return r.SendErrorEnvelope(fasthttp.StatusInternalServerError, "Failed to delete custom action", nil, "")
+		SendErrorEnvelope(w, http.StatusInternalServerError, "Failed to delete custom action", nil, "")
+		return
 	}
 	if result.RowsAffected == 0 {
-		return r.SendErrorEnvelope(fasthttp.StatusNotFound, "Custom action not found", nil, "")
+		SendErrorEnvelope(w, http.StatusNotFound, "Custom action not found", nil, "")
+		return
 	}
 
 	a.Log.Info("Custom action deleted", "action_id", actionID)
-	return r.SendEnvelope(map[string]string{"status": "deleted"})
+	SendEnvelope(w, map[string]string{"status": "deleted"})
+	return
 }
 
 // ExecuteCustomAction executes a custom action with the given context
-func (a *App) ExecuteCustomAction(r *fastglue.Request) error {
-	orgID, userID, err := a.getOrgAndUserID(r)
+func (a *App) ExecuteCustomAction(w http.ResponseWriter, r *http.Request) {
+	orgID, userID, err := a.getOrgAndUserIDHTTP(r)
 	if err != nil {
-		return r.SendErrorEnvelope(fasthttp.StatusUnauthorized, "Unauthorized", nil, "")
+		SendErrorEnvelope(w, http.StatusUnauthorized, "Unauthorized", nil, "")
+		return
 	}
 
-	actionID, err := parsePathUUID(r, "id", "action")
+	actionID, err := parsePathUUIDHTTP(w, r, "id", "action")
 	if err != nil {
-		return nil
+		return
 	}
 
 	var req ExecuteActionRequest
-	if err := a.decodeRequest(r, &req); err != nil {
-		return nil
+	if err := a.decodeRequestHTTP(w, r, &req); err != nil {
+		return
 	}
 
 	// Get the action
-	action, err := findByIDAndOrg[models.CustomAction](a.DB, r, actionID, orgID, "Custom action")
+	action, err := findByIDAndOrgHTTP[models.CustomAction](a.DB, w, actionID, orgID, "Custom action")
 	if err != nil {
-		return nil
+		return
 	}
 
 	if !action.IsActive {
-		return r.SendErrorEnvelope(fasthttp.StatusBadRequest, "Custom action is not active", nil, "")
+		SendErrorEnvelope(w, http.StatusBadRequest, "Custom action is not active", nil, "")
+		return
 	}
 
 	// Get contact details
 	contactID, err := uuid.Parse(req.ContactID)
 	if err != nil {
-		return r.SendErrorEnvelope(fasthttp.StatusBadRequest, "Invalid contact ID", nil, "")
+		SendErrorEnvelope(w, http.StatusBadRequest, "Invalid contact ID", nil, "")
+		return
 	}
 
-	contact, err := findByIDAndOrg[models.Contact](a.DB, r, contactID, orgID, "Contact")
+	contact, err := findByIDAndOrgHTTP[models.Contact](a.DB, w, contactID, orgID, "Contact")
 	if err != nil {
-		return nil
+		return
 	}
 
 	// Get user details
@@ -325,32 +347,36 @@ func (a *App) ExecuteCustomAction(r *fastglue.Request) error {
 	case models.ActionTypeJavascript:
 		result, err = a.executeJavaScriptAction(*action, context)
 	default:
-		return r.SendErrorEnvelope(fasthttp.StatusBadRequest, "Unknown action type", nil, "")
+		SendErrorEnvelope(w, http.StatusBadRequest, "Unknown action type", nil, "")
+		return
 	}
 
 	if err != nil {
 		a.Log.Error("Failed to execute custom action", "error", err, "action_id", actionID)
-		return r.SendEnvelope(ActionResult{
+		SendEnvelope(w, ActionResult{
 			Success: false,
 			Message: "Action execution failed",
 			Toast:   &ToastConfig{Message: "Action failed", Type: "error"},
 		})
+		return
 	}
 
 	a.Log.Info("Custom action executed", "action_id", actionID, "contact_id", contactID)
-	return r.SendEnvelope(result)
+	SendEnvelope(w, result)
+	return
 }
 
 // CustomActionRedirect handles redirect tokens for URL actions
-func (a *App) CustomActionRedirect(r *fastglue.Request) error {
-	token := r.RequestCtx.UserValue("token").(string)
+func (a *App) CustomActionRedirect(w http.ResponseWriter, r *http.Request) {
+	token := chi.URLParam(r, "token")
 
 	redirectTokenMutex.RLock()
 	rt, exists := redirectTokens[token]
 	redirectTokenMutex.RUnlock()
 
 	if !exists {
-		return r.SendErrorEnvelope(fasthttp.StatusNotFound, "Invalid or expired redirect token", nil, "")
+		SendErrorEnvelope(w, http.StatusNotFound, "Invalid or expired redirect token", nil, "")
+		return
 	}
 
 	if time.Now().After(rt.ExpiresAt) {
@@ -358,7 +384,8 @@ func (a *App) CustomActionRedirect(r *fastglue.Request) error {
 		redirectTokenMutex.Lock()
 		delete(redirectTokens, token)
 		redirectTokenMutex.Unlock()
-		return r.SendErrorEnvelope(fasthttp.StatusGone, "Redirect token has expired", nil, "")
+		SendErrorEnvelope(w, http.StatusGone, "Redirect token has expired", nil, "")
+		return
 	}
 
 	// Delete token (one-time use)
@@ -367,8 +394,8 @@ func (a *App) CustomActionRedirect(r *fastglue.Request) error {
 	redirectTokenMutex.Unlock()
 
 	// Redirect to the actual URL
-	r.RequestCtx.Redirect(rt.URL, fasthttp.StatusFound)
-	return nil
+	http.Redirect(w, r, rt.URL, http.StatusFound)
+	return
 }
 
 // executeWebhookAction executes a webhook action

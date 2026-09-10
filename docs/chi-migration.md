@@ -24,7 +24,7 @@ Calling / IVR features are **not** in scope for deletion; they keep working thro
 
 1. **`internal/httpapi`** owns the chi router and route mounting.
 2. **`httpapi.Wrap`** adapts remaining fastglue handlers → `http.Handler`.
-3. **Native slices** (no Wrap): health/ready, auth session, `/api/me*`, current org, users CRUD, roles, API keys, accounts, contacts (+ tags/notes/messages), media serve, templates, WhatsApp flows, WebSocket, SPA.
+3. **Native slices** (no Wrap): health/ready, auth session, `/api/me*`, current org, users CRUD, roles, API keys, accounts, contacts (+ tags/notes/messages), media serve, templates, WhatsApp flows, campaigns, chatbot (+ transfers/sessions), Meta webhook, outbound webhooks, custom actions, WebSocket, SPA.
 
 ## Progress
 
@@ -102,25 +102,47 @@ Chi edge, Wrap shim, stdlib middleware, native WebSocket + SPA.
 | `POST /api/flows/{id}/{save-to-meta,publish,deprecate,duplicate}`, `POST /api/flows/sync` | `SaveFlowToMeta`, `PublishFlow`, `DeprecateFlow`, `DuplicateFlow`, `SyncFlows` | **native** |
 | `GET /api/analytics/messages`, `GET /api/analytics/chatbot` | `GetMessageAnalytics`, `GetChatbotAnalytics` (stubs) | **native** |
 
+
+### Phase 2 batch 5 — native (no Wrap)
+
+| Route(s) | Handler | Status |
+|----------|---------|--------|
+| `GET/POST /api/campaigns`, `GET/PUT/DELETE /api/campaigns/{id}` | `ListCampaigns`, `CreateCampaign`, `GetCampaign`, `UpdateCampaign`, `DeleteCampaign` | **native** |
+| `POST /api/campaigns/{id}/{start,pause,cancel,retry-failed}` | `StartCampaign`, `PauseCampaign`, `CancelCampaign`, `RetryFailed` | **native** |
+| `GET /api/campaigns/{id}/progress` | `GetCampaign` | **native** |
+| `POST/GET .../recipients`, `DELETE .../recipients/{recipientId}` | `ImportRecipients`, `GetCampaignRecipients`, `DeleteCampaignRecipient` | **native** |
+| `POST/GET /api/campaigns/{id}/media` | `UploadCampaignMedia`, `ServeCampaignMedia` | **native** |
+| `GET/PUT /api/chatbot/settings` | `GetChatbotSettings`, `UpdateChatbotSettings` | **native** |
+| `GET/POST /api/chatbot/keywords`, `GET/PUT/DELETE .../{id}` | keyword rule CRUD | **native** |
+| `GET/POST /api/chatbot/flows`, `GET/PUT/DELETE .../{id}` | chatbot flow CRUD | **native** |
+| `GET/POST /api/chatbot/ai-contexts`, `GET/PUT/DELETE .../{id}` | AI context CRUD | **native** |
+| `GET/POST /api/chatbot/transfers`, pick/resume/assign | agent transfer handlers | **native** |
+| `GET /api/chatbot/sessions`, `GET .../{id}` | `ListChatbotSessions`, `GetChatbotSession` | **native** |
+| `GET/POST /api/webhook` | `WebhookVerify`, `WebhookHandler` (Meta) | **native** |
+| `GET/POST /api/webhooks`, `GET/PUT/DELETE .../{id}`, `POST .../test` | outbound webhook mgmt | **native** |
+| `GET /api/custom-actions/redirect/{token}` | `CustomActionRedirect` | **native** |
+| `GET/POST /api/custom-actions`, CRUD + execute | custom action handlers | **native** |
+
+
 ### Leftovers (still Wrap)
 
 - **SSO**: `GetPublicSSOProviders`, `InitSSO`, `CallbackSSO` (still use fasthttp `setAuthCookies`).
 - **Org admin CRUD**: `ListOrganizations`, `CreateOrganization`, members, settings, audio upload.
-- Campaigns, chatbot (settings/keywords/flows/AI/transfers/sessions), teams, audit logs, canned responses.
-- Analytics (dashboard/agents/meta), widgets, webhooks, custom actions, catalog.
-- Import/export, Meta webhook verify/handler, embedded signup config.
+- Teams, audit logs, canned responses.
+- Analytics (dashboard/agents/meta), widgets, catalog.
+- Import/export, embedded signup config.
 - Calling / IVR / call-logs / call-transfers / outgoing calls (last).
 
-### Counts (batch 4)
+### Counts (batch 5)
 
-- Native `http.HandlerFunc` handlers: **87**
-- Remaining `func(*fastglue.Request) error` handlers: **141**
-- Chi routes without Wrap: **88**
-- Chi routes still using Wrap: **138**
+- Native `http.HandlerFunc` handlers: **140**
+- Remaining `func(*fastglue.Request) error` handlers: **85**
+- Chi routes without Wrap: **147**
+- Chi routes still using Wrap: **86**
 
 ### Next
 
-Batch 5: campaigns / chatbot / teams → org admin + SSO → calling/IVR last → Phase 3 delete Wrap.
+Batch 6: teams / canned / audit / analytics / widgets / org admin + SSO → calling/IVR last → Phase 3 delete Wrap.
 
 ## Non-goals / constraints
 

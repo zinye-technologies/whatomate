@@ -592,7 +592,7 @@ func TestWebhookHandler_smb_message_echoes(t *testing.T) {
 	req.RequestCtx.Request.SetBody(body)
 
 	// Execute WebhookHandler
-	require.NoError(t, app.WebhookHandler(req))
+	testutil.InvokeHTTP(t, app.WebhookHandler, req)
 
 	// Verify contact was created
 	var contact models.Contact
@@ -658,7 +658,7 @@ func TestWebhookHandler_smb_app_state_sync(t *testing.T) {
 	req.RequestCtx.Request.Header.SetContentType("application/json")
 	req.RequestCtx.Request.SetBody(bodyAdd)
 
-	require.NoError(t, app.WebhookHandler(req))
+	testutil.InvokeHTTP(t, app.WebhookHandler, req)
 
 	// Verify contact was synced (add)
 	var contact models.Contact
@@ -692,7 +692,7 @@ func TestWebhookHandler_smb_app_state_sync(t *testing.T) {
 	reqRemove.RequestCtx.Request.Header.SetContentType("application/json")
 	reqRemove.RequestCtx.Request.SetBody(bodyRemove)
 
-	require.NoError(t, app.WebhookHandler(reqRemove))
+	testutil.InvokeHTTP(t, app.WebhookHandler, reqRemove)
 
 	// Verify contact was soft-deleted (remove)
 	var checkUnscoped models.Contact

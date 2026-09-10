@@ -49,8 +49,7 @@ func TestApp_ListWebhooks_Success(t *testing.T) {
 	req := testutil.NewGETRequest(t)
 	testutil.SetAuthContext(req, org.ID, user.ID)
 
-	err := app.ListWebhooks(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.ListWebhooks, req)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	var resp struct {
@@ -59,7 +58,7 @@ func TestApp_ListWebhooks_Success(t *testing.T) {
 			AvailableEvents []map[string]string        `json:"available_events"`
 		} `json:"data"`
 	}
-	err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+	err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 	require.NoError(t, err)
 	assert.Len(t, resp.Data.Webhooks, 2)
 
@@ -81,8 +80,7 @@ func TestApp_ListWebhooks_Empty(t *testing.T) {
 	req := testutil.NewGETRequest(t)
 	testutil.SetAuthContext(req, org.ID, user.ID)
 
-	err := app.ListWebhooks(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.ListWebhooks, req)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	var resp struct {
@@ -90,7 +88,7 @@ func TestApp_ListWebhooks_Empty(t *testing.T) {
 			Webhooks []handlers.WebhookResponse `json:"webhooks"`
 		} `json:"data"`
 	}
-	err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+	err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 	require.NoError(t, err)
 	assert.Len(t, resp.Data.Webhooks, 0)
 }
@@ -111,23 +109,21 @@ func TestApp_ListWebhooks_OrgIsolation(t *testing.T) {
 	// org1 should see 2
 	req1 := testutil.NewGETRequest(t)
 	testutil.SetAuthContext(req1, org1.ID, user1.ID)
-	err := app.ListWebhooks(req1)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.ListWebhooks, req1)
 
 	var resp1 struct {
 		Data struct {
 			Webhooks []handlers.WebhookResponse `json:"webhooks"`
 		} `json:"data"`
 	}
-	err = json.Unmarshal(testutil.GetResponseBody(req1), &resp1)
+	err := json.Unmarshal(testutil.GetResponseBody(req1), &resp1)
 	require.NoError(t, err)
 	assert.Len(t, resp1.Data.Webhooks, 2)
 
 	// org2 should see 1
 	req2 := testutil.NewGETRequest(t)
 	testutil.SetAuthContext(req2, org2.ID, user2.ID)
-	err = app.ListWebhooks(req2)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.ListWebhooks, req2)
 
 	var resp2 struct {
 		Data struct {
@@ -147,8 +143,7 @@ func TestApp_ListWebhooks_Unauthorized(t *testing.T) {
 	req := testutil.NewGETRequest(t)
 	// No auth context
 
-	err := app.ListWebhooks(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.ListWebhooks, req)
 	assert.Equal(t, fasthttp.StatusUnauthorized, testutil.GetResponseStatusCode(req))
 }
 
@@ -166,14 +161,13 @@ func TestApp_GetWebhook_Success(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, user.ID)
 	testutil.SetPathParam(req, "id", wh.ID.String())
 
-	err := app.GetWebhook(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.GetWebhook, req)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	var resp struct {
 		Data handlers.WebhookResponse `json:"data"`
 	}
-	err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+	err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 	require.NoError(t, err)
 	assert.Equal(t, wh.ID, resp.Data.ID)
 	assert.Equal(t, "My Hook", resp.Data.Name)
@@ -195,8 +189,7 @@ func TestApp_GetWebhook_NotFound(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, user.ID)
 	testutil.SetPathParam(req, "id", uuid.New().String())
 
-	err := app.GetWebhook(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.GetWebhook, req)
 	assert.Equal(t, fasthttp.StatusNotFound, testutil.GetResponseStatusCode(req))
 }
 
@@ -211,8 +204,7 @@ func TestApp_GetWebhook_InvalidID(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, user.ID)
 	testutil.SetPathParam(req, "id", "not-a-uuid")
 
-	err := app.GetWebhook(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.GetWebhook, req)
 	assert.Equal(t, fasthttp.StatusBadRequest, testutil.GetResponseStatusCode(req))
 }
 
@@ -231,8 +223,7 @@ func TestApp_GetWebhook_CrossOrgIsolation(t *testing.T) {
 	testutil.SetAuthContext(req, org2.ID, user2.ID)
 	testutil.SetPathParam(req, "id", wh.ID.String())
 
-	err := app.GetWebhook(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.GetWebhook, req)
 	assert.Equal(t, fasthttp.StatusNotFound, testutil.GetResponseStatusCode(req))
 }
 
@@ -255,14 +246,13 @@ func TestApp_CreateWebhook_Success(t *testing.T) {
 	})
 	testutil.SetAuthContext(req, org.ID, user.ID)
 
-	err := app.CreateWebhook(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.CreateWebhook, req)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	var resp struct {
 		Data handlers.WebhookResponse `json:"data"`
 	}
-	err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+	err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 	require.NoError(t, err)
 	assert.Equal(t, "Production Hook", resp.Data.Name)
 	assert.Equal(t, "https://api.example.com/webhook", resp.Data.URL)
@@ -293,8 +283,7 @@ func TestApp_CreateWebhook_MissingName(t *testing.T) {
 	})
 	testutil.SetAuthContext(req, org.ID, user.ID)
 
-	err := app.CreateWebhook(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.CreateWebhook, req)
 	assert.Equal(t, fasthttp.StatusBadRequest, testutil.GetResponseStatusCode(req))
 }
 
@@ -311,8 +300,7 @@ func TestApp_CreateWebhook_MissingURL(t *testing.T) {
 	})
 	testutil.SetAuthContext(req, org.ID, user.ID)
 
-	err := app.CreateWebhook(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.CreateWebhook, req)
 	assert.Equal(t, fasthttp.StatusBadRequest, testutil.GetResponseStatusCode(req))
 }
 
@@ -329,8 +317,7 @@ func TestApp_CreateWebhook_MissingEvents(t *testing.T) {
 	})
 	testutil.SetAuthContext(req, org.ID, user.ID)
 
-	err := app.CreateWebhook(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.CreateWebhook, req)
 	assert.Equal(t, fasthttp.StatusBadRequest, testutil.GetResponseStatusCode(req))
 }
 
@@ -348,8 +335,7 @@ func TestApp_CreateWebhook_EmptyEvents(t *testing.T) {
 	})
 	testutil.SetAuthContext(req, org.ID, user.ID)
 
-	err := app.CreateWebhook(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.CreateWebhook, req)
 	assert.Equal(t, fasthttp.StatusBadRequest, testutil.GetResponseStatusCode(req))
 }
 
@@ -365,8 +351,7 @@ func TestApp_CreateWebhook_Unauthorized(t *testing.T) {
 	})
 	// No auth context
 
-	err := app.CreateWebhook(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.CreateWebhook, req)
 	assert.Equal(t, fasthttp.StatusUnauthorized, testutil.GetResponseStatusCode(req))
 }
 
@@ -390,14 +375,13 @@ func TestApp_UpdateWebhook_Success(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, user.ID)
 	testutil.SetPathParam(req, "id", wh.ID.String())
 
-	err := app.UpdateWebhook(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.UpdateWebhook, req)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	var resp struct {
 		Data handlers.WebhookResponse `json:"data"`
 	}
-	err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+	err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 	require.NoError(t, err)
 	assert.Equal(t, wh.ID, resp.Data.ID)
 	assert.Equal(t, "Updated Name", resp.Data.Name)
@@ -429,14 +413,13 @@ func TestApp_UpdateWebhook_PartialUpdate(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, user.ID)
 	testutil.SetPathParam(req, "id", wh.ID.String())
 
-	err := app.UpdateWebhook(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.UpdateWebhook, req)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	var resp struct {
 		Data handlers.WebhookResponse `json:"data"`
 	}
-	err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+	err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 	require.NoError(t, err)
 	assert.Equal(t, "Only Name Changed", resp.Data.Name)
 	// Original values preserved
@@ -458,8 +441,7 @@ func TestApp_UpdateWebhook_NotFound(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, user.ID)
 	testutil.SetPathParam(req, "id", uuid.New().String())
 
-	err := app.UpdateWebhook(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.UpdateWebhook, req)
 	assert.Equal(t, fasthttp.StatusNotFound, testutil.GetResponseStatusCode(req))
 }
 
@@ -477,8 +459,7 @@ func TestApp_UpdateWebhook_InvalidID(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, user.ID)
 	testutil.SetPathParam(req, "id", "not-a-uuid")
 
-	err := app.UpdateWebhook(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.UpdateWebhook, req)
 	assert.Equal(t, fasthttp.StatusBadRequest, testutil.GetResponseStatusCode(req))
 }
 
@@ -496,8 +477,7 @@ func TestApp_DeleteWebhook_Success(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, user.ID)
 	testutil.SetPathParam(req, "id", wh.ID.String())
 
-	err := app.DeleteWebhook(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.DeleteWebhook, req)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	var resp struct {
@@ -505,7 +485,7 @@ func TestApp_DeleteWebhook_Success(t *testing.T) {
 			Message string `json:"message"`
 		} `json:"data"`
 	}
-	err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+	err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 	require.NoError(t, err)
 	assert.Equal(t, "Webhook deleted successfully", resp.Data.Message)
 
@@ -526,8 +506,7 @@ func TestApp_DeleteWebhook_NotFound(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, user.ID)
 	testutil.SetPathParam(req, "id", uuid.New().String())
 
-	err := app.DeleteWebhook(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.DeleteWebhook, req)
 	assert.Equal(t, fasthttp.StatusNotFound, testutil.GetResponseStatusCode(req))
 }
 
@@ -542,8 +521,7 @@ func TestApp_DeleteWebhook_InvalidID(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, user.ID)
 	testutil.SetPathParam(req, "id", "not-a-uuid")
 
-	err := app.DeleteWebhook(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.DeleteWebhook, req)
 	assert.Equal(t, fasthttp.StatusBadRequest, testutil.GetResponseStatusCode(req))
 }
 
@@ -562,8 +540,7 @@ func TestApp_DeleteWebhook_CrossOrgIsolation(t *testing.T) {
 	testutil.SetAuthContext(req, org2.ID, user2.ID)
 	testutil.SetPathParam(req, "id", wh.ID.String())
 
-	err := app.DeleteWebhook(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.DeleteWebhook, req)
 	assert.Equal(t, fasthttp.StatusNotFound, testutil.GetResponseStatusCode(req))
 
 	// Verify the webhook still exists in org1
@@ -598,8 +575,7 @@ func TestApp_TestWebhook_Success(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, user.ID)
 	testutil.SetPathParam(req, "id", wh.ID.String())
 
-	err := app.TestWebhook(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.TestWebhook, req)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	var resp struct {
@@ -607,7 +583,7 @@ func TestApp_TestWebhook_Success(t *testing.T) {
 			Message string `json:"message"`
 		} `json:"data"`
 	}
-	err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+	err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 	require.NoError(t, err)
 	assert.Equal(t, "Test webhook sent successfully", resp.Data.Message)
 
@@ -647,8 +623,7 @@ func TestApp_TestWebhook_ServerError(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, user.ID)
 	testutil.SetPathParam(req, "id", wh.ID.String())
 
-	err := app.TestWebhook(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.TestWebhook, req)
 	assert.Equal(t, fasthttp.StatusBadGateway, testutil.GetResponseStatusCode(req))
 }
 
@@ -663,8 +638,7 @@ func TestApp_TestWebhook_NotFound(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, user.ID)
 	testutil.SetPathParam(req, "id", uuid.New().String())
 
-	err := app.TestWebhook(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.TestWebhook, req)
 	assert.Equal(t, fasthttp.StatusNotFound, testutil.GetResponseStatusCode(req))
 }
 
@@ -676,8 +650,7 @@ func TestApp_TestWebhook_Unauthorized(t *testing.T) {
 	req := testutil.NewJSONRequest(t, nil)
 	// No auth context
 
-	err := app.TestWebhook(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.TestWebhook, req)
 	assert.Equal(t, fasthttp.StatusUnauthorized, testutil.GetResponseStatusCode(req))
 }
 
@@ -697,13 +670,12 @@ func TestWebhookToResponse_HasSecretTrue(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, user.ID)
 	testutil.SetPathParam(req, "id", wh.ID.String())
 
-	err := app.GetWebhook(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.GetWebhook, req)
 
 	var resp struct {
 		Data handlers.WebhookResponse `json:"data"`
 	}
-	err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+	err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 	require.NoError(t, err)
 	assert.True(t, resp.Data.HasSecret, "webhook with secret should have has_secret=true")
 }
@@ -732,13 +704,12 @@ func TestWebhookToResponse_HasSecretFalse(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, user.ID)
 	testutil.SetPathParam(req, "id", wh.ID.String())
 
-	err := app.GetWebhook(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.GetWebhook, req)
 
 	var resp struct {
 		Data handlers.WebhookResponse `json:"data"`
 	}
-	err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+	err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 	require.NoError(t, err)
 	assert.False(t, resp.Data.HasSecret, "webhook without secret should have has_secret=false")
 }
