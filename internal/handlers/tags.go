@@ -4,9 +4,9 @@ import (
 	"net/url"
 	"strings"
 
+	"github.com/go-chi/chi/v5"
 	"github.com/shridarpatil/whatomate/internal/models"
-	"github.com/valyala/fasthttp"
-	"github.com/zerodha/fastglue"
+	"net/http"
 )
 
 // TagRequest represents the request body for creating/updating a tag
@@ -24,19 +24,20 @@ type TagResponse struct {
 }
 
 // ListTags returns all tags for the organization
-func (a *App) ListTags(r *fastglue.Request) error {
-	orgID, _, err := a.requireAuth(r, models.ResourceTags, models.ActionRead)
+func (a *App) ListTags(w http.ResponseWriter, r *http.Request) {
+	orgID, _, err := a.requireAuthHTTP(w, r, models.ResourceTags, models.ActionRead)
 	if err != nil {
-		return nil
+		return
 	}
 
-	pg := parsePagination(r)
-	search := strings.ToLower(string(r.RequestCtx.QueryArgs().Peek("search")))
+	pg := parsePaginationHTTP(r)
+	search := strings.ToLower(r.URL.Query().Get("search"))
 
 	tags, err := a.getTagsCached(orgID)
 	if err != nil {
 		a.Log.Error("Failed to list tags", "error", err)
-		return r.SendErrorEnvelope(fasthttp.StatusInternalServerError, "Failed to list tags", nil, "")
+		SendErrorEnvelope(w, http.StatusInternalServerError, "Failed to list tags", nil, "")
+		return
 	}
 
 	// Apply search filter (case-insensitive) - search by name or color
@@ -68,37 +69,42 @@ func (a *App) ListTags(r *fastglue.Request) error {
 		result = append(result, tagToResponse(tags[i]))
 	}
 
-	return r.SendEnvelope(listEnvelope("tags", result, total, pg))
+	SendEnvelope(w, listEnvelope("tags", result, total, pg))
+	return
 }
 
 // CreateTag creates a new tag
-func (a *App) CreateTag(r *fastglue.Request) error {
-	orgID, _, err := a.requireAuth(r, models.ResourceTags, models.ActionWrite)
+func (a *App) CreateTag(w http.ResponseWriter, r *http.Request) {
+	orgID, _, err := a.requireAuthHTTP(w, r, models.ResourceTags, models.ActionWrite)
 	if err != nil {
-		return nil
+		return
 	}
 
 	var req TagRequest
-	if err := a.decodeRequest(r, &req); err != nil {
-		return nil
+	if err := a.decodeRequestHTTP(w, r, &req); err != nil {
+		return
 	}
 
 	if req.Name == "" {
-		return r.SendErrorEnvelope(fasthttp.StatusBadRequest, "name is required", nil, "")
+		SendErrorEnvelope(w, http.StatusBadRequest, "name is required", nil, "")
+		return
 	}
 
 	if len(req.Name) > 50 {
-		return r.SendErrorEnvelope(fasthttp.StatusBadRequest, "name must be at most 50 characters", nil, "")
+		SendErrorEnvelope(w, http.StatusBadRequest, "name must be at most 50 characters", nil, "")
+		return
 	}
 
 	if !models.IsValidTagColor(req.Color) {
-		return r.SendErrorEnvelope(fasthttp.StatusBadRequest, "invalid color. Valid colors: blue, red, green, yellow, purple, gray", nil, "")
+		SendErrorEnvelope(w, http.StatusBadRequest, "invalid color. Valid colors: blue, red, green, yellow, purple, gray", nil, "")
+		return
 	}
 
 	// Check for duplicate name
 	var existing models.Tag
 	if err := a.DB.Where("organization_id = ? AND name = ?", orgID, req.Name).First(&existing).Error; err == nil {
-		return r.SendErrorEnvelope(fasthttp.StatusConflict, "Tag with this name already exists", nil, "")
+		SendErrorEnvelope(w, http.StatusConflict, "Tag with this name already exists", nil, "")
+		return
 	}
 
 	tag := models.Tag{
@@ -109,52 +115,59 @@ func (a *App) CreateTag(r *fastglue.Request) error {
 
 	if err := a.DB.Create(&tag).Error; err != nil {
 		a.Log.Error("Failed to create tag", "error", err)
-		return r.SendErrorEnvelope(fasthttp.StatusInternalServerError, "Failed to create tag", nil, "")
+		SendErrorEnvelope(w, http.StatusInternalServerError, "Failed to create tag", nil, "")
+		return
 	}
 
 	// Invalidate cache
 	a.InvalidateTagsCache(orgID)
 
-	return r.SendEnvelope(tagToResponse(tag))
+	SendEnvelope(w, tagToResponse(tag))
+	return
 }
 
 // UpdateTag updates an existing tag
-func (a *App) UpdateTag(r *fastglue.Request) error {
-	orgID, _, err := a.requireAuth(r, models.ResourceTags, models.ActionWrite)
+func (a *App) UpdateTag(w http.ResponseWriter, r *http.Request) {
+	orgID, _, err := a.requireAuthHTTP(w, r, models.ResourceTags, models.ActionWrite)
 	if err != nil {
-		return nil
+		return
 	}
 
 	// Get tag name from path (URL-encoded)
-	tagNameEncoded := r.RequestCtx.UserValue("name").(string)
+	tagNameEncoded := chi.URLParam(r, "name")
 	tagName, err := url.PathUnescape(tagNameEncoded)
 	if err != nil {
-		return r.SendErrorEnvelope(fasthttp.StatusBadRequest, "Invalid tag name", nil, "")
+		SendErrorEnvelope(w, http.StatusBadRequest, "Invalid tag name", nil, "")
+		return
 	}
 
 	var tag models.Tag
 	if err := a.DB.Where("organization_id = ? AND name = ?", orgID, tagName).First(&tag).Error; err != nil {
-		return r.SendErrorEnvelope(fasthttp.StatusNotFound, "Tag not found", nil, "")
+		SendErrorEnvelope(w, http.StatusNotFound, "Tag not found", nil, "")
+		return
 	}
 
 	var req TagRequest
-	if err := a.decodeRequest(r, &req); err != nil {
-		return nil
+	if err := a.decodeRequestHTTP(w, r, &req); err != nil {
+		return
 	}
 
 	// Validate color if provided
 	if req.Color != "" && !models.IsValidTagColor(req.Color) {
-		return r.SendErrorEnvelope(fasthttp.StatusBadRequest, "invalid color. Valid colors: blue, red, green, yellow, purple, gray", nil, "")
+		SendErrorEnvelope(w, http.StatusBadRequest, "invalid color. Valid colors: blue, red, green, yellow, purple, gray", nil, "")
+		return
 	}
 
 	// Check if renaming and new name already exists
 	if req.Name != "" && req.Name != tag.Name {
 		if len(req.Name) > 50 {
-			return r.SendErrorEnvelope(fasthttp.StatusBadRequest, "name must be at most 50 characters", nil, "")
+			SendErrorEnvelope(w, http.StatusBadRequest, "name must be at most 50 characters", nil, "")
+			return
 		}
 		var existing models.Tag
 		if err := a.DB.Where("organization_id = ? AND name = ?", orgID, req.Name).First(&existing).Error; err == nil {
-			return r.SendErrorEnvelope(fasthttp.StatusConflict, "Tag with this name already exists", nil, "")
+			SendErrorEnvelope(w, http.StatusConflict, "Tag with this name already exists", nil, "")
+			return
 		}
 	}
 
@@ -181,7 +194,8 @@ func (a *App) UpdateTag(r *fastglue.Request) error {
 		// Delete old tag
 		if err := a.DB.Delete(&tag).Error; err != nil {
 			a.Log.Error("Failed to delete old tag", "error", err)
-			return r.SendErrorEnvelope(fasthttp.StatusInternalServerError, "Failed to update tag", nil, "")
+			SendErrorEnvelope(w, http.StatusInternalServerError, "Failed to update tag", nil, "")
+			return
 		}
 
 		// Create new tag
@@ -196,13 +210,15 @@ func (a *App) UpdateTag(r *fastglue.Request) error {
 
 		if err := a.DB.Create(&newTag).Error; err != nil {
 			a.Log.Error("Failed to create renamed tag", "error", err)
-			return r.SendErrorEnvelope(fasthttp.StatusInternalServerError, "Failed to update tag", nil, "")
+			SendErrorEnvelope(w, http.StatusInternalServerError, "Failed to update tag", nil, "")
+			return
 		}
 
 		// Invalidate cache
 		a.InvalidateTagsCache(orgID)
 
-		return r.SendEnvelope(tagToResponse(newTag))
+		SendEnvelope(w, tagToResponse(newTag))
+		return
 	}
 
 	// Just updating color - use Updates for composite primary key
@@ -211,7 +227,8 @@ func (a *App) UpdateTag(r *fastglue.Request) error {
 			Where("organization_id = ? AND name = ?", orgID, tagName).
 			Update("color", req.Color).Error; err != nil {
 			a.Log.Error("Failed to update tag", "error", err)
-			return r.SendErrorEnvelope(fasthttp.StatusInternalServerError, "Failed to update tag", nil, "")
+			SendErrorEnvelope(w, http.StatusInternalServerError, "Failed to update tag", nil, "")
+			return
 		}
 		tag.Color = req.Color
 
@@ -224,26 +241,29 @@ func (a *App) UpdateTag(r *fastglue.Request) error {
 		a.Log.Error("Failed to reload tag", "error", err)
 	}
 
-	return r.SendEnvelope(tagToResponse(tag))
+	SendEnvelope(w, tagToResponse(tag))
+	return
 }
 
 // DeleteTag deletes a tag
-func (a *App) DeleteTag(r *fastglue.Request) error {
-	orgID, _, err := a.requireAuth(r, models.ResourceTags, models.ActionDelete)
+func (a *App) DeleteTag(w http.ResponseWriter, r *http.Request) {
+	orgID, _, err := a.requireAuthHTTP(w, r, models.ResourceTags, models.ActionDelete)
 	if err != nil {
-		return nil
+		return
 	}
 
 	// Get tag name from path (URL-encoded)
-	tagNameEncoded := r.RequestCtx.UserValue("name").(string)
+	tagNameEncoded := chi.URLParam(r, "name")
 	tagName, err := url.PathUnescape(tagNameEncoded)
 	if err != nil {
-		return r.SendErrorEnvelope(fasthttp.StatusBadRequest, "Invalid tag name", nil, "")
+		SendErrorEnvelope(w, http.StatusBadRequest, "Invalid tag name", nil, "")
+		return
 	}
 
 	var tag models.Tag
 	if err := a.DB.Where("organization_id = ? AND name = ?", orgID, tagName).First(&tag).Error; err != nil {
-		return r.SendErrorEnvelope(fasthttp.StatusNotFound, "Tag not found", nil, "")
+		SendErrorEnvelope(w, http.StatusNotFound, "Tag not found", nil, "")
+		return
 	}
 
 	// Remove tag from all contacts that have it
@@ -263,13 +283,15 @@ func (a *App) DeleteTag(r *fastglue.Request) error {
 
 	if err := a.DB.Delete(&tag).Error; err != nil {
 		a.Log.Error("Failed to delete tag", "error", err)
-		return r.SendErrorEnvelope(fasthttp.StatusInternalServerError, "Failed to delete tag", nil, "")
+		SendErrorEnvelope(w, http.StatusInternalServerError, "Failed to delete tag", nil, "")
+		return
 	}
 
 	// Invalidate cache
 	a.InvalidateTagsCache(orgID)
 
-	return r.SendEnvelope(map[string]string{"message": "Tag deleted"})
+	SendEnvelope(w, map[string]string{"message": "Tag deleted"})
+	return
 }
 
 func tagToResponse(tag models.Tag) TagResponse {

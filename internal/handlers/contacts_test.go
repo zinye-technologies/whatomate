@@ -37,8 +37,7 @@ func TestApp_ListContacts(t *testing.T) {
 		testutil.SetQueryParam(req, "page", 1)
 		testutil.SetQueryParam(req, "limit", 2)
 
-		err := app.ListContacts(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.ListContacts, req)
 		assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 		var resp struct {
@@ -65,8 +64,7 @@ func TestApp_ListContacts(t *testing.T) {
 		req := testutil.NewGETRequest(t)
 		testutil.SetAuthContext(req, org.ID, user.ID)
 
-		err := app.ListContacts(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.ListContacts, req)
 		assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 		var resp struct {
@@ -95,8 +93,7 @@ func TestApp_ListContacts(t *testing.T) {
 		testutil.SetAuthContext(req, org.ID, user.ID)
 		testutil.SetQueryParam(req, "search", "9998887776")
 
-		err := app.ListContacts(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.ListContacts, req)
 		assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 		var resp struct {
@@ -125,8 +122,7 @@ func TestApp_ListContacts(t *testing.T) {
 		req := testutil.NewGETRequest(t)
 		testutil.SetAuthContext(req, org1.ID, user1.ID)
 
-		err := app.ListContacts(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.ListContacts, req)
 		assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 		var resp struct {
@@ -151,8 +147,7 @@ func TestApp_ListContacts(t *testing.T) {
 		req := testutil.NewGETRequest(t)
 		testutil.SetAuthContext(req, org.ID, user.ID)
 
-		err := app.ListContacts(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.ListContacts, req)
 		assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 		var resp struct {
@@ -181,8 +176,7 @@ func TestApp_ListContacts(t *testing.T) {
 		req := testutil.NewGETRequest(t)
 		testutil.SetAuthContext(req, org.ID, user.ID)
 
-		err := app.ListContacts(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.ListContacts, req)
 		assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 		var resp struct {
@@ -216,8 +210,7 @@ func TestApp_GetContact(t *testing.T) {
 		testutil.SetAuthContext(req, org.ID, user.ID)
 		testutil.SetPathParam(req, "id", contact.ID.String())
 
-		err := app.GetContact(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.GetContact, req)
 		assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 		var resp struct {
@@ -242,8 +235,7 @@ func TestApp_GetContact(t *testing.T) {
 		testutil.SetAuthContext(req, org.ID, user.ID)
 		testutil.SetPathParam(req, "id", uuid.New().String())
 
-		err := app.GetContact(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.GetContact, req)
 		assert.Equal(t, fasthttp.StatusNotFound, testutil.GetResponseStatusCode(req))
 	})
 
@@ -257,8 +249,7 @@ func TestApp_GetContact(t *testing.T) {
 		testutil.SetAuthContext(req, org.ID, user.ID)
 		testutil.SetPathParam(req, "id", "not-a-uuid")
 
-		err := app.GetContact(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.GetContact, req)
 		assert.Equal(t, fasthttp.StatusBadRequest, testutil.GetResponseStatusCode(req))
 	})
 
@@ -277,8 +268,7 @@ func TestApp_GetContact(t *testing.T) {
 		testutil.SetAuthContext(req, org1.ID, user1.ID)
 		testutil.SetPathParam(req, "id", contact.ID.String())
 
-		err := app.GetContact(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.GetContact, req)
 		assert.Equal(t, fasthttp.StatusNotFound, testutil.GetResponseStatusCode(req))
 	})
 
@@ -307,8 +297,7 @@ func TestApp_GetContact(t *testing.T) {
 		testutil.SetAuthContext(req, org.ID, user.ID)
 		testutil.SetPathParam(req, "id", contact.ID.String())
 
-		err := app.GetContact(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.GetContact, req)
 		assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 		var resp struct {
@@ -335,8 +324,7 @@ func TestApp_GetContactSessionData(t *testing.T) {
 		testutil.SetAuthContext(req, org.ID, user.ID)
 		testutil.SetPathParam(req, "id", contact.ID.String())
 
-		err := app.GetContactSessionData(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.GetContactSessionData, req)
 		assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 		var resp struct {
@@ -374,8 +362,7 @@ func TestApp_GetContactSessionData(t *testing.T) {
 		testutil.SetAuthContext(req, org.ID, user.ID)
 		testutil.SetPathParam(req, "id", contact.ID.String())
 
-		err := app.GetContactSessionData(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.GetContactSessionData, req)
 		assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 		var resp struct {
@@ -396,8 +383,7 @@ func TestApp_GetContactSessionData(t *testing.T) {
 		testutil.SetAuthContext(req, org.ID, user.ID)
 		testutil.SetPathParam(req, "id", uuid.New().String())
 
-		err := app.GetContactSessionData(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.GetContactSessionData, req)
 		assert.Equal(t, fasthttp.StatusNotFound, testutil.GetResponseStatusCode(req))
 	})
 
@@ -411,8 +397,7 @@ func TestApp_GetContactSessionData(t *testing.T) {
 		testutil.SetAuthContext(req, org.ID, user.ID)
 		testutil.SetPathParam(req, "id", "not-a-uuid")
 
-		err := app.GetContactSessionData(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.GetContactSessionData, req)
 		assert.Equal(t, fasthttp.StatusBadRequest, testutil.GetResponseStatusCode(req))
 	})
 
@@ -428,8 +413,7 @@ func TestApp_GetContactSessionData(t *testing.T) {
 		testutil.SetAuthContext(req, org1.ID, user1.ID)
 		testutil.SetPathParam(req, "id", contact.ID.String())
 
-		err := app.GetContactSessionData(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.GetContactSessionData, req)
 		assert.Equal(t, fasthttp.StatusNotFound, testutil.GetResponseStatusCode(req))
 	})
 }
@@ -455,8 +439,7 @@ func TestApp_AssignContact(t *testing.T) {
 		testutil.SetAuthContext(req, org.ID, user.ID)
 		testutil.SetPathParam(req, "id", contact.ID.String())
 
-		err := app.AssignContact(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.AssignContact, req)
 		assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 		var resp struct {
@@ -494,8 +477,7 @@ func TestApp_AssignContact(t *testing.T) {
 		testutil.SetAuthContext(req, org.ID, user.ID)
 		testutil.SetPathParam(req, "id", contact.ID.String())
 
-		err := app.AssignContact(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.AssignContact, req)
 		assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 		var resp struct {
@@ -532,8 +514,7 @@ func TestApp_AssignContact(t *testing.T) {
 		testutil.SetAuthContext(req, org.ID, user.ID)
 		testutil.SetPathParam(req, "id", contact.ID.String())
 
-		err := app.AssignContact(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.AssignContact, req)
 		assert.Equal(t, fasthttp.StatusForbidden, testutil.GetResponseStatusCode(req))
 	})
 
@@ -550,8 +531,7 @@ func TestApp_AssignContact(t *testing.T) {
 		testutil.SetAuthContext(req, org.ID, user.ID)
 		testutil.SetPathParam(req, "id", uuid.New().String())
 
-		err := app.AssignContact(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.AssignContact, req)
 		assert.Equal(t, fasthttp.StatusNotFound, testutil.GetResponseStatusCode(req))
 	})
 
@@ -567,8 +547,7 @@ func TestApp_AssignContact(t *testing.T) {
 		testutil.SetAuthContext(req, org.ID, user.ID)
 		testutil.SetPathParam(req, "id", "not-a-uuid")
 
-		err := app.AssignContact(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.AssignContact, req)
 		assert.Equal(t, fasthttp.StatusBadRequest, testutil.GetResponseStatusCode(req))
 	})
 
@@ -585,8 +564,7 @@ func TestApp_AssignContact(t *testing.T) {
 		testutil.SetAuthContext(req, org.ID, user.ID)
 		testutil.SetPathParam(req, "id", contact.ID.String())
 
-		err := app.AssignContact(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.AssignContact, req)
 		assert.Equal(t, fasthttp.StatusBadRequest, testutil.GetResponseStatusCode(req))
 	})
 
@@ -607,8 +585,7 @@ func TestApp_AssignContact(t *testing.T) {
 		testutil.SetAuthContext(req, org1.ID, user1.ID)
 		testutil.SetPathParam(req, "id", contact.ID.String())
 
-		err := app.AssignContact(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.AssignContact, req)
 		assert.Equal(t, fasthttp.StatusNotFound, testutil.GetResponseStatusCode(req))
 	})
 }
@@ -1367,8 +1344,7 @@ func TestApp_ListContacts_SearchByProfileName(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, user.ID)
 	testutil.SetQueryParam(req, "search", "UniqueAlpha")
 
-	err := app.ListContacts(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.ListContacts, req)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	var resp struct {
@@ -1401,8 +1377,7 @@ func TestApp_ListContacts_Page2(t *testing.T) {
 	testutil.SetQueryParam(req, "page", 2)
 	testutil.SetQueryParam(req, "limit", 2)
 
-	err := app.ListContacts(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.ListContacts, req)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	var resp struct {
@@ -1496,8 +1471,7 @@ func TestApp_GetContact_WithAssignedUser(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, user.ID)
 	testutil.SetPathParam(req, "id", contact.ID.String())
 
-	err := app.GetContact(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.GetContact, req)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	var resp struct {
@@ -1563,8 +1537,7 @@ func TestApp_GetContact_MultipleUnreadMessages(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, user.ID)
 	testutil.SetPathParam(req, "id", contact.ID.String())
 
-	err := app.GetContact(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.GetContact, req)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	var resp struct {
@@ -1606,8 +1579,7 @@ func TestApp_GetContactSessionData_CompletedSession(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, user.ID)
 	testutil.SetPathParam(req, "id", contact.ID.String())
 
-	err := app.GetContactSessionData(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.GetContactSessionData, req)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	var resp struct {
@@ -1660,8 +1632,7 @@ func TestApp_GetContactSessionData_MostRecentSessionReturned(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, user.ID)
 	testutil.SetPathParam(req, "id", contact.ID.String())
 
-	err := app.GetContactSessionData(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.GetContactSessionData, req)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	var resp struct {
@@ -1696,8 +1667,7 @@ func TestApp_AssignContact_ReassignToAnotherUser(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, user.ID)
 	testutil.SetPathParam(req, "id", contact.ID.String())
 
-	err := app.AssignContact(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.AssignContact, req)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	var resp struct {
@@ -1735,8 +1705,7 @@ func TestApp_AssignContact_AssignUserFromDifferentOrg(t *testing.T) {
 	testutil.SetAuthContext(req, org1.ID, user.ID)
 	testutil.SetPathParam(req, "id", contact.ID.String())
 
-	err := app.AssignContact(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.AssignContact, req)
 	// User from a different org should not be found
 	assert.Equal(t, fasthttp.StatusBadRequest, testutil.GetResponseStatusCode(req))
 }

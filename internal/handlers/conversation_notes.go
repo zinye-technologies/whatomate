@@ -6,8 +6,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/shridarpatil/whatomate/internal/models"
 	"github.com/shridarpatil/whatomate/internal/websocket"
-	"github.com/valyala/fasthttp"
-	"github.com/zerodha/fastglue"
+	"net/http"
 )
 
 // ConversationNoteRequest represents the request body for creating/updating a note.
@@ -27,18 +26,18 @@ type ConversationNoteResponse struct {
 }
 
 // ListConversationNotes returns paginated notes for a contact (latest at bottom).
-func (a *App) ListConversationNotes(r *fastglue.Request) error {
-	orgID, _, err := a.requireAuth(r, models.ResourceChat, models.ActionRead)
+func (a *App) ListConversationNotes(w http.ResponseWriter, r *http.Request) {
+	orgID, _, err := a.requireAuthHTTP(w, r, models.ResourceChat, models.ActionRead)
 	if err != nil {
-		return nil
+		return
 	}
 
-	contactID, err := parsePathUUID(r, "id", "contact")
+	contactID, err := parsePathUUIDHTTP(w, r, "id", "contact")
 	if err != nil {
-		return nil
+		return
 	}
 
-	pg := parsePaginationWithDefaults(r, 30, 100)
+	pg := parsePaginationWithDefaultsHTTP(r, 30, 100)
 	limit := pg.Limit
 
 	query := a.DB.Where("organization_id = ? AND contact_id = ?", orgID, contactID)
@@ -48,7 +47,7 @@ func (a *App) ListConversationNotes(r *fastglue.Request) error {
 	query.Model(&models.ConversationNote{}).Count(&total)
 
 	// Cursor-based pagination: load notes before a specific ID
-	beforeIDStr := string(r.RequestCtx.QueryArgs().Peek("before"))
+	beforeIDStr := r.URL.Query().Get("before")
 	if beforeIDStr != "" {
 		beforeID, err := uuid.Parse(beforeIDStr)
 		if err == nil {
@@ -66,8 +65,8 @@ func (a *App) ListConversationNotes(r *fastglue.Request) error {
 		Limit(limit).
 		Find(&notes).Error; err != nil {
 		a.Log.Error("Failed to list conversation notes", "error", err)
-		return r.SendErrorEnvelope(fasthttp.StatusInternalServerError,
-			"Failed to list notes", nil, "")
+		SendErrorEnvelope(w, http.StatusInternalServerError, "Failed to list notes", nil, "")
+		return
 	}
 
 	// Reverse to chronological order (oldest first)
@@ -80,32 +79,34 @@ func (a *App) ListConversationNotes(r *fastglue.Request) error {
 		result[i] = noteToResponse(n)
 	}
 
-	return r.SendEnvelope(map[string]any{
+	SendEnvelope(w, map[string]any{
 		"notes":    result,
 		"total":    total,
 		"has_more": len(notes) == limit,
 	})
+	return
 }
 
 // CreateConversationNote creates a new note on a contact.
-func (a *App) CreateConversationNote(r *fastglue.Request) error {
-	orgID, userID, err := a.requireAuth(r, models.ResourceChat, models.ActionWrite)
+func (a *App) CreateConversationNote(w http.ResponseWriter, r *http.Request) {
+	orgID, userID, err := a.requireAuthHTTP(w, r, models.ResourceChat, models.ActionWrite)
 	if err != nil {
-		return nil
+		return
 	}
 
-	contactID, err := parsePathUUID(r, "id", "contact")
+	contactID, err := parsePathUUIDHTTP(w, r, "id", "contact")
 	if err != nil {
-		return nil
+		return
 	}
 
 	var req ConversationNoteRequest
-	if err := a.decodeRequest(r, &req); err != nil {
-		return nil
+	if err := a.decodeRequestHTTP(w, r, &req); err != nil {
+		return
 	}
 
 	if req.Content == "" {
-		return r.SendErrorEnvelope(fasthttp.StatusBadRequest, "content is required", nil, "")
+		SendErrorEnvelope(w, http.StatusBadRequest, "content is required", nil, "")
+		return
 	}
 
 	note := models.ConversationNote{
@@ -117,8 +118,8 @@ func (a *App) CreateConversationNote(r *fastglue.Request) error {
 
 	if err := a.DB.Create(&note).Error; err != nil {
 		a.Log.Error("Failed to create conversation note", "error", err)
-		return r.SendErrorEnvelope(fasthttp.StatusInternalServerError,
-			"Failed to create note", nil, "")
+		SendErrorEnvelope(w, http.StatusInternalServerError, "Failed to create note", nil, "")
+		return
 	}
 
 	// Load the creator relation for the response
@@ -136,50 +137,53 @@ func (a *App) CreateConversationNote(r *fastglue.Request) error {
 		})
 	}
 
-	return r.SendEnvelope(resp)
+	SendEnvelope(w, resp)
+	return
 }
 
 // UpdateConversationNote updates an existing note (creator only).
-func (a *App) UpdateConversationNote(r *fastglue.Request) error {
-	orgID, userID, err := a.requireAuth(r, models.ResourceChat, models.ActionWrite)
+func (a *App) UpdateConversationNote(w http.ResponseWriter, r *http.Request) {
+	orgID, userID, err := a.requireAuthHTTP(w, r, models.ResourceChat, models.ActionWrite)
 	if err != nil {
-		return nil
+		return
 	}
 
-	_, err = parsePathUUID(r, "id", "contact")
+	_, err = parsePathUUIDHTTP(w, r, "id", "contact")
 	if err != nil {
-		return nil
+		return
 	}
 
-	noteID, err := parsePathUUID(r, "note_id", "note")
+	noteID, err := parsePathUUIDHTTP(w, r, "note_id", "note")
 	if err != nil {
-		return nil
+		return
 	}
 
-	note, err := findByIDAndOrg[models.ConversationNote](a.DB, r, noteID, orgID, "Note")
+	note, err := findByIDAndOrgHTTP[models.ConversationNote](a.DB, w, noteID, orgID, "Note")
 	if err != nil {
-		return nil
+		return
 	}
 
 	// Only the creator can update their own notes
 	if note.CreatedByID != userID {
-		return r.SendErrorEnvelope(fasthttp.StatusForbidden, "You can only edit your own notes", nil, "")
+		SendErrorEnvelope(w, http.StatusForbidden, "You can only edit your own notes", nil, "")
+		return
 	}
 
 	var req ConversationNoteRequest
-	if err := a.decodeRequest(r, &req); err != nil {
-		return nil
+	if err := a.decodeRequestHTTP(w, r, &req); err != nil {
+		return
 	}
 
 	if req.Content == "" {
-		return r.SendErrorEnvelope(fasthttp.StatusBadRequest, "content is required", nil, "")
+		SendErrorEnvelope(w, http.StatusBadRequest, "content is required", nil, "")
+		return
 	}
 
 	note.Content = req.Content
 	if err := a.DB.Save(note).Error; err != nil {
 		a.Log.Error("Failed to update conversation note", "error", err)
-		return r.SendErrorEnvelope(fasthttp.StatusInternalServerError,
-			"Failed to update note", nil, "")
+		SendErrorEnvelope(w, http.StatusInternalServerError, "Failed to update note", nil, "")
+		return
 	}
 
 	// Load the creator relation for the response
@@ -197,42 +201,44 @@ func (a *App) UpdateConversationNote(r *fastglue.Request) error {
 		})
 	}
 
-	return r.SendEnvelope(resp)
+	SendEnvelope(w, resp)
+	return
 }
 
 // DeleteConversationNote deletes a note (creator only).
-func (a *App) DeleteConversationNote(r *fastglue.Request) error {
-	orgID, userID, err := a.requireAuth(r, models.ResourceChat, models.ActionWrite)
+func (a *App) DeleteConversationNote(w http.ResponseWriter, r *http.Request) {
+	orgID, userID, err := a.requireAuthHTTP(w, r, models.ResourceChat, models.ActionWrite)
 	if err != nil {
-		return nil
+		return
 	}
 
-	_, err = parsePathUUID(r, "id", "contact")
+	_, err = parsePathUUIDHTTP(w, r, "id", "contact")
 	if err != nil {
-		return nil
+		return
 	}
 
-	noteID, err := parsePathUUID(r, "note_id", "note")
+	noteID, err := parsePathUUIDHTTP(w, r, "note_id", "note")
 	if err != nil {
-		return nil
+		return
 	}
 
-	note, err := findByIDAndOrg[models.ConversationNote](a.DB, r, noteID, orgID, "Note")
+	note, err := findByIDAndOrgHTTP[models.ConversationNote](a.DB, w, noteID, orgID, "Note")
 	if err != nil {
-		return nil
+		return
 	}
 
 	// Only the creator can delete their own notes
 	if note.CreatedByID != userID {
-		return r.SendErrorEnvelope(fasthttp.StatusForbidden, "You can only delete your own notes", nil, "")
+		SendErrorEnvelope(w, http.StatusForbidden, "You can only delete your own notes", nil, "")
+		return
 	}
 
 	contactID := note.ContactID
 
 	if err := a.DB.Delete(note).Error; err != nil {
 		a.Log.Error("Failed to delete conversation note", "error", err)
-		return r.SendErrorEnvelope(fasthttp.StatusInternalServerError,
-			"Failed to delete note", nil, "")
+		SendErrorEnvelope(w, http.StatusInternalServerError, "Failed to delete note", nil, "")
+		return
 	}
 
 	// Broadcast via WebSocket
@@ -246,7 +252,8 @@ func (a *App) DeleteConversationNote(r *fastglue.Request) error {
 		})
 	}
 
-	return r.SendEnvelope(map[string]string{"message": "Note deleted"})
+	SendEnvelope(w, map[string]string{"message": "Note deleted"})
+	return
 }
 
 func noteToResponse(n models.ConversationNote) ConversationNoteResponse {

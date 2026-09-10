@@ -29,8 +29,7 @@ func TestApp_ListAccounts_Success(t *testing.T) {
 	req := testutil.NewGETRequest(t)
 	testutil.SetAuthContext(req, org.ID, user.ID)
 
-	err := app.ListAccounts(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.ListAccounts, req)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	var resp struct {
@@ -38,7 +37,7 @@ func TestApp_ListAccounts_Success(t *testing.T) {
 			Accounts []handlers.AccountResponse `json:"accounts"`
 		} `json:"data"`
 	}
-	err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+	err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 	require.NoError(t, err)
 	assert.Len(t, resp.Data.Accounts, 2)
 
@@ -60,8 +59,7 @@ func TestApp_ListAccounts_Empty(t *testing.T) {
 	req := testutil.NewGETRequest(t)
 	testutil.SetAuthContext(req, org.ID, user.ID)
 
-	err := app.ListAccounts(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.ListAccounts, req)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	var resp struct {
@@ -69,7 +67,7 @@ func TestApp_ListAccounts_Empty(t *testing.T) {
 			Accounts []handlers.AccountResponse `json:"accounts"`
 		} `json:"data"`
 	}
-	err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+	err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 	require.NoError(t, err)
 	assert.Len(t, resp.Data.Accounts, 0)
 }
@@ -82,8 +80,7 @@ func TestApp_ListAccounts_Unauthorized(t *testing.T) {
 	req := testutil.NewGETRequest(t)
 	// No auth context set
 
-	err := app.ListAccounts(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.ListAccounts, req)
 	assert.Equal(t, fasthttp.StatusUnauthorized, testutil.GetResponseStatusCode(req))
 }
 
@@ -107,15 +104,14 @@ func TestApp_ListAccounts_OrgIsolation(t *testing.T) {
 	req1 := testutil.NewGETRequest(t)
 	testutil.SetAuthContext(req1, org1.ID, user1.ID)
 
-	err := app.ListAccounts(req1)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.ListAccounts, req1)
 
 	var resp1 struct {
 		Data struct {
 			Accounts []handlers.AccountResponse `json:"accounts"`
 		} `json:"data"`
 	}
-	err = json.Unmarshal(testutil.GetResponseBody(req1), &resp1)
+	err := json.Unmarshal(testutil.GetResponseBody(req1), &resp1)
 	require.NoError(t, err)
 	assert.Len(t, resp1.Data.Accounts, 2)
 
@@ -123,8 +119,7 @@ func TestApp_ListAccounts_OrgIsolation(t *testing.T) {
 	req2 := testutil.NewGETRequest(t)
 	testutil.SetAuthContext(req2, org2.ID, user2.ID)
 
-	err = app.ListAccounts(req2)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.ListAccounts, req2)
 
 	var resp2 struct {
 		Data struct {
@@ -153,14 +148,13 @@ func TestApp_CreateAccount_Success(t *testing.T) {
 	})
 	testutil.SetAuthContext(req, org.ID, user.ID)
 
-	err := app.CreateAccount(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.CreateAccount, req)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	var resp struct {
 		Data handlers.AccountResponse `json:"data"`
 	}
-	err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+	err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 	require.NoError(t, err)
 	assert.Equal(t, "My WhatsApp Account", resp.Data.Name)
 	assert.Equal(t, "123456789", resp.Data.PhoneID)
@@ -194,14 +188,13 @@ func TestApp_CreateAccount_WithOptionalFields(t *testing.T) {
 	})
 	testutil.SetAuthContext(req, org.ID, user.ID)
 
-	err := app.CreateAccount(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.CreateAccount, req)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	var resp struct {
 		Data handlers.AccountResponse `json:"data"`
 	}
-	err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+	err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 	require.NoError(t, err)
 	assert.Equal(t, "Full Account", resp.Data.Name)
 	assert.Equal(t, "my-app-id", resp.Data.AppID)
@@ -268,8 +261,7 @@ func TestApp_CreateAccount_ValidationErrors(t *testing.T) {
 			req := testutil.NewJSONRequest(t, tc.body)
 			testutil.SetAuthContext(req, org.ID, user.ID)
 
-			err := app.CreateAccount(req)
-			require.NoError(t, err)
+			testutil.InvokeHTTP(t, app.CreateAccount, req)
 			assert.Equal(t, fasthttp.StatusBadRequest, testutil.GetResponseStatusCode(req))
 		})
 	}
@@ -288,8 +280,7 @@ func TestApp_CreateAccount_Unauthorized(t *testing.T) {
 	})
 	// No auth context set
 
-	err := app.CreateAccount(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.CreateAccount, req)
 	assert.Equal(t, fasthttp.StatusUnauthorized, testutil.GetResponseStatusCode(req))
 }
 
@@ -307,14 +298,13 @@ func TestApp_GetAccount_Success(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, user.ID)
 	testutil.SetPathParam(req, "id", account.ID.String())
 
-	err := app.GetAccount(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.GetAccount, req)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	var resp struct {
 		Data handlers.AccountResponse `json:"data"`
 	}
-	err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+	err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 	require.NoError(t, err)
 	assert.Equal(t, account.ID, resp.Data.ID)
 	assert.Equal(t, account.Name, resp.Data.Name)
@@ -336,8 +326,7 @@ func TestApp_GetAccount_NotFound(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, user.ID)
 	testutil.SetPathParam(req, "id", uuid.New().String())
 
-	err := app.GetAccount(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.GetAccount, req)
 	assert.Equal(t, fasthttp.StatusNotFound, testutil.GetResponseStatusCode(req))
 }
 
@@ -352,8 +341,7 @@ func TestApp_GetAccount_InvalidID(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, user.ID)
 	testutil.SetPathParam(req, "id", "not-a-uuid")
 
-	err := app.GetAccount(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.GetAccount, req)
 	assert.Equal(t, fasthttp.StatusBadRequest, testutil.GetResponseStatusCode(req))
 }
 
@@ -376,8 +364,7 @@ func TestApp_GetAccount_CrossOrgIsolation(t *testing.T) {
 	testutil.SetAuthContext(req, org2.ID, user2.ID)
 	testutil.SetPathParam(req, "id", account.ID.String())
 
-	err := app.GetAccount(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.GetAccount, req)
 	assert.Equal(t, fasthttp.StatusNotFound, testutil.GetResponseStatusCode(req))
 }
 
@@ -402,14 +389,13 @@ func TestApp_UpdateAccount_Success(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, user.ID)
 	testutil.SetPathParam(req, "id", account.ID.String())
 
-	err := app.UpdateAccount(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.UpdateAccount, req)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	var resp struct {
 		Data handlers.AccountResponse `json:"data"`
 	}
-	err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+	err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 	require.NoError(t, err)
 	assert.Equal(t, account.ID, resp.Data.ID)
 	assert.Equal(t, "Updated Account Name", resp.Data.Name)
@@ -443,14 +429,13 @@ func TestApp_UpdateAccount_PartialUpdate(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, user.ID)
 	testutil.SetPathParam(req, "id", account.ID.String())
 
-	err := app.UpdateAccount(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.UpdateAccount, req)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	var resp struct {
 		Data handlers.AccountResponse `json:"data"`
 	}
-	err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+	err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 	require.NoError(t, err)
 	assert.Equal(t, "Only Name Changed", resp.Data.Name)
 	// Original values should be preserved
@@ -472,8 +457,7 @@ func TestApp_UpdateAccount_NotFound(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, user.ID)
 	testutil.SetPathParam(req, "id", uuid.New().String())
 
-	err := app.UpdateAccount(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.UpdateAccount, req)
 	assert.Equal(t, fasthttp.StatusNotFound, testutil.GetResponseStatusCode(req))
 }
 
@@ -490,8 +474,7 @@ func TestApp_UpdateAccount_InvalidID(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, user.ID)
 	testutil.SetPathParam(req, "id", "not-a-uuid")
 
-	err := app.UpdateAccount(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.UpdateAccount, req)
 	assert.Equal(t, fasthttp.StatusBadRequest, testutil.GetResponseStatusCode(req))
 }
 
@@ -509,8 +492,7 @@ func TestApp_DeleteAccount_Success(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, user.ID)
 	testutil.SetPathParam(req, "id", account.ID.String())
 
-	err := app.DeleteAccount(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.DeleteAccount, req)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	var resp struct {
@@ -518,7 +500,7 @@ func TestApp_DeleteAccount_Success(t *testing.T) {
 			Message string `json:"message"`
 		} `json:"data"`
 	}
-	err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+	err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 	require.NoError(t, err)
 	assert.Equal(t, "Account deleted successfully", resp.Data.Message)
 
@@ -539,8 +521,7 @@ func TestApp_DeleteAccount_NotFound(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, user.ID)
 	testutil.SetPathParam(req, "id", uuid.New().String())
 
-	err := app.DeleteAccount(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.DeleteAccount, req)
 	assert.Equal(t, fasthttp.StatusNotFound, testutil.GetResponseStatusCode(req))
 }
 
@@ -555,8 +536,7 @@ func TestApp_DeleteAccount_InvalidID(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, user.ID)
 	testutil.SetPathParam(req, "id", "not-a-uuid")
 
-	err := app.DeleteAccount(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.DeleteAccount, req)
 	assert.Equal(t, fasthttp.StatusBadRequest, testutil.GetResponseStatusCode(req))
 }
 
@@ -578,8 +558,7 @@ func TestApp_DeleteAccount_CrossOrgIsolation(t *testing.T) {
 	testutil.SetAuthContext(req, org2.ID, user2.ID)
 	testutil.SetPathParam(req, "id", account.ID.String())
 
-	err := app.DeleteAccount(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.DeleteAccount, req)
 	assert.Equal(t, fasthttp.StatusNotFound, testutil.GetResponseStatusCode(req))
 
 	// Verify the account still exists in org1

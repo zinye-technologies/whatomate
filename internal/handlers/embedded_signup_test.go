@@ -75,14 +75,13 @@ func TestApp_ExchangeToken_Success_AutoRegistration(t *testing.T) {
 	})
 	testutil.SetAuthContext(req, org.ID, user.ID)
 
-	err := app.ExchangeToken(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.ExchangeToken, req)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	var resp struct {
 		Data map[string]interface{} `json:"data"`
 	}
-	err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+	err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 	require.NoError(t, err)
 
 	accountMap, ok := resp.Data["account"].(map[string]interface{})
@@ -177,13 +176,12 @@ func TestApp_ExchangeToken_Success_PendingRegistration(t *testing.T) {
 	})
 	testutil.SetAuthContext(req, org.ID, user.ID)
 
-	err := app.ExchangeToken(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.ExchangeToken, req)
 
 	var resp struct {
 		Data map[string]interface{} `json:"data"`
 	}
-	err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+	err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 	require.NoError(t, err)
 
 	accountMap, ok := resp.Data["account"].(map[string]interface{})
@@ -230,8 +228,7 @@ func TestApp_ExchangeToken_InvalidCode(t *testing.T) {
 	})
 	testutil.SetAuthContext(req, org.ID, user.ID)
 
-	err := app.ExchangeToken(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.ExchangeToken, req)
 	assert.Equal(t, fasthttp.StatusBadRequest, testutil.GetResponseStatusCode(req))
 
 	body := string(testutil.GetResponseBody(req))
@@ -320,14 +317,13 @@ func TestApp_ExchangeToken_Success_CodeOnly_Discovery(t *testing.T) {
 	})
 	testutil.SetAuthContext(req, org.ID, user.ID)
 
-	err := app.ExchangeToken(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.ExchangeToken, req)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	var resp struct {
 		Data map[string]interface{} `json:"data"`
 	}
-	err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+	err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 	require.NoError(t, err)
 
 	accountMap, ok := resp.Data["account"].(map[string]interface{})
@@ -351,8 +347,7 @@ func TestApp_ExchangeToken_MissingFields(t *testing.T) {
 	}) // missing code
 	testutil.SetAuthContext(req, org.ID, user.ID)
 
-	err := app.ExchangeToken(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.ExchangeToken, req)
 	assert.Equal(t, fasthttp.StatusBadRequest, testutil.GetResponseStatusCode(req))
 }
 
@@ -368,8 +363,7 @@ func TestApp_ExchangeToken_Unauthorized(t *testing.T) {
 	})
 	// No auth context set
 
-	err := app.ExchangeToken(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.ExchangeToken, req)
 	assert.Equal(t, fasthttp.StatusUnauthorized, testutil.GetResponseStatusCode(req))
 }
 
@@ -426,14 +420,13 @@ func TestApp_RegisterPhoneNumber_Success_WithPIN(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, user.ID)
 	testutil.SetPathParam(req, "id", account.ID.String())
 
-	err := app.RegisterPhoneNumber(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.RegisterPhoneNumber, req)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	var resp struct {
 		Data map[string]interface{} `json:"data"`
 	}
-	err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+	err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 	require.NoError(t, err)
 	assert.True(t, resp.Data["success"].(bool))
 	assert.Equal(t, "654321", resp.Data["pin"])
@@ -499,13 +492,12 @@ func TestApp_RegisterPhoneNumber_Success_GeneratedPIN(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, user.ID)
 	testutil.SetPathParam(req, "id", account.ID.String())
 
-	err := app.RegisterPhoneNumber(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.RegisterPhoneNumber, req)
 
 	var resp struct {
 		Data map[string]interface{} `json:"data"`
 	}
-	err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+	err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 	require.NoError(t, err)
 	assert.True(t, resp.Data["success"].(bool))
 	assert.NotEmpty(t, resp.Data["pin"])
@@ -574,8 +566,7 @@ func TestApp_RegisterPhoneNumber_RegistrationFailed(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, user.ID)
 	testutil.SetPathParam(req, "id", account.ID.String())
 
-	err := app.RegisterPhoneNumber(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.RegisterPhoneNumber, req)
 
 	assert.Equal(t, fasthttp.StatusBadRequest, testutil.GetResponseStatusCode(req))
 	body := string(testutil.GetResponseBody(req))
@@ -600,8 +591,7 @@ func TestApp_RegisterPhoneNumber_AccountNotFound(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, user.ID)
 	testutil.SetPathParam(req, "id", uuid.New().String())
 
-	err := app.RegisterPhoneNumber(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.RegisterPhoneNumber, req)
 	assert.Equal(t, fasthttp.StatusNotFound, testutil.GetResponseStatusCode(req))
 }
 
@@ -618,8 +608,7 @@ func TestApp_RegisterPhoneNumber_InvalidID(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, user.ID)
 	testutil.SetPathParam(req, "id", "not-a-uuid")
 
-	err := app.RegisterPhoneNumber(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.RegisterPhoneNumber, req)
 	assert.Equal(t, fasthttp.StatusBadRequest, testutil.GetResponseStatusCode(req))
 }
 
@@ -650,7 +639,6 @@ func TestApp_RegisterPhoneNumber_CrossOrgIsolation(t *testing.T) {
 	testutil.SetAuthContext(req, org2.ID, user2.ID)
 	testutil.SetPathParam(req, "id", account.ID.String())
 
-	err := app.RegisterPhoneNumber(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.RegisterPhoneNumber, req)
 	assert.Equal(t, fasthttp.StatusNotFound, testutil.GetResponseStatusCode(req))
 }

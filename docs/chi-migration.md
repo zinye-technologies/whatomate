@@ -24,7 +24,7 @@ Calling / IVR features are **not** in scope for deletion; they keep working thro
 
 1. **`internal/httpapi`** owns the chi router and route mounting.
 2. **`httpapi.Wrap`** adapts remaining fastglue handlers → `http.Handler`.
-3. **Native slices** (no Wrap): health/ready, auth session, `/api/me*`, current org, users CRUD, roles, API keys, WebSocket, SPA.
+3. **Native slices** (no Wrap): health/ready, auth session, `/api/me*`, current org, users CRUD, roles, API keys, accounts, contacts (+ tags/notes), WebSocket, SPA.
 
 ## Progress
 
@@ -70,15 +70,33 @@ Chi edge, Wrap shim, stdlib middleware, native WebSocket + SPA.
 | `GET /api/permissions` | `ListPermissions` | **native** |
 | `GET/POST /api/api-keys`, `GET/PUT/DELETE /api/api-keys/{id}` | `ListAPIKeys`, `CreateAPIKey`, `GetAPIKey`, `UpdateAPIKey`, `DeleteAPIKey` | **native** |
 
+### Phase 2 batch 3 — native (no Wrap)
+
+| Route(s) | Handler | Status |
+|----------|---------|--------|
+| `GET/POST /api/accounts`, `GET/PUT/DELETE /api/accounts/{id}` | `ListAccounts`, `CreateAccount`, `GetAccount`, `UpdateAccount`, `DeleteAccount` | **native** |
+| `POST /api/accounts/exchange-token` | `ExchangeToken` | **native** |
+| `POST /api/accounts/{id}/register` | `RegisterPhoneNumber` | **native** |
+| `POST /api/accounts/{id}/test` | `TestAccountConnection` | **native** |
+| `POST /api/accounts/{id}/subscribe` | `SubscribeApp` | **native** |
+| `GET/PUT /api/accounts/{id}/business_profile`, `POST .../photo` | `GetBusinessProfile`, `UpdateBusinessProfile`, `UpdateProfilePicture` | **native** |
+| `GET/POST /api/contacts`, `GET/PUT/DELETE /api/contacts/{id}` | `ListContacts`, `CreateContact`, `GetContact`, `UpdateContact`, `DeleteContact` | **native** |
+| `PUT /api/contacts/{id}/assign` | `AssignContact` | **native** |
+| `PUT /api/contacts/{id}/tags` | `UpdateContactTags` | **native** |
+| `GET /api/contacts/{id}/session-data` | `GetContactSessionData` | **native** |
+| `GET/POST /api/tags`, `PUT/DELETE /api/tags/{name}` | `ListTags`, `CreateTag`, `UpdateTag`, `DeleteTag` | **native** |
+| `GET/POST /api/contacts/{id}/notes`, `PUT/DELETE .../notes/{note_id}` | `ListConversationNotes`, `CreateConversationNote`, `UpdateConversationNote`, `DeleteConversationNote` | **native** |
+
 ### Leftovers (still Wrap)
 
 - **SSO**: `GetPublicSSOProviders`, `InitSSO`, `CallbackSSO` (still use fasthttp `setAuthCookies`).
 - **Org admin CRUD**: `ListOrganizations`, `CreateOrganization`, members, settings, audio upload.
-- All other API groups (accounts, contacts, messages, campaigns, calling/IVR, …).
+- Contact message endpoints still Wrap (`GetMessages`, `SendMessage`, `MarkContactRead`, `SendReaction`, media send).
+- All other API groups (messages, campaigns, templates, flows, calling/IVR, …).
 
 ### Next
 
-Batch 3: accounts / contacts / tags → … → calling/IVR last → Phase 3 delete Wrap.
+Batch 4: messages / templates / media → … → calling/IVR last → Phase 3 delete Wrap.
 
 ## Non-goals / constraints
 

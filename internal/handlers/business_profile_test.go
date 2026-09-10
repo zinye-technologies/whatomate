@@ -103,7 +103,7 @@ func TestApp_GetBusinessProfile_Success(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, uuid.New())
 	testutil.SetPathParam(req, "id", acc.ID.String())
 
-	require.NoError(t, app.GetBusinessProfile(req))
+	testutil.InvokeHTTP(t, app.GetBusinessProfile, req)
 	require.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	var resp struct {
@@ -123,7 +123,7 @@ func TestApp_GetBusinessProfile_AccountNotFound(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, uuid.New())
 	testutil.SetPathParam(req, "id", uuid.New().String())
 
-	require.NoError(t, app.GetBusinessProfile(req))
+	testutil.InvokeHTTP(t, app.GetBusinessProfile, req)
 	assert.Equal(t, fasthttp.StatusNotFound, testutil.GetResponseStatusCode(req))
 }
 
@@ -138,7 +138,7 @@ func TestApp_GetBusinessProfile_CrossOrgIsolation(t *testing.T) {
 	testutil.SetAuthContext(req, orgB.ID, uuid.New())
 	testutil.SetPathParam(req, "id", acc.ID.String())
 
-	require.NoError(t, app.GetBusinessProfile(req))
+	testutil.InvokeHTTP(t, app.GetBusinessProfile, req)
 	assert.Equal(t, fasthttp.StatusNotFound, testutil.GetResponseStatusCode(req),
 		"cross-org access must look like not-found")
 }
@@ -157,7 +157,7 @@ func TestApp_GetBusinessProfile_MetaAPIErrorBubbles(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, uuid.New())
 	testutil.SetPathParam(req, "id", acc.ID.String())
 
-	require.NoError(t, app.GetBusinessProfile(req))
+	testutil.InvokeHTTP(t, app.GetBusinessProfile, req)
 	assert.Equal(t, fasthttp.StatusInternalServerError, testutil.GetResponseStatusCode(req))
 }
 
@@ -168,7 +168,7 @@ func TestApp_GetBusinessProfile_Unauthorized(t *testing.T) {
 	req := testutil.NewGETRequest(t)
 	testutil.SetPathParam(req, "id", uuid.New().String())
 
-	require.NoError(t, app.GetBusinessProfile(req))
+	testutil.InvokeHTTP(t, app.GetBusinessProfile, req)
 	assert.Equal(t, fasthttp.StatusUnauthorized, testutil.GetResponseStatusCode(req))
 }
 
@@ -191,7 +191,7 @@ func TestApp_UpdateBusinessProfile_Success(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, uuid.New())
 	testutil.SetPathParam(req, "id", acc.ID.String())
 
-	require.NoError(t, app.UpdateBusinessProfile(req))
+	testutil.InvokeHTTP(t, app.UpdateBusinessProfile, req)
 	require.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	// Meta received the update payload with messaging_product set by the client.
@@ -224,7 +224,7 @@ func TestApp_UpdateBusinessProfile_RefetchFailureStillReportsSuccess(t *testing.
 	testutil.SetAuthContext(req, org.ID, uuid.New())
 	testutil.SetPathParam(req, "id", acc.ID.String())
 
-	require.NoError(t, app.UpdateBusinessProfile(req))
+	testutil.InvokeHTTP(t, app.UpdateBusinessProfile, req)
 	require.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	var resp struct {
@@ -249,7 +249,7 @@ func TestApp_UpdateBusinessProfile_MetaUpdateFails(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, uuid.New())
 	testutil.SetPathParam(req, "id", acc.ID.String())
 
-	require.NoError(t, app.UpdateBusinessProfile(req))
+	testutil.InvokeHTTP(t, app.UpdateBusinessProfile, req)
 	assert.Equal(t, fasthttp.StatusInternalServerError, testutil.GetResponseStatusCode(req))
 }
 
@@ -264,7 +264,7 @@ func TestApp_UpdateBusinessProfile_CrossOrgIsolation(t *testing.T) {
 	testutil.SetAuthContext(req, orgB.ID, uuid.New())
 	testutil.SetPathParam(req, "id", acc.ID.String())
 
-	require.NoError(t, app.UpdateBusinessProfile(req))
+	testutil.InvokeHTTP(t, app.UpdateBusinessProfile, req)
 	assert.Equal(t, fasthttp.StatusNotFound, testutil.GetResponseStatusCode(req))
 	assert.Nil(t, meta.LastBody, "Meta must not be called when the account doesn't belong to the requesting org")
 }
@@ -282,6 +282,6 @@ func TestApp_UpdateBusinessProfile_InvalidJSONBody(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, uuid.New())
 	testutil.SetPathParam(req, "id", acc.ID.String())
 
-	require.NoError(t, app.UpdateBusinessProfile(req))
+	testutil.InvokeHTTP(t, app.UpdateBusinessProfile, req)
 	assert.Equal(t, fasthttp.StatusBadRequest, testutil.GetResponseStatusCode(req))
 }
