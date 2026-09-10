@@ -10,8 +10,8 @@ import (
 )
 
 // mountRoutes registers public and authenticated routes on the chi router.
-// Health/ready, auth session, and /api/me (+ current org) are native net/http.
-	// Remaining handlers still use Wrap(fastglue); WebSocket + SPA are native.
+// Health/ready, auth session, /api/me, users/roles/API keys are native net/http.
+// Remaining handler groups still use Wrap(fastglue); WebSocket + SPA are native.
 func mountRoutes(r chi.Router, d Deps) {
 	app := d.App
 	lo := d.Log
@@ -117,22 +117,22 @@ func mountAuthenticatedAPI(r chi.Router, app *handlers.App) {
 	r.Put("/api/me/password", app.ChangePassword)
 	r.Put("/api/me/availability", app.UpdateAvailability)
 	r.Get("/api/me/organizations", app.ListMyOrganizations)
-	r.Get("/api/users", Wrap(app.ListUsers))
-	r.Post("/api/users", Wrap(app.CreateUser))
-	r.Get("/api/users/{id}", Wrap(app.GetUser))
-	r.Put("/api/users/{id}", Wrap(app.UpdateUser))
-	r.Delete("/api/users/{id}", Wrap(app.DeleteUser))
-	r.Get("/api/roles", Wrap(app.ListRoles))
-	r.Post("/api/roles", Wrap(app.CreateRole))
-	r.Get("/api/roles/{id}", Wrap(app.GetRole))
-	r.Put("/api/roles/{id}", Wrap(app.UpdateRole))
-	r.Delete("/api/roles/{id}", Wrap(app.DeleteRole))
-	r.Get("/api/permissions", Wrap(app.ListPermissions))
-	r.Get("/api/api-keys", Wrap(app.ListAPIKeys))
-	r.Get("/api/api-keys/{id}", Wrap(app.GetAPIKey))
-	r.Post("/api/api-keys", Wrap(app.CreateAPIKey))
-	r.Put("/api/api-keys/{id}", Wrap(app.UpdateAPIKey))
-	r.Delete("/api/api-keys/{id}", Wrap(app.DeleteAPIKey))
+	r.Get("/api/users", app.ListUsers)
+	r.Post("/api/users", app.CreateUser)
+	r.Get("/api/users/{id}", app.GetUser)
+	r.Put("/api/users/{id}", app.UpdateUser)
+	r.Delete("/api/users/{id}", app.DeleteUser)
+	r.Get("/api/roles", app.ListRoles)
+	r.Post("/api/roles", app.CreateRole)
+	r.Get("/api/roles/{id}", app.GetRole)
+	r.Put("/api/roles/{id}", app.UpdateRole)
+	r.Delete("/api/roles/{id}", app.DeleteRole)
+	r.Get("/api/permissions", app.ListPermissions)
+	r.Get("/api/api-keys", app.ListAPIKeys)
+	r.Get("/api/api-keys/{id}", app.GetAPIKey)
+	r.Post("/api/api-keys", app.CreateAPIKey)
+	r.Put("/api/api-keys/{id}", app.UpdateAPIKey)
+	r.Delete("/api/api-keys/{id}", app.DeleteAPIKey)
 	r.Get("/api/accounts", Wrap(app.ListAccounts))
 	r.Post("/api/accounts", Wrap(app.CreateAccount))
 	r.Post("/api/accounts/exchange-token", Wrap(app.ExchangeToken))

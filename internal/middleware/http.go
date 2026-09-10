@@ -383,3 +383,9 @@ func WithRoleID(ctx context.Context, id uuid.UUID) context.Context {
 func WithIsSuperAdmin(ctx context.Context, v bool) context.Context {
 	return context.WithValue(ctx, ctxKeyIsSuperAdmin, v)
 }
+
+// IsSuperAdminFromContext returns whether the authenticated user is a super admin.
+func IsSuperAdminFromContext(ctx context.Context) bool {
+	v, ok := ctx.Value(ctxKeyIsSuperAdmin).(bool)
+	return ok && v
+}

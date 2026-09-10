@@ -65,8 +65,7 @@ func TestApp_ListAPIKeys(t *testing.T) {
 		req := testutil.NewGETRequest(t)
 		testutil.SetAuthContext(req, org.ID, user.ID)
 
-		err := app.ListAPIKeys(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.ListAPIKeys, req)
 		assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 		var resp struct {
@@ -77,7 +76,7 @@ func TestApp_ListAPIKeys(t *testing.T) {
 				Limit   int                       `json:"limit"`
 			} `json:"data"`
 		}
-		err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+		err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 		require.NoError(t, err)
 		assert.Len(t, resp.Data.APIKeys, 2)
 		assert.Equal(t, 2, resp.Data.Total)
@@ -97,8 +96,7 @@ func TestApp_ListAPIKeys(t *testing.T) {
 		req := testutil.NewGETRequest(t)
 		testutil.SetAuthContext(req, org.ID, user.ID)
 
-		err := app.ListAPIKeys(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.ListAPIKeys, req)
 		assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 		var resp struct {
@@ -109,7 +107,7 @@ func TestApp_ListAPIKeys(t *testing.T) {
 				Limit   int                       `json:"limit"`
 			} `json:"data"`
 		}
-		err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+		err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 		require.NoError(t, err)
 		assert.Empty(t, resp.Data.APIKeys)
 		assert.Equal(t, 0, resp.Data.Total)
@@ -133,14 +131,13 @@ func TestApp_CreateAPIKey(t *testing.T) {
 		})
 		testutil.SetAuthContext(req, org.ID, user.ID)
 
-		err := app.CreateAPIKey(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.CreateAPIKey, req)
 		assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 		var resp struct {
 			Data handlers.APIKeyCreateResponse `json:"data"`
 		}
-		err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+		err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 		require.NoError(t, err)
 
 		assert.Equal(t, "My API Key", resp.Data.Name)
@@ -175,14 +172,13 @@ func TestApp_CreateAPIKey(t *testing.T) {
 		})
 		testutil.SetAuthContext(req, org.ID, user.ID)
 
-		err := app.CreateAPIKey(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.CreateAPIKey, req)
 		assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 		var resp struct {
 			Data handlers.APIKeyCreateResponse `json:"data"`
 		}
-		err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+		err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 		require.NoError(t, err)
 
 		assert.Equal(t, "Expiring Key", resp.Data.Name)
@@ -199,8 +195,7 @@ func TestApp_CreateAPIKey(t *testing.T) {
 		req := testutil.NewJSONRequest(t, map[string]any{})
 		testutil.SetAuthContext(req, org.ID, user.ID)
 
-		err := app.CreateAPIKey(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.CreateAPIKey, req)
 		assert.Equal(t, fasthttp.StatusBadRequest, testutil.GetResponseStatusCode(req))
 
 		testutil.AssertErrorResponse(t, req, fasthttp.StatusBadRequest, "Name is required")
@@ -218,8 +213,7 @@ func TestApp_CreateAPIKey(t *testing.T) {
 		})
 		testutil.SetAuthContext(req, org.ID, user.ID)
 
-		err := app.CreateAPIKey(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.CreateAPIKey, req)
 		assert.Equal(t, fasthttp.StatusBadRequest, testutil.GetResponseStatusCode(req))
 
 		testutil.AssertErrorResponse(t, req, fasthttp.StatusBadRequest, "Name is required")
@@ -238,8 +232,7 @@ func TestApp_CreateAPIKey(t *testing.T) {
 		})
 		testutil.SetAuthContext(req, org.ID, user.ID)
 
-		err := app.CreateAPIKey(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.CreateAPIKey, req)
 		assert.Equal(t, fasthttp.StatusBadRequest, testutil.GetResponseStatusCode(req))
 
 		testutil.AssertErrorResponse(t, req, fasthttp.StatusBadRequest, "Invalid expires_at format")
@@ -274,8 +267,7 @@ func TestApp_ListAPIKeys_CrossOrgIsolation(t *testing.T) {
 	req := testutil.NewGETRequest(t)
 	testutil.SetAuthContext(req, org2.ID, user2.ID)
 
-	err := app.ListAPIKeys(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.ListAPIKeys, req)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	var resp struct {
@@ -286,7 +278,7 @@ func TestApp_ListAPIKeys_CrossOrgIsolation(t *testing.T) {
 			Limit   int                       `json:"limit"`
 		} `json:"data"`
 	}
-	err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+	err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 	require.NoError(t, err)
 	assert.Len(t, resp.Data.APIKeys, 1)
 	assert.Equal(t, "Org2 Key C", resp.Data.APIKeys[0].Name)
@@ -306,8 +298,7 @@ func TestApp_ListAPIKeys_ResponseFields(t *testing.T) {
 	req := testutil.NewGETRequest(t)
 	testutil.SetAuthContext(req, org.ID, user.ID)
 
-	err := app.ListAPIKeys(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.ListAPIKeys, req)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	var resp struct {
@@ -318,7 +309,7 @@ func TestApp_ListAPIKeys_ResponseFields(t *testing.T) {
 			Limit   int                       `json:"limit"`
 		} `json:"data"`
 	}
-	err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+	err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 	require.NoError(t, err)
 	require.Len(t, resp.Data.APIKeys, 1)
 
@@ -352,8 +343,7 @@ func TestApp_ListAPIKeys_ExcludesDeletedKeys(t *testing.T) {
 	req := testutil.NewGETRequest(t)
 	testutil.SetAuthContext(req, org.ID, user.ID)
 
-	err := app.ListAPIKeys(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.ListAPIKeys, req)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	var resp struct {
@@ -364,7 +354,7 @@ func TestApp_ListAPIKeys_ExcludesDeletedKeys(t *testing.T) {
 			Limit   int                       `json:"limit"`
 		} `json:"data"`
 	}
-	err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+	err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 	require.NoError(t, err)
 	assert.Len(t, resp.Data.APIKeys, 1)
 	assert.Equal(t, keyToKeep.ID, resp.Data.APIKeys[0].ID)
@@ -386,14 +376,13 @@ func TestApp_CreateAPIKey_KeyFormat(t *testing.T) {
 	})
 	testutil.SetAuthContext(req, org.ID, user.ID)
 
-	err := app.CreateAPIKey(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.CreateAPIKey, req)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	var resp struct {
 		Data handlers.APIKeyCreateResponse `json:"data"`
 	}
-	err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+	err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 	require.NoError(t, err)
 
 	key := resp.Data.Key
@@ -431,14 +420,13 @@ func TestApp_CreateAPIKey_UniqueKeys(t *testing.T) {
 		})
 		testutil.SetAuthContext(req, org.ID, user.ID)
 
-		err := app.CreateAPIKey(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.CreateAPIKey, req)
 		assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 		var resp struct {
 			Data handlers.APIKeyCreateResponse `json:"data"`
 		}
-		err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+		err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 		require.NoError(t, err)
 
 		assert.False(t, keys[resp.Data.Key], "key should be unique, got duplicate: %s", resp.Data.Key)
@@ -461,14 +449,13 @@ func TestApp_CreateAPIKey_DatabasePersistence(t *testing.T) {
 	})
 	testutil.SetAuthContext(req, org.ID, user.ID)
 
-	err := app.CreateAPIKey(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.CreateAPIKey, req)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	var resp struct {
 		Data handlers.APIKeyCreateResponse `json:"data"`
 	}
-	err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+	err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 	require.NoError(t, err)
 
 	// Verify the key was persisted with the correct org and user
@@ -503,8 +490,7 @@ func TestApp_CreateAPIKey_InvalidJSONBody(t *testing.T) {
 	req := &fastglue.Request{RequestCtx: ctx}
 	testutil.SetAuthContext(req, org.ID, user.ID)
 
-	err := app.CreateAPIKey(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.CreateAPIKey, req)
 	assert.Equal(t, fasthttp.StatusBadRequest, testutil.GetResponseStatusCode(req))
 }
 
@@ -526,8 +512,7 @@ func TestApp_DeleteAPIKey(t *testing.T) {
 		testutil.SetAuthContext(req, org.ID, user.ID)
 		testutil.SetPathParam(req, "id", apiKey.ID.String())
 
-		err := app.DeleteAPIKey(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.DeleteAPIKey, req)
 		assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 		// Verify the key is soft-deleted
@@ -547,8 +532,7 @@ func TestApp_DeleteAPIKey(t *testing.T) {
 		testutil.SetAuthContext(req, org.ID, user.ID)
 		testutil.SetPathParam(req, "id", uuid.New().String())
 
-		err := app.DeleteAPIKey(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.DeleteAPIKey, req)
 		assert.Equal(t, fasthttp.StatusNotFound, testutil.GetResponseStatusCode(req))
 	})
 
@@ -573,8 +557,7 @@ func TestApp_DeleteAPIKey(t *testing.T) {
 		testutil.SetAuthContext(req, org2.ID, user2.ID)
 		testutil.SetPathParam(req, "id", apiKey.ID.String())
 
-		err := app.DeleteAPIKey(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.DeleteAPIKey, req)
 		assert.Equal(t, fasthttp.StatusNotFound, testutil.GetResponseStatusCode(req))
 
 		// Key should still exist
@@ -594,8 +577,7 @@ func TestApp_DeleteAPIKey(t *testing.T) {
 		testutil.SetAuthContext(req, org.ID, user.ID)
 		testutil.SetPathParam(req, "id", "not-a-valid-uuid")
 
-		err := app.DeleteAPIKey(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.DeleteAPIKey, req)
 		assert.Equal(t, fasthttp.StatusBadRequest, testutil.GetResponseStatusCode(req))
 
 		testutil.AssertErrorResponse(t, req, fasthttp.StatusBadRequest, "Invalid API key ID")
@@ -615,8 +597,7 @@ func TestApp_DeleteAPIKey(t *testing.T) {
 		testutil.SetAuthContext(req1, org.ID, user.ID)
 		testutil.SetPathParam(req1, "id", apiKey.ID.String())
 
-		err := app.DeleteAPIKey(req1)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.DeleteAPIKey, req1)
 		assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req1))
 
 		// Second delete should return not found
@@ -624,8 +605,7 @@ func TestApp_DeleteAPIKey(t *testing.T) {
 		testutil.SetAuthContext(req2, org.ID, user.ID)
 		testutil.SetPathParam(req2, "id", apiKey.ID.String())
 
-		err = app.DeleteAPIKey(req2)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.DeleteAPIKey, req2)
 		assert.Equal(t, fasthttp.StatusNotFound, testutil.GetResponseStatusCode(req2))
 	})
 }

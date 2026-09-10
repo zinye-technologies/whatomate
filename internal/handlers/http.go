@@ -4,8 +4,11 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"strconv"
 
+	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
+	"gorm.io/gorm"
 
 	"github.com/shridarpatil/whatomate/internal/middleware"
 )
@@ -110,4 +113,56 @@ func (a *App) requireAuthHTTP(w http.ResponseWriter, r *http.Request, resource, 
 // decodeRequestHTTP decodes JSON into v or writes a 400 envelope.
 func (a *App) decodeRequestHTTP(w http.ResponseWriter, r *http.Request, v any) error {
 	return DecodeJSON(w, r, v)
+}
+
+// parsePathUUIDHTTP extracts a UUID path param via chi. On failure writes 400.
+func parsePathUUIDHTTP(w http.ResponseWriter, r *http.Request, param, label string) (uuid.UUID, error) {
+	id, err := uuid.Parse(chi.URLParam(r, param))
+	if err != nil {
+		SendErrorEnvelope(w, http.StatusBadRequest, "Invalid "+label+" ID", nil, "")
+		return uuid.Nil, errEnvelopeSent
+	}
+	return id, nil
+}
+
+// parsePaginationHTTP extracts page/limit from query params (default 50, max 100).
+func parsePaginationHTTP(r *http.Request) Pagination {
+	return parsePaginationWithDefaultsHTTP(r, 50, 100)
+}
+
+// parsePaginationWithDefaultsHTTP extracts page-based pagination with custom defaults.
+func parsePaginationWithDefaultsHTTP(r *http.Request, defaultLimit, maxLimit int) Pagination {
+	q := r.URL.Query()
+	page, _ := strconv.Atoi(q.Get("page"))
+	limit, _ := strconv.Atoi(q.Get("limit"))
+	if page < 1 {
+		page = 1
+	}
+	if limit < 1 || limit > maxLimit {
+		limit = defaultLimit
+	}
+	return Pagination{
+		Page:   page,
+		Limit:  limit,
+		Offset: (page - 1) * limit,
+	}
+}
+
+// findByIDAndOrgHTTP fetches a record by id+org; writes 404 on miss.
+func findByIDAndOrgHTTP[T any](db *gorm.DB, w http.ResponseWriter, id, orgID uuid.UUID, label string) (*T, error) {
+	var model T
+	if err := db.Where("id = ? AND organization_id = ?", id, orgID).First(&model).Error; err != nil {
+		SendErrorEnvelope(w, http.StatusNotFound, label+" not found", nil, "")
+		return nil, errEnvelopeSent
+	}
+	return &model, nil
+}
+
+// parseSuperAdminFieldHTTP extracts is_super_admin from a raw JSON body.
+func parseSuperAdminFieldHTTP(body []byte) *bool {
+	var f superAdminField
+	if err := json.Unmarshal(body, &f); err != nil {
+		return nil
+	}
+	return f.IsSuperAdmin
 }

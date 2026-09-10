@@ -3,12 +3,11 @@ package handlers
 import (
 	"crypto/rand"
 	"encoding/hex"
+	"net/http"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/shridarpatil/whatomate/internal/models"
-	"github.com/valyala/fasthttp"
-	"github.com/zerodha/fastglue"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -48,15 +47,15 @@ func generateAPIKey() (string, error) {
 	return "whm_" + hex.EncodeToString(bytes), nil
 }
 
-// ListAPIKeys returns all API keys for the organization
-func (a *App) ListAPIKeys(r *fastglue.Request) error {
-	orgID, _, err := a.requireAuth(r, models.ResourceAPIKeys, models.ActionRead)
+// ListAPIKeys returns all API keys for the organization (native net/http).
+func (a *App) ListAPIKeys(w http.ResponseWriter, r *http.Request) {
+	orgID, _, err := a.requireAuthHTTP(w, r, models.ResourceAPIKeys, models.ActionRead)
 	if err != nil {
-		return nil
+		return
 	}
 
-	pg := parsePagination(r)
-	search := string(r.RequestCtx.QueryArgs().Peek("search"))
+	pg := parsePaginationHTTP(r)
+	search := r.URL.Query().Get("search")
 
 	query := a.DB.Model(&models.APIKey{}).Where("organization_id = ?", orgID)
 
@@ -73,7 +72,8 @@ func (a *App) ListAPIKeys(r *fastglue.Request) error {
 	if err := pg.Apply(query.Order("created_at DESC")).
 		Find(&apiKeys).Error; err != nil {
 		a.Log.Error("Failed to list API keys", "error", err)
-		return r.SendErrorEnvelope(fasthttp.StatusInternalServerError, "Failed to list API keys", nil, "")
+		SendErrorEnvelope(w, http.StatusInternalServerError, "Failed to list API keys", nil, "")
+		return
 	}
 
 	response := make([]APIKeyResponse, len(apiKeys))
@@ -89,27 +89,28 @@ func (a *App) ListAPIKeys(r *fastglue.Request) error {
 		}
 	}
 
-	return r.SendEnvelope(listEnvelope("api_keys", response, total, pg))
+	SendEnvelope(w, listEnvelope("api_keys", response, total, pg))
 }
 
-// GetAPIKey returns a single API key by ID
-func (a *App) GetAPIKey(r *fastglue.Request) error {
-	orgID, _, err := a.requireAuth(r, models.ResourceAPIKeys, models.ActionRead)
+// GetAPIKey returns a single API key by ID (native net/http).
+func (a *App) GetAPIKey(w http.ResponseWriter, r *http.Request) {
+	orgID, _, err := a.requireAuthHTTP(w, r, models.ResourceAPIKeys, models.ActionRead)
 	if err != nil {
-		return nil
+		return
 	}
 
-	id, err := parsePathUUID(r, "id", "API key")
+	id, err := parsePathUUIDHTTP(w, r, "id", "API key")
 	if err != nil {
-		return nil
+		return
 	}
 
 	var apiKey models.APIKey
 	if err := a.DB.Where("id = ? AND organization_id = ?", id, orgID).First(&apiKey).Error; err != nil {
-		return r.SendErrorEnvelope(fasthttp.StatusNotFound, "API key not found", nil, "")
+		SendErrorEnvelope(w, http.StatusNotFound, "API key not found", nil, "")
+		return
 	}
 
-	return r.SendEnvelope(APIKeyResponse{
+	SendEnvelope(w, APIKeyResponse{
 		ID:         apiKey.ID,
 		Name:       apiKey.Name,
 		KeyPrefix:  apiKey.KeyPrefix,
@@ -120,28 +121,29 @@ func (a *App) GetAPIKey(r *fastglue.Request) error {
 	})
 }
 
-// UpdateAPIKey updates an API key (currently only is_active toggle)
-func (a *App) UpdateAPIKey(r *fastglue.Request) error {
-	orgID, _, err := a.requireAuth(r, models.ResourceAPIKeys, models.ActionWrite)
+// UpdateAPIKey updates an API key (currently only is_active toggle) (native net/http).
+func (a *App) UpdateAPIKey(w http.ResponseWriter, r *http.Request) {
+	orgID, _, err := a.requireAuthHTTP(w, r, models.ResourceAPIKeys, models.ActionWrite)
 	if err != nil {
-		return nil
+		return
 	}
 
-	id, err := parsePathUUID(r, "id", "API key")
+	id, err := parsePathUUIDHTTP(w, r, "id", "API key")
 	if err != nil {
-		return nil
+		return
 	}
 
 	var apiKey models.APIKey
 	if err := a.DB.Where("id = ? AND organization_id = ?", id, orgID).First(&apiKey).Error; err != nil {
-		return r.SendErrorEnvelope(fasthttp.StatusNotFound, "API key not found", nil, "")
+		SendErrorEnvelope(w, http.StatusNotFound, "API key not found", nil, "")
+		return
 	}
 
 	var req struct {
 		IsActive *bool `json:"is_active"`
 	}
-	if err := a.decodeRequest(r, &req); err != nil {
-		return nil
+	if err := a.decodeRequestHTTP(w, r, &req); err != nil {
+		return
 	}
 
 	if req.IsActive != nil {
@@ -150,10 +152,11 @@ func (a *App) UpdateAPIKey(r *fastglue.Request) error {
 
 	if err := a.DB.Save(&apiKey).Error; err != nil {
 		a.Log.Error("Failed to update API key", "error", err)
-		return r.SendErrorEnvelope(fasthttp.StatusInternalServerError, "Failed to update API key", nil, "")
+		SendErrorEnvelope(w, http.StatusInternalServerError, "Failed to update API key", nil, "")
+		return
 	}
 
-	return r.SendEnvelope(APIKeyResponse{
+	SendEnvelope(w, APIKeyResponse{
 		ID:         apiKey.ID,
 		Name:       apiKey.Name,
 		KeyPrefix:  apiKey.KeyPrefix,
@@ -164,21 +167,22 @@ func (a *App) UpdateAPIKey(r *fastglue.Request) error {
 	})
 }
 
-// CreateAPIKey creates a new API key
-func (a *App) CreateAPIKey(r *fastglue.Request) error {
-	orgID, userID, err := a.requireAuth(r, models.ResourceAPIKeys, models.ActionWrite)
+// CreateAPIKey creates a new API key (native net/http).
+func (a *App) CreateAPIKey(w http.ResponseWriter, r *http.Request) {
+	orgID, userID, err := a.requireAuthHTTP(w, r, models.ResourceAPIKeys, models.ActionWrite)
 	if err != nil {
-		return nil
+		return
 	}
 
 	var req APIKeyRequest
-	if err := a.decodeRequest(r, &req); err != nil {
-		return nil
+	if err := a.decodeRequestHTTP(w, r, &req); err != nil {
+		return
 	}
 
 	// Validate required fields
 	if req.Name == "" {
-		return r.SendErrorEnvelope(fasthttp.StatusBadRequest, "Name is required", nil, "")
+		SendErrorEnvelope(w, http.StatusBadRequest, "Name is required", nil, "")
+		return
 	}
 
 	// Parse expiration date if provided
@@ -186,7 +190,8 @@ func (a *App) CreateAPIKey(r *fastglue.Request) error {
 	if req.ExpiresAt != nil && *req.ExpiresAt != "" {
 		t, err := time.Parse(time.RFC3339, *req.ExpiresAt)
 		if err != nil {
-			return r.SendErrorEnvelope(fasthttp.StatusBadRequest, "Invalid expires_at format. Use RFC3339 format", nil, "")
+			SendErrorEnvelope(w, http.StatusBadRequest, "Invalid expires_at format. Use RFC3339 format", nil, "")
+			return
 		}
 		expiresAt = &t
 	}
@@ -195,14 +200,16 @@ func (a *App) CreateAPIKey(r *fastglue.Request) error {
 	fullKey, err := generateAPIKey()
 	if err != nil {
 		a.Log.Error("Failed to generate API key", "error", err)
-		return r.SendErrorEnvelope(fasthttp.StatusInternalServerError, "Failed to generate API key", nil, "")
+		SendErrorEnvelope(w, http.StatusInternalServerError, "Failed to generate API key", nil, "")
+		return
 	}
 
 	// Hash the key for storage
 	hashedKey, err := bcrypt.GenerateFromPassword([]byte(fullKey), bcrypt.DefaultCost)
 	if err != nil {
 		a.Log.Error("Failed to hash API key", "error", err)
-		return r.SendErrorEnvelope(fasthttp.StatusInternalServerError, "Failed to create API key", nil, "")
+		SendErrorEnvelope(w, http.StatusInternalServerError, "Failed to create API key", nil, "")
+		return
 	}
 
 	// Extract prefix (first 16 chars after "whm_")
@@ -220,11 +227,12 @@ func (a *App) CreateAPIKey(r *fastglue.Request) error {
 
 	if err := a.DB.Create(&apiKey).Error; err != nil {
 		a.Log.Error("Failed to create API key", "error", err)
-		return r.SendErrorEnvelope(fasthttp.StatusInternalServerError, "Failed to create API key", nil, "")
+		SendErrorEnvelope(w, http.StatusInternalServerError, "Failed to create API key", nil, "")
+		return
 	}
 
 	// Return full key only on creation
-	return r.SendEnvelope(APIKeyCreateResponse{
+	SendEnvelope(w, APIKeyCreateResponse{
 		ID:        apiKey.ID,
 		Name:      apiKey.Name,
 		Key:       fullKey, // This is the only time the full key is returned
@@ -234,26 +242,28 @@ func (a *App) CreateAPIKey(r *fastglue.Request) error {
 	})
 }
 
-// DeleteAPIKey revokes an API key
-func (a *App) DeleteAPIKey(r *fastglue.Request) error {
-	orgID, _, err := a.requireAuth(r, models.ResourceAPIKeys, models.ActionDelete)
+// DeleteAPIKey revokes an API key (native net/http).
+func (a *App) DeleteAPIKey(w http.ResponseWriter, r *http.Request) {
+	orgID, _, err := a.requireAuthHTTP(w, r, models.ResourceAPIKeys, models.ActionDelete)
 	if err != nil {
-		return nil
+		return
 	}
 
-	id, err := parsePathUUID(r, "id", "API key")
+	id, err := parsePathUUIDHTTP(w, r, "id", "API key")
 	if err != nil {
-		return nil
+		return
 	}
 
 	result := a.DB.Where("id = ? AND organization_id = ?", id, orgID).Delete(&models.APIKey{})
 	if result.Error != nil {
 		a.Log.Error("Failed to delete API key", "error", result.Error)
-		return r.SendErrorEnvelope(fasthttp.StatusInternalServerError, "Failed to delete API key", nil, "")
+		SendErrorEnvelope(w, http.StatusInternalServerError, "Failed to delete API key", nil, "")
+		return
 	}
 	if result.RowsAffected == 0 {
-		return r.SendErrorEnvelope(fasthttp.StatusNotFound, "API key not found", nil, "")
+		SendErrorEnvelope(w, http.StatusNotFound, "API key not found", nil, "")
+		return
 	}
 
-	return r.SendEnvelope(map[string]string{"message": "API key deleted successfully"})
+	SendEnvelope(w, map[string]string{"message": "API key deleted successfully"})
 }

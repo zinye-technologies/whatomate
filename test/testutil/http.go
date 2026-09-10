@@ -2,12 +2,14 @@ package testutil
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
+	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"github.com/shridarpatil/whatomate/internal/middleware"
 	"github.com/stretchr/testify/require"
@@ -170,6 +172,10 @@ func InvokeHTTP(t *testing.T, h http.HandlerFunc, req *fastglue.Request) {
 	if ct := string(req.RequestCtx.Request.Header.ContentType()); ct != "" {
 		httpReq.Header.Set("Content-Type", ct)
 	}
+	// fasthttp QueryArgs may not be reflected in RequestURI(); copy explicitly.
+	if qa := req.RequestCtx.QueryArgs(); qa.Len() > 0 {
+		httpReq.URL.RawQuery = qa.String()
+	}
 
 	ctx := httpReq.Context()
 	if v := req.RequestCtx.UserValue("user_id"); v != nil {
@@ -192,6 +198,28 @@ func InvokeHTTP(t *testing.T, h http.HandlerFunc, req *fastglue.Request) {
 			ctx = middleware.WithIsSuperAdmin(ctx, b)
 		}
 	}
+	// Bridge fasthttp path params (SetPathParam / SetUserValue) into chi URLParams.
+	rctx := chi.NewRouteContext()
+	authKeys := map[string]struct{}{
+		"user_id": {}, "organization_id": {}, "role_id": {}, "is_super_admin": {},
+	}
+	req.RequestCtx.VisitUserValues(func(key []byte, value any) {
+		k := string(key)
+		if _, skip := authKeys[k]; skip {
+			return
+		}
+		switch v := value.(type) {
+		case string:
+			rctx.URLParams.Add(k, v)
+		case []byte:
+			rctx.URLParams.Add(k, string(v))
+		case uuid.UUID:
+			rctx.URLParams.Add(k, v.String())
+		default:
+			rctx.URLParams.Add(k, fmt.Sprintf("%v", v))
+		}
+	})
+	ctx = context.WithValue(ctx, chi.RouteCtxKey, rctx)
 	httpReq = httpReq.WithContext(ctx)
 
 	rec := httptest.NewRecorder()

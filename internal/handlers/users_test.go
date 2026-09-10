@@ -35,8 +35,7 @@ func TestApp_ListUsers(t *testing.T) {
 		req := testutil.NewGETRequest(t)
 		testutil.SetAuthContext(req, org.ID, admin.ID)
 
-		err := app.ListUsers(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.ListUsers, req)
 		assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 		var resp struct {
@@ -45,7 +44,7 @@ func TestApp_ListUsers(t *testing.T) {
 				Users []handlers.UserResponse `json:"users"`
 			} `json:"data"`
 		}
-		err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+		err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 		require.NoError(t, err)
 
 		assert.Equal(t, "success", resp.Status)
@@ -67,8 +66,7 @@ func TestApp_ListUsers(t *testing.T) {
 		// Query for org that has no users, but auth as the admin from otherOrg
 		testutil.SetAuthContext(req, org.ID, admin.ID)
 
-		err := app.ListUsers(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.ListUsers, req)
 		assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 		var resp struct {
@@ -76,7 +74,7 @@ func TestApp_ListUsers(t *testing.T) {
 				Users []handlers.UserResponse `json:"users"`
 			} `json:"data"`
 		}
-		err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+		err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 		require.NoError(t, err)
 		assert.Empty(t, resp.Data.Users)
 	})
@@ -92,8 +90,7 @@ func TestApp_ListUsers(t *testing.T) {
 		req := testutil.NewGETRequest(t)
 		testutil.SetAuthContext(req, org.ID, user.ID)
 
-		err := app.ListUsers(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.ListUsers, req)
 		assert.Equal(t, fasthttp.StatusForbidden, testutil.GetResponseStatusCode(req))
 	})
 }
@@ -116,15 +113,14 @@ func TestApp_GetUser(t *testing.T) {
 		testutil.SetAuthContext(req, org.ID, target.ID)
 		testutil.SetPathParam(req, "id", target.ID.String())
 
-		err := app.GetUser(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.GetUser, req)
 		assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 		var resp struct {
 			Status string                `json:"status"`
 			Data   handlers.UserResponse `json:"data"`
 		}
-		err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+		err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 		require.NoError(t, err)
 
 		assert.Equal(t, "success", resp.Status)
@@ -143,8 +139,7 @@ func TestApp_GetUser(t *testing.T) {
 		testutil.SetAuthContext(req, org.ID, uuid.New())
 		testutil.SetPathParam(req, "id", uuid.New().String())
 
-		err := app.GetUser(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.GetUser, req)
 		assert.Equal(t, fasthttp.StatusNotFound, testutil.GetResponseStatusCode(req))
 	})
 
@@ -156,8 +151,7 @@ func TestApp_GetUser(t *testing.T) {
 		testutil.SetAuthContext(req, org.ID, uuid.New())
 		testutil.SetPathParam(req, "id", "not-a-uuid")
 
-		err := app.GetUser(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.GetUser, req)
 		assert.Equal(t, fasthttp.StatusBadRequest, testutil.GetResponseStatusCode(req))
 	})
 }
@@ -186,15 +180,14 @@ func TestApp_CreateUser(t *testing.T) {
 		req := testutil.NewJSONRequest(t, reqBody)
 		testutil.SetAuthContext(req, org.ID, admin.ID)
 
-		err := app.CreateUser(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.CreateUser, req)
 		assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 		var resp struct {
 			Status string                `json:"status"`
 			Data   handlers.UserResponse `json:"data"`
 		}
-		err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+		err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 		require.NoError(t, err)
 
 		assert.Equal(t, "success", resp.Status)
@@ -225,14 +218,13 @@ func TestApp_CreateUser(t *testing.T) {
 		req := testutil.NewJSONRequest(t, reqBody)
 		testutil.SetAuthContext(req, org.ID, admin.ID)
 
-		err := app.CreateUser(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.CreateUser, req)
 		assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 		var resp struct {
 			Data handlers.UserResponse `json:"data"`
 		}
-		err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+		err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 		require.NoError(t, err)
 
 		assert.Equal(t, newEmail, resp.Data.Email)
@@ -259,8 +251,7 @@ func TestApp_CreateUser(t *testing.T) {
 		req := testutil.NewJSONRequest(t, reqBody)
 		testutil.SetAuthContext(req, org.ID, admin.ID)
 
-		err := app.CreateUser(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.CreateUser, req)
 		assert.Equal(t, fasthttp.StatusConflict, testutil.GetResponseStatusCode(req))
 	})
 
@@ -281,8 +272,7 @@ func TestApp_CreateUser(t *testing.T) {
 		req := testutil.NewJSONRequest(t, reqBody)
 		testutil.SetAuthContext(req, org.ID, admin.ID)
 
-		err := app.CreateUser(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.CreateUser, req)
 		assert.Equal(t, fasthttp.StatusBadRequest, testutil.GetResponseStatusCode(req))
 	})
 
@@ -303,8 +293,7 @@ func TestApp_CreateUser(t *testing.T) {
 		req := testutil.NewJSONRequest(t, reqBody)
 		testutil.SetAuthContext(req, org.ID, admin.ID)
 
-		err := app.CreateUser(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.CreateUser, req)
 		assert.Equal(t, fasthttp.StatusBadRequest, testutil.GetResponseStatusCode(req))
 	})
 
@@ -325,8 +314,7 @@ func TestApp_CreateUser(t *testing.T) {
 		req := testutil.NewJSONRequest(t, reqBody)
 		testutil.SetAuthContext(req, org.ID, user.ID)
 
-		err := app.CreateUser(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.CreateUser, req)
 		assert.Equal(t, fasthttp.StatusForbidden, testutil.GetResponseStatusCode(req))
 	})
 }
@@ -359,15 +347,14 @@ func TestApp_UpdateUser(t *testing.T) {
 		testutil.SetAuthContext(req, org.ID, admin.ID)
 		testutil.SetPathParam(req, "id", target.ID.String())
 
-		err := app.UpdateUser(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.UpdateUser, req)
 		assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 		var resp struct {
 			Status string                `json:"status"`
 			Data   handlers.UserResponse `json:"data"`
 		}
-		err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+		err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 		require.NoError(t, err)
 
 		assert.Equal(t, "success", resp.Status)
@@ -391,14 +378,13 @@ func TestApp_UpdateUser(t *testing.T) {
 		testutil.SetAuthContext(req, org.ID, user.ID)
 		testutil.SetPathParam(req, "id", user.ID.String())
 
-		err := app.UpdateUser(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.UpdateUser, req)
 		assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 		var resp struct {
 			Data handlers.UserResponse `json:"data"`
 		}
-		err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+		err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 		require.NoError(t, err)
 
 		assert.Equal(t, "Self Updated Name", resp.Data.FullName)
@@ -421,8 +407,7 @@ func TestApp_UpdateUser(t *testing.T) {
 		testutil.SetAuthContext(req, org.ID, admin.ID)
 		testutil.SetPathParam(req, "id", uuid.New().String())
 
-		err := app.UpdateUser(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.UpdateUser, req)
 		assert.Equal(t, fasthttp.StatusNotFound, testutil.GetResponseStatusCode(req))
 	})
 
@@ -442,14 +427,13 @@ func TestApp_UpdateUser(t *testing.T) {
 		testutil.SetAuthContext(req, org.ID, user.ID)
 		testutil.SetPathParam(req, "id", user.ID.String())
 
-		err := app.UpdateUser(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.UpdateUser, req)
 		assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 		var resp struct {
 			Data handlers.UserResponse `json:"data"`
 		}
-		err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+		err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 		require.NoError(t, err)
 
 		assert.Equal(t, newEmail, resp.Data.Email)
@@ -475,8 +459,7 @@ func TestApp_UpdateUser(t *testing.T) {
 		testutil.SetAuthContext(req, org.ID, user.ID)
 		testutil.SetPathParam(req, "id", user.ID.String())
 
-		err := app.UpdateUser(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.UpdateUser, req)
 		assert.Equal(t, fasthttp.StatusConflict, testutil.GetResponseStatusCode(req))
 	})
 }
@@ -504,8 +487,7 @@ func TestApp_DeleteUser(t *testing.T) {
 		testutil.SetAuthContext(req, org.ID, admin.ID)
 		testutil.SetPathParam(req, "id", target.ID.String())
 
-		err := app.DeleteUser(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.DeleteUser, req)
 		assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 		// Verify user was soft-deleted
@@ -529,8 +511,7 @@ func TestApp_DeleteUser(t *testing.T) {
 		testutil.SetAuthContext(req, org.ID, admin.ID)
 		testutil.SetPathParam(req, "id", uuid.New().String())
 
-		err := app.DeleteUser(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.DeleteUser, req)
 		assert.Equal(t, fasthttp.StatusNotFound, testutil.GetResponseStatusCode(req))
 	})
 
@@ -548,8 +529,7 @@ func TestApp_DeleteUser(t *testing.T) {
 		testutil.SetAuthContext(req, org.ID, admin.ID)
 		testutil.SetPathParam(req, "id", admin.ID.String())
 
-		err := app.DeleteUser(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.DeleteUser, req)
 		assert.Equal(t, fasthttp.StatusBadRequest, testutil.GetResponseStatusCode(req))
 
 		// Verify user still exists
@@ -573,8 +553,7 @@ func TestApp_DeleteUser(t *testing.T) {
 		testutil.SetAuthContext(req, org.ID, user.ID)
 		testutil.SetPathParam(req, "id", target.ID.String())
 
-		err := app.DeleteUser(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.DeleteUser, req)
 		assert.Equal(t, fasthttp.StatusForbidden, testutil.GetResponseStatusCode(req))
 	})
 }
@@ -1072,8 +1051,7 @@ func TestApp_CrossOrgIsolation(t *testing.T) {
 		req := testutil.NewGETRequest(t)
 		testutil.SetAuthContext(req, org1.ID, admin1.ID)
 
-		err := app.ListUsers(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.ListUsers, req)
 		assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 		var resp struct {
@@ -1081,7 +1059,7 @@ func TestApp_CrossOrgIsolation(t *testing.T) {
 				Users []handlers.UserResponse `json:"users"`
 			} `json:"data"`
 		}
-		err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+		err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 		require.NoError(t, err)
 
 		// Should only see org1 users
@@ -1110,8 +1088,7 @@ func TestApp_CrossOrgIsolation(t *testing.T) {
 		testutil.SetAuthContext(req, org1.ID, user1.ID)
 		testutil.SetPathParam(req, "id", userOrg2.ID.String())
 
-		err := app.GetUser(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.GetUser, req)
 		assert.Equal(t, fasthttp.StatusNotFound, testutil.GetResponseStatusCode(req))
 	})
 
@@ -1139,8 +1116,7 @@ func TestApp_CrossOrgIsolation(t *testing.T) {
 		testutil.SetAuthContext(req, org1.ID, admin1.ID)
 		testutil.SetPathParam(req, "id", userOrg2.ID.String())
 
-		err := app.UpdateUser(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.UpdateUser, req)
 		assert.Equal(t, fasthttp.StatusNotFound, testutil.GetResponseStatusCode(req))
 	})
 
@@ -1165,8 +1141,7 @@ func TestApp_CrossOrgIsolation(t *testing.T) {
 		testutil.SetAuthContext(req, org1.ID, admin1.ID)
 		testutil.SetPathParam(req, "id", userOrg2.ID.String())
 
-		err := app.DeleteUser(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.DeleteUser, req)
 		assert.Equal(t, fasthttp.StatusNotFound, testutil.GetResponseStatusCode(req))
 
 		// Verify user from org2 still exists
@@ -1193,8 +1168,7 @@ func TestApp_DeleteUser_InvalidUUID(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, admin.ID)
 	testutil.SetPathParam(req, "id", "not-a-uuid")
 
-	err := app.DeleteUser(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.DeleteUser, req)
 	assert.Equal(t, fasthttp.StatusBadRequest, testutil.GetResponseStatusCode(req))
 }
 
@@ -1224,8 +1198,7 @@ func TestApp_DeleteUser_LastAdmin(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, admin.ID)
 	testutil.SetPathParam(req, "id", target.ID.String())
 
-	err := app.DeleteUser(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.DeleteUser, req)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	// Now try to delete admin (last one) by creating another admin to do it
@@ -1240,8 +1213,7 @@ func TestApp_DeleteUser_LastAdmin(t *testing.T) {
 	testutil.SetAuthContext(req2, org.ID, admin.ID)
 	testutil.SetPathParam(req2, "id", admin2.ID.String())
 
-	err = app.DeleteUser(req2)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.DeleteUser, req2)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req2))
 }
 
@@ -1264,8 +1236,7 @@ func TestApp_UpdateUser_InvalidUUID(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, admin.ID)
 	testutil.SetPathParam(req, "id", "not-a-uuid")
 
-	err := app.UpdateUser(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.UpdateUser, req)
 	assert.Equal(t, fasthttp.StatusBadRequest, testutil.GetResponseStatusCode(req))
 }
 
@@ -1290,8 +1261,7 @@ func TestApp_UpdateUser_ForbiddenWithoutPermission(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, user.ID)
 	testutil.SetPathParam(req, "id", target.ID.String())
 
-	err := app.UpdateUser(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.UpdateUser, req)
 	assert.Equal(t, fasthttp.StatusForbidden, testutil.GetResponseStatusCode(req))
 }
 
@@ -1313,8 +1283,7 @@ func TestApp_UpdateUser_CannotDeactivateSelf(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, user.ID)
 	testutil.SetPathParam(req, "id", user.ID.String())
 
-	err := app.UpdateUser(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.UpdateUser, req)
 	assert.Equal(t, fasthttp.StatusBadRequest, testutil.GetResponseStatusCode(req))
 }
 
@@ -1341,14 +1310,13 @@ func TestApp_UpdateUser_DeactivateOtherUser(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, admin.ID)
 	testutil.SetPathParam(req, "id", target.ID.String())
 
-	err := app.UpdateUser(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.UpdateUser, req)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	var resp struct {
 		Data handlers.UserResponse `json:"data"`
 	}
-	err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+	err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 	require.NoError(t, err)
 	assert.False(t, resp.Data.IsActive)
 }
@@ -1377,14 +1345,13 @@ func TestApp_UpdateUser_ChangeRole(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, admin.ID)
 	testutil.SetPathParam(req, "id", target.ID.String())
 
-	err := app.UpdateUser(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.UpdateUser, req)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	var resp struct {
 		Data handlers.UserResponse `json:"data"`
 	}
-	err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+	err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 	require.NoError(t, err)
 
 	assert.NotNil(t, resp.Data.RoleID)
@@ -1411,8 +1378,7 @@ func TestApp_UpdateUser_RoleChangeWithoutPermission(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, user.ID)
 	testutil.SetPathParam(req, "id", user.ID.String())
 
-	err := app.UpdateUser(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.UpdateUser, req)
 	assert.Equal(t, fasthttp.StatusForbidden, testutil.GetResponseStatusCode(req))
 }
 
@@ -1438,8 +1404,7 @@ func TestApp_CreateUser_InvalidRoleID(t *testing.T) {
 	req := testutil.NewJSONRequest(t, reqBody)
 	testutil.SetAuthContext(req, org.ID, admin.ID)
 
-	err := app.CreateUser(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.CreateUser, req)
 	assert.Equal(t, fasthttp.StatusBadRequest, testutil.GetResponseStatusCode(req))
 }
 
@@ -1468,8 +1433,7 @@ func TestApp_CreateUser_RoleFromDifferentOrg(t *testing.T) {
 	req := testutil.NewJSONRequest(t, reqBody)
 	testutil.SetAuthContext(req, org1.ID, admin.ID)
 
-	err := app.CreateUser(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.CreateUser, req)
 	assert.Equal(t, fasthttp.StatusBadRequest, testutil.GetResponseStatusCode(req))
 }
 
@@ -1536,8 +1500,7 @@ func TestApp_ListUsers_CrossOrgExclusion(t *testing.T) {
 	req := testutil.NewGETRequest(t)
 	testutil.SetAuthContext(req, orgA.ID, adminA.ID)
 
-	err := app.ListUsers(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.ListUsers, req)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	var resp struct {
@@ -1545,7 +1508,7 @@ func TestApp_ListUsers_CrossOrgExclusion(t *testing.T) {
 			Users []handlers.UserResponse `json:"users"`
 		} `json:"data"`
 	}
-	err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+	err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 	require.NoError(t, err)
 
 	// Should only see orgA's user
@@ -1604,14 +1567,13 @@ func TestApp_GetUser_VerifyResponseFields(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, user.ID)
 	testutil.SetPathParam(req, "id", user.ID.String())
 
-	err := app.GetUser(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.GetUser, req)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	var resp struct {
 		Data handlers.UserResponse `json:"data"`
 	}
-	err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+	err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 	require.NoError(t, err)
 
 	assert.Equal(t, user.ID, resp.Data.ID)
@@ -1648,14 +1610,13 @@ func TestApp_CreateUser_CreatedUserIsActive(t *testing.T) {
 	req := testutil.NewJSONRequest(t, reqBody)
 	testutil.SetAuthContext(req, org.ID, admin.ID)
 
-	err := app.CreateUser(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.CreateUser, req)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	var resp struct {
 		Data handlers.UserResponse `json:"data"`
 	}
-	err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+	err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 	require.NoError(t, err)
 
 	assert.True(t, resp.Data.IsActive)

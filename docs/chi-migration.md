@@ -24,7 +24,7 @@ Calling / IVR features are **not** in scope for deletion; they keep working thro
 
 1. **`internal/httpapi`** owns the chi router and route mounting.
 2. **`httpapi.Wrap`** adapts remaining fastglue handlers → `http.Handler`.
-3. **Native slices** (no Wrap): health/ready, auth session, `/api/me*`, current org, WebSocket, SPA.
+3. **Native slices** (no Wrap): health/ready, auth session, `/api/me*`, current org, users CRUD, roles, API keys, WebSocket, SPA.
 
 ## Progress
 
@@ -60,15 +60,25 @@ Chi edge, Wrap shim, stdlib middleware, native WebSocket + SPA.
 | `GET /ws` | `WebSocketHTTP` | **native** (phase 0) |
 | SPA `/`, `/*` | `frontend.HTTPHandler` | **native** (phase 0) |
 
-### Leftovers from batch 1 (still Wrap)
+
+### Phase 2 batch 2 — native (no Wrap)
+
+| Route(s) | Handler | Status |
+|----------|---------|--------|
+| `GET/POST /api/users`, `GET/PUT/DELETE /api/users/{id}` | `ListUsers`, `CreateUser`, `GetUser`, `UpdateUser`, `DeleteUser` | **native** |
+| `GET/POST /api/roles`, `GET/PUT/DELETE /api/roles/{id}` | `ListRoles`, `CreateRole`, `GetRole`, `UpdateRole`, `DeleteRole` | **native** |
+| `GET /api/permissions` | `ListPermissions` | **native** |
+| `GET/POST /api/api-keys`, `GET/PUT/DELETE /api/api-keys/{id}` | `ListAPIKeys`, `CreateAPIKey`, `GetAPIKey`, `UpdateAPIKey`, `DeleteAPIKey` | **native** |
+
+### Leftovers (still Wrap)
 
 - **SSO**: `GetPublicSSOProviders`, `InitSSO`, `CallbackSSO` (still use fasthttp `setAuthCookies`).
 - **Org admin CRUD**: `ListOrganizations`, `CreateOrganization`, members, settings, audio upload.
-- All other API groups (users CRUD, roles, accounts, messages, campaigns, calling/IVR, …).
+- All other API groups (accounts, contacts, messages, campaigns, calling/IVR, …).
 
 ### Next
 
-Batch 2: users / roles / API keys → … → calling/IVR last → Phase 3 delete Wrap.
+Batch 3: accounts / contacts / tags → … → calling/IVR last → Phase 3 delete Wrap.
 
 ## Non-goals / constraints
 
