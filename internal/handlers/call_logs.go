@@ -1,29 +1,30 @@
 package handlers
 
 import (
+	"net/http"
 	"time"
 
 	"github.com/shridarpatil/whatomate/internal/models"
 	"github.com/shridarpatil/whatomate/internal/utils"
-	"github.com/valyala/fasthttp"
-	"github.com/zerodha/fastglue"
 )
 
 // ListCallLogs returns call logs for the organization.
 // Users with call_logs:read permission see all logs; others see only their own.
-func (a *App) ListCallLogs(r *fastglue.Request) error {
-	orgID, userID, err := a.getOrgAndUserID(r)
+func (a *App) ListCallLogs(w http.ResponseWriter, r *http.Request) {
+	orgID, userID, err := a.getOrgAndUserIDHTTP(r)
 	if err != nil {
-		return r.SendErrorEnvelope(fasthttp.StatusUnauthorized, "Unauthorized", nil, "")
+		SendErrorEnvelope(w, http.StatusUnauthorized, "Unauthorized", nil, "")
+		return
 	}
 
-	pg := parsePagination(r)
-	status := string(r.RequestCtx.QueryArgs().Peek("status"))
-	account := string(r.RequestCtx.QueryArgs().Peek("account"))
-	contactIDStr := string(r.RequestCtx.QueryArgs().Peek("contact_id"))
-	direction := string(r.RequestCtx.QueryArgs().Peek("direction"))
-	ivrFlowID := string(r.RequestCtx.QueryArgs().Peek("ivr_flow_id"))
-	phone := string(r.RequestCtx.QueryArgs().Peek("phone"))
+	pg := parsePaginationHTTP(r)
+	q := r.URL.Query()
+	status := q.Get("status")
+	account := q.Get("account")
+	contactIDStr := q.Get("contact_id")
+	direction := q.Get("direction")
+	ivrFlowID := q.Get("ivr_flow_id")
+	phone := q.Get("phone")
 
 	query := a.DB.Where("call_logs.organization_id = ?", orgID).
 		Preload("Contact").
@@ -66,11 +67,11 @@ func (a *App) ListCallLogs(r *fastglue.Request) error {
 	}
 
 	// Date range filter
-	if start, ok := parseDateParam(r, "start_date"); ok {
+	if start, ok := parseDateParamHTTP(r, "start_date"); ok {
 		query = query.Where("call_logs.created_at >= ?", start)
 		countQuery = countQuery.Where("created_at >= ?", start)
 	}
-	if end, ok := parseDateParam(r, "end_date"); ok {
+	if end, ok := parseDateParamHTTP(r, "end_date"); ok {
 		query = query.Where("call_logs.created_at <= ?", endOfDay(end))
 		countQuery = countQuery.Where("created_at <= ?", endOfDay(end))
 	}
@@ -81,7 +82,8 @@ func (a *App) ListCallLogs(r *fastglue.Request) error {
 	var callLogs []models.CallLog
 	if err := pg.Apply(query).Find(&callLogs).Error; err != nil {
 		a.Log.Error("Failed to fetch call logs", "error", err)
-		return r.SendErrorEnvelope(fasthttp.StatusInternalServerError, "Failed to fetch call logs", nil, "")
+		SendErrorEnvelope(w, http.StatusInternalServerError, "Failed to fetch call logs", nil, "")
+		return
 	}
 
 	// Mask phone numbers if enabled for this organization
@@ -95,20 +97,21 @@ func (a *App) ListCallLogs(r *fastglue.Request) error {
 		}
 	}
 
-	return r.SendEnvelope(listEnvelope("call_logs", callLogs, total, pg))
+	SendEnvelope(w, listEnvelope("call_logs", callLogs, total, pg))
 }
 
 // GetCallLog returns a single call log by ID.
 // Users without call_logs:read permission can only access their own call logs.
-func (a *App) GetCallLog(r *fastglue.Request) error {
-	orgID, userID, err := a.getOrgAndUserID(r)
+func (a *App) GetCallLog(w http.ResponseWriter, r *http.Request) {
+	orgID, userID, err := a.getOrgAndUserIDHTTP(r)
 	if err != nil {
-		return r.SendErrorEnvelope(fasthttp.StatusUnauthorized, "Unauthorized", nil, "")
+		SendErrorEnvelope(w, http.StatusUnauthorized, "Unauthorized", nil, "")
+		return
 	}
 
-	logID, err := parsePathUUID(r, "id", "call log")
+	logID, err := parsePathUUIDHTTP(w, r, "id", "call log")
 	if err != nil {
-		return nil
+		return
 	}
 
 	query := a.DB.Where("id = ? AND organization_id = ?", logID, orgID)
@@ -118,7 +121,8 @@ func (a *App) GetCallLog(r *fastglue.Request) error {
 
 	var callLog models.CallLog
 	if err := query.Preload("Contact").Preload("Agent").Preload("IVRFlow").First(&callLog).Error; err != nil {
-		return r.SendErrorEnvelope(fasthttp.StatusNotFound, "Call log not found", nil, "")
+		SendErrorEnvelope(w, http.StatusNotFound, "Call log not found", nil, "")
+		return
 	}
 
 	if a.ShouldMaskPhoneNumbers(orgID) {
@@ -138,7 +142,7 @@ func (a *App) GetCallLog(r *fastglue.Request) error {
 		Order("created_at ASC").
 		Find(&transfers)
 
-	return r.SendEnvelope(map[string]any{
+	SendEnvelope(w, map[string]any{
 		"call_log":  callLog,
 		"transfers": transfers,
 	})
@@ -146,19 +150,21 @@ func (a *App) GetCallLog(r *fastglue.Request) error {
 
 // GetCallRecording returns a presigned S3 URL for a call recording.
 // Users without call_logs:read permission can only access recordings for their own calls.
-func (a *App) GetCallRecording(r *fastglue.Request) error {
-	orgID, userID, err := a.getOrgAndUserID(r)
+func (a *App) GetCallRecording(w http.ResponseWriter, r *http.Request) {
+	orgID, userID, err := a.getOrgAndUserIDHTTP(r)
 	if err != nil {
-		return r.SendErrorEnvelope(fasthttp.StatusUnauthorized, "Unauthorized", nil, "")
+		SendErrorEnvelope(w, http.StatusUnauthorized, "Unauthorized", nil, "")
+		return
 	}
 
 	if a.S3Client == nil {
-		return r.SendErrorEnvelope(fasthttp.StatusNotFound, "Recording not available", nil, "")
+		SendErrorEnvelope(w, http.StatusNotFound, "Recording not available", nil, "")
+		return
 	}
 
-	logID, err := parsePathUUID(r, "id", "call log")
+	logID, err := parsePathUUIDHTTP(w, r, "id", "call log")
 	if err != nil {
-		return nil
+		return
 	}
 
 	query := a.DB.Where("id = ? AND organization_id = ?", logID, orgID)
@@ -168,20 +174,23 @@ func (a *App) GetCallRecording(r *fastglue.Request) error {
 
 	var callLog models.CallLog
 	if err := query.First(&callLog).Error; err != nil {
-		return r.SendErrorEnvelope(fasthttp.StatusNotFound, "Call log not found", nil, "")
+		SendErrorEnvelope(w, http.StatusNotFound, "Call log not found", nil, "")
+		return
 	}
 
 	if callLog.RecordingS3Key == "" {
-		return r.SendErrorEnvelope(fasthttp.StatusNotFound, "No recording for this call", nil, "")
+		SendErrorEnvelope(w, http.StatusNotFound, "No recording for this call", nil, "")
+		return
 	}
 
-	url, err := a.S3Client.GetPresignedURL(r.RequestCtx, callLog.RecordingS3Key, 15*time.Minute)
+	url, err := a.S3Client.GetPresignedURL(r.Context(), callLog.RecordingS3Key, 15*time.Minute)
 	if err != nil {
 		a.Log.Error("Failed to generate presigned URL", "error", err, "call_log_id", logID)
-		return r.SendErrorEnvelope(fasthttp.StatusInternalServerError, "Failed to generate recording URL", nil, "")
+		SendErrorEnvelope(w, http.StatusInternalServerError, "Failed to generate recording URL", nil, "")
+		return
 	}
 
-	return r.SendEnvelope(map[string]any{
+	SendEnvelope(w, map[string]any{
 		"url":      url,
 		"duration": callLog.RecordingDuration,
 	})

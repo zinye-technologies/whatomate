@@ -130,7 +130,7 @@ func TestApp_GetPublicSSOProviders_DedupsByType(t *testing.T) {
 	}).Error)
 
 	req := testutil.NewGETRequest(t)
-	require.NoError(t, app.GetPublicSSOProviders(req))
+	testutil.InvokeHTTP(t, app.GetPublicSSOProviders, req)
 	require.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	var resp struct {
@@ -161,7 +161,7 @@ func TestApp_GetSSOSettings_HidesSecretButReportsHasSecret(t *testing.T) {
 	req := testutil.NewGETRequest(t)
 	testutil.SetAuthContext(req, org.ID, uuid.New())
 
-	require.NoError(t, app.GetSSOSettings(req))
+	testutil.InvokeHTTP(t, app.GetSSOSettings, req)
 	require.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	var resp struct {
@@ -190,7 +190,7 @@ func TestApp_UpdateSSOProvider_CreateCustomRequiresURLs(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, uuid.New())
 	testutil.SetPathParam(req, "provider", "custom")
 
-	require.NoError(t, app.UpdateSSOProvider(req))
+	testutil.InvokeHTTP(t, app.UpdateSSOProvider, req)
 	testutil.AssertErrorResponse(t, req, fasthttp.StatusBadRequest, "auth_url, token_url, and user_info_url")
 }
 
@@ -205,7 +205,7 @@ func TestApp_UpdateSSOProvider_InvalidProviderRejected(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, uuid.New())
 	testutil.SetPathParam(req, "provider", "okta") // not in allowlist
 
-	require.NoError(t, app.UpdateSSOProvider(req))
+	testutil.InvokeHTTP(t, app.UpdateSSOProvider, req)
 	testutil.AssertErrorResponse(t, req, fasthttp.StatusBadRequest, "Invalid provider")
 }
 
@@ -222,7 +222,7 @@ func TestApp_UpdateSSOProvider_EncryptsClientSecret(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, uuid.New())
 	testutil.SetPathParam(req, "provider", "google")
 
-	require.NoError(t, app.UpdateSSOProvider(req))
+	testutil.InvokeHTTP(t, app.UpdateSSOProvider, req)
 	require.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	var stored models.SSOProvider
@@ -249,7 +249,7 @@ func TestApp_UpdateSSOProvider_OmittingSecretLeavesUnchanged(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, uuid.New())
 	testutil.SetPathParam(req, "provider", "google")
 
-	require.NoError(t, app.UpdateSSOProvider(req))
+	testutil.InvokeHTTP(t, app.UpdateSSOProvider, req)
 
 	var stored models.SSOProvider
 	require.NoError(t, app.DB.Where("id = ?", original.ID).First(&stored).Error)
@@ -272,7 +272,7 @@ func TestApp_DeleteSSOProvider_Success(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, uuid.New())
 	testutil.SetPathParam(req, "provider", "google")
 
-	require.NoError(t, app.DeleteSSOProvider(req))
+	testutil.InvokeHTTP(t, app.DeleteSSOProvider, req)
 	require.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	var count int64
@@ -288,7 +288,7 @@ func TestApp_DeleteSSOProvider_NotFound(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, uuid.New())
 	testutil.SetPathParam(req, "provider", "google")
 
-	require.NoError(t, app.DeleteSSOProvider(req))
+	testutil.InvokeHTTP(t, app.DeleteSSOProvider, req)
 	testutil.AssertErrorResponse(t, req, fasthttp.StatusNotFound, "SSO provider not found")
 }
 
@@ -306,7 +306,7 @@ func TestApp_DeleteSSOProvider_CrossOrgIsolation(t *testing.T) {
 	testutil.SetAuthContext(req, orgB.ID, uuid.New())
 	testutil.SetPathParam(req, "provider", "google")
 
-	require.NoError(t, app.DeleteSSOProvider(req))
+	testutil.InvokeHTTP(t, app.DeleteSSOProvider, req)
 	assert.Equal(t, fasthttp.StatusNotFound, testutil.GetResponseStatusCode(req))
 
 	// Other org's record is intact.
@@ -323,7 +323,7 @@ func TestApp_InitSSO_InvalidProviderRejected(t *testing.T) {
 	req := testutil.NewGETRequest(t)
 	testutil.SetPathParam(req, "provider", "unknown")
 
-	require.NoError(t, app.InitSSO(req))
+	testutil.InvokeHTTP(t, app.InitSSO, req)
 	testutil.AssertErrorResponse(t, req, fasthttp.StatusBadRequest, "Invalid SSO provider")
 }
 
@@ -336,7 +336,7 @@ func TestApp_InitSSO_NoConfigReturns404(t *testing.T) {
 	req := testutil.NewGETRequest(t)
 	testutil.SetPathParam(req, "provider", "google")
 
-	require.NoError(t, app.InitSSO(req))
+	testutil.InvokeHTTP(t, app.InitSSO, req)
 	testutil.AssertErrorResponse(t, req, fasthttp.StatusNotFound, "not configured")
 }
 
@@ -351,7 +351,7 @@ func TestApp_InitSSO_StoresStateInRedisAndRedirects(t *testing.T) {
 	req.RequestCtx.Request.SetHost("example.test")
 	testutil.SetPathParam(req, "provider", "custom")
 
-	require.NoError(t, app.InitSSO(req))
+	testutil.InvokeHTTP(t, app.InitSSO, req)
 	require.Equal(t, fasthttp.StatusTemporaryRedirect, testutil.GetResponseStatusCode(req))
 
 	loc := string(req.RequestCtx.Response.Header.Peek("Location"))
@@ -379,7 +379,7 @@ func TestApp_CallbackSSO_MissingCodeOrStateRedirectsWithError(t *testing.T) {
 	req := testutil.NewGETRequest(t)
 	testutil.SetPathParam(req, "provider", "custom")
 
-	require.NoError(t, app.CallbackSSO(req))
+	testutil.InvokeHTTP(t, app.CallbackSSO, req)
 	assert.Equal(t, fasthttp.StatusTemporaryRedirect, testutil.GetResponseStatusCode(req))
 	loc := string(req.RequestCtx.Response.Header.Peek("Location"))
 	assert.Contains(t, loc, "sso_error=")
@@ -394,7 +394,7 @@ func TestApp_CallbackSSO_OAuthErrorParamRedirects(t *testing.T) {
 	testutil.SetQueryParam(req, "error", "access_denied")
 	testutil.SetQueryParam(req, "error_description", "User declined")
 
-	require.NoError(t, app.CallbackSSO(req))
+	testutil.InvokeHTTP(t, app.CallbackSSO, req)
 	assert.Equal(t, fasthttp.StatusTemporaryRedirect, testutil.GetResponseStatusCode(req))
 	loc := string(req.RequestCtx.Response.Header.Peek("Location"))
 	assert.Contains(t, loc, "User+declined")
@@ -408,7 +408,7 @@ func TestApp_CallbackSSO_UnknownStateNonceFails(t *testing.T) {
 	testutil.SetQueryParam(req, "code", "any")
 	testutil.SetQueryParam(req, "state", "never-stored")
 
-	require.NoError(t, app.CallbackSSO(req))
+	testutil.InvokeHTTP(t, app.CallbackSSO, req)
 	loc := string(req.RequestCtx.Response.Header.Peek("Location"))
 	assert.Contains(t, loc, "Invalid+or+expired+state")
 }
@@ -430,7 +430,7 @@ func TestApp_CallbackSSO_StateProviderMismatchRejected(t *testing.T) {
 	testutil.SetQueryParam(req, "code", "x")
 	testutil.SetQueryParam(req, "state", nonce)
 
-	require.NoError(t, app.CallbackSSO(req))
+	testutil.InvokeHTTP(t, app.CallbackSSO, req)
 	loc := string(req.RequestCtx.Response.Header.Peek("Location"))
 	assert.Contains(t, loc, "Invalid+or+expired+state")
 }
@@ -455,14 +455,14 @@ func TestApp_CallbackSSO_StateIsSingleUse(t *testing.T) {
 	testutil.SetPathParam(req1, "provider", "custom")
 	testutil.SetQueryParam(req1, "code", "code-1")
 	testutil.SetQueryParam(req1, "state", nonce)
-	require.NoError(t, app.CallbackSSO(req1))
+	testutil.InvokeHTTP(t, app.CallbackSSO, req1)
 
 	// Replay: same nonce should fail with state error.
 	req2 := testutil.NewGETRequest(t)
 	testutil.SetPathParam(req2, "provider", "custom")
 	testutil.SetQueryParam(req2, "code", "code-1")
 	testutil.SetQueryParam(req2, "state", nonce)
-	require.NoError(t, app.CallbackSSO(req2))
+	testutil.InvokeHTTP(t, app.CallbackSSO, req2)
 	loc := string(req2.RequestCtx.Response.Header.Peek("Location"))
 	assert.Contains(t, loc, "Invalid+or+expired+state", "state must be deleted on first use")
 }
@@ -494,7 +494,7 @@ func TestApp_CallbackSSO_CustomProvider_ExistingUser_LoginSuccess(t *testing.T) 
 	testutil.SetQueryParam(req, "code", "auth-code-xyz")
 	testutil.SetQueryParam(req, "state", nonce)
 
-	require.NoError(t, app.CallbackSSO(req))
+	testutil.InvokeHTTP(t, app.CallbackSSO, req)
 	assert.Equal(t, fasthttp.StatusTemporaryRedirect, testutil.GetResponseStatusCode(req))
 
 	// Auth cookies set on the response.
@@ -536,7 +536,7 @@ func TestApp_CallbackSSO_AutoCreateDisabledRejectsNewUser(t *testing.T) {
 	testutil.SetQueryParam(req, "code", "c")
 	testutil.SetQueryParam(req, "state", nonce)
 
-	require.NoError(t, app.CallbackSSO(req))
+	testutil.InvokeHTTP(t, app.CallbackSSO, req)
 	loc := string(req.RequestCtx.Response.Header.Peek("Location"))
 	assert.Contains(t, loc, "User+not+found")
 
@@ -567,7 +567,7 @@ func TestApp_CallbackSSO_AutoCreateEnabledCreatesUserWithDefaultRole(t *testing.
 	testutil.SetQueryParam(req, "code", "c")
 	testutil.SetQueryParam(req, "state", nonce)
 
-	require.NoError(t, app.CallbackSSO(req))
+	testutil.InvokeHTTP(t, app.CallbackSSO, req)
 	require.Equal(t, fasthttp.StatusTemporaryRedirect, testutil.GetResponseStatusCode(req))
 	assert.NotEmpty(t, testutil.GetResponseCookie(req, "whm_access"))
 
@@ -605,7 +605,7 @@ func TestApp_CallbackSSO_DomainRestrictionRejectsOutsideEmail(t *testing.T) {
 	testutil.SetQueryParam(req, "code", "c")
 	testutil.SetQueryParam(req, "state", nonce)
 
-	require.NoError(t, app.CallbackSSO(req))
+	testutil.InvokeHTTP(t, app.CallbackSSO, req)
 	loc := string(req.RequestCtx.Response.Header.Peek("Location"))
 	assert.Contains(t, loc, "Email+domain+not+allowed")
 }
@@ -636,7 +636,7 @@ func TestApp_CallbackSSO_DisabledExistingUserRejected(t *testing.T) {
 	testutil.SetQueryParam(req, "code", "c")
 	testutil.SetQueryParam(req, "state", nonce)
 
-	require.NoError(t, app.CallbackSSO(req))
+	testutil.InvokeHTTP(t, app.CallbackSSO, req)
 	loc := string(req.RequestCtx.Response.Header.Peek("Location"))
 	assert.Contains(t, loc, "Account+is+disabled")
 	// No cookies set when account is disabled.

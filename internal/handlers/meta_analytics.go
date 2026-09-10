@@ -4,13 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/shridarpatil/whatomate/internal/models"
 	"github.com/shridarpatil/whatomate/pkg/whatsapp"
-	"github.com/valyala/fasthttp"
-	"github.com/zerodha/fastglue"
 )
 
 const (
@@ -41,44 +40,51 @@ type MetaAnalyticsResponse struct {
 }
 
 // GetMetaAnalytics fetches Meta WhatsApp analytics with Redis caching
-func (a *App) GetMetaAnalytics(r *fastglue.Request) error {
-	orgID, userID, err := a.getOrgAndUserID(r)
+func (a *App) GetMetaAnalytics(w http.ResponseWriter, r *http.Request) {
+	orgID, userID, err := a.getOrgAndUserIDHTTP(r)
 	if err != nil {
-		return r.SendErrorEnvelope(fasthttp.StatusUnauthorized, "Unauthorized", nil, "")
+		SendErrorEnvelope(w, http.StatusUnauthorized, "Unauthorized", nil, "")
+		return
 	}
 
 	// Check permission
 	if !a.HasPermission(userID, "analytics", "read", orgID) {
-		return r.SendErrorEnvelope(fasthttp.StatusForbidden, "Permission denied", nil, "")
+		SendErrorEnvelope(w, http.StatusForbidden, "Permission denied", nil, "")
+		return
 	}
 
 	// Parse request parameters
-	accountID := string(r.RequestCtx.QueryArgs().Peek("account_id"))
-	analyticsType := string(r.RequestCtx.QueryArgs().Peek("analytics_type"))
-	startStr := string(r.RequestCtx.QueryArgs().Peek("start"))
-	endStr := string(r.RequestCtx.QueryArgs().Peek("end"))
-	granularity := string(r.RequestCtx.QueryArgs().Peek("granularity"))
+	accountID := r.URL.Query().Get("account_id")
+	analyticsType := r.URL.Query().Get("analytics_type")
+	startStr := r.URL.Query().Get("start")
+	endStr := r.URL.Query().Get("end")
+	granularity := r.URL.Query().Get("granularity")
 
 	// Validate required parameters
 	if analyticsType == "" {
-		return r.SendErrorEnvelope(fasthttp.StatusBadRequest, "analytics_type is required", nil, "")
+		SendErrorEnvelope(w, http.StatusBadRequest, "analytics_type is required", nil, "")
+		return
 	}
 	if !whatsapp.ValidateAnalyticsType(analyticsType) {
-		return r.SendErrorEnvelope(fasthttp.StatusBadRequest, "Invalid analytics_type. Must be one of: analytics, pricing_analytics, template_analytics, call_analytics", nil, "")
+		SendErrorEnvelope(w, http.StatusBadRequest, "Invalid analytics_type. Must be one of: analytics, pricing_analytics, template_analytics, call_analytics", nil, "")
+		return
 	}
 	if startStr == "" || endStr == "" {
-		return r.SendErrorEnvelope(fasthttp.StatusBadRequest, "start and end dates are required (YYYY-MM-DD format)", nil, "")
+		SendErrorEnvelope(w, http.StatusBadRequest, "start and end dates are required (YYYY-MM-DD format)", nil, "")
+		return
 	}
 
 	// Parse dates
 	startDate, endDate, errMsg := parseDateRange(startStr, endStr)
 	if errMsg != "" {
-		return r.SendErrorEnvelope(fasthttp.StatusBadRequest, errMsg, nil, "")
+		SendErrorEnvelope(w, http.StatusBadRequest, errMsg, nil, "")
+		return
 	}
 
 	// Validate date range
 	if endDate.Before(startDate) {
-		return r.SendErrorEnvelope(fasthttp.StatusBadRequest, "End date must be after start date", nil, "")
+		SendErrorEnvelope(w, http.StatusBadRequest, "End date must be after start date", nil, "")
+		return
 	}
 
 	// Set default granularity (use DAY as standard input, will be normalized per endpoint)
@@ -86,7 +92,8 @@ func (a *App) GetMetaAnalytics(r *fastglue.Request) error {
 		granularity = "DAY"
 	}
 	if !whatsapp.ValidateGranularity(granularity) {
-		return r.SendErrorEnvelope(fasthttp.StatusBadRequest, "Invalid granularity. Must be one of: HALF_HOUR, DAY, MONTH", nil, "")
+		SendErrorEnvelope(w, http.StatusBadRequest, "Invalid granularity. Must be one of: HALF_HOUR, DAY, MONTH", nil, "")
+		return
 	}
 
 	// Auto-adjust granularity based on date range to avoid Meta API errors
@@ -115,7 +122,8 @@ func (a *App) GetMetaAnalytics(r *fastglue.Request) error {
 	if analyticsType == string(whatsapp.AnalyticsTypeTemplate) {
 		ninetyDaysAgo := time.Now().AddDate(0, 0, -90)
 		if startDate.Before(ninetyDaysAgo) {
-			return r.SendErrorEnvelope(fasthttp.StatusBadRequest, "Template analytics have a 90-day lookback limit", nil, "")
+			SendErrorEnvelope(w, http.StatusBadRequest, "Template analytics have a 90-day lookback limit", nil, "")
+			return
 		}
 	}
 
@@ -129,22 +137,25 @@ func (a *App) GetMetaAnalytics(r *fastglue.Request) error {
 		// Specific account
 		var account models.WhatsAppAccount
 		if err := a.DB.Where("id = ? AND organization_id = ?", accountID, orgID).First(&account).Error; err != nil {
-			return r.SendErrorEnvelope(fasthttp.StatusNotFound, "Account not found", nil, "")
+			SendErrorEnvelope(w, http.StatusNotFound, "Account not found", nil, "")
+			return
 		}
 		accounts = append(accounts, account)
 	} else {
 		// All accounts for the organization
 		if err := a.DB.Where("organization_id = ?", orgID).Find(&accounts).Error; err != nil {
 			a.Log.Error("Failed to fetch accounts", "error", err)
-			return r.SendErrorEnvelope(fasthttp.StatusInternalServerError, "Failed to fetch accounts", nil, "")
+			SendErrorEnvelope(w, http.StatusInternalServerError, "Failed to fetch accounts", nil, "")
+			return
 		}
 	}
 
 	if len(accounts) == 0 {
-		return r.SendEnvelope(map[string]any{
+		SendEnvelope(w, map[string]any{
 			"accounts": []MetaAnalyticsResponse{},
 			"message":  "No WhatsApp accounts found",
 		})
+		return
 	}
 
 	// Build cache key
@@ -157,10 +168,11 @@ func (a *App) GetMetaAnalytics(r *fastglue.Request) error {
 		var cachedResponse []MetaAnalyticsResponse
 		if err := json.Unmarshal([]byte(cached), &cachedResponse); err == nil {
 			a.Log.Debug("Meta analytics cache hit", "cache_key", cacheKey)
-			return r.SendEnvelope(map[string]any{
+			SendEnvelope(w, map[string]any{
 				"accounts": cachedResponse,
 				"cached":   true,
 			})
+			return
 		}
 	}
 
@@ -183,7 +195,7 @@ func (a *App) GetMetaAnalytics(r *fastglue.Request) error {
 		// Note: template_group_analytics requires template_group_ids which are different from template IDs
 		if analyticsType == string(whatsapp.AnalyticsTypeTemplate) {
 			// Check if template_ids provided in query params
-			templateIDsStr := string(r.RequestCtx.QueryArgs().Peek("template_ids"))
+			templateIDsStr := r.URL.Query().Get("template_ids")
 			if templateIDsStr != "" {
 				var templateIDs []string
 				if err := json.Unmarshal([]byte(templateIDsStr), &templateIDs); err == nil {
@@ -337,19 +349,22 @@ func (a *App) GetMetaAnalytics(r *fastglue.Request) error {
 		response["original_granularity"] = originalGranularity
 	}
 
-	return r.SendEnvelope(response)
+	SendEnvelope(w, response)
+	return
 }
 
 // ListMetaAccountsForAnalytics lists WhatsApp accounts available for analytics
-func (a *App) ListMetaAccountsForAnalytics(r *fastglue.Request) error {
-	orgID, userID, err := a.getOrgAndUserID(r)
+func (a *App) ListMetaAccountsForAnalytics(w http.ResponseWriter, r *http.Request) {
+	orgID, userID, err := a.getOrgAndUserIDHTTP(r)
 	if err != nil {
-		return r.SendErrorEnvelope(fasthttp.StatusUnauthorized, "Unauthorized", nil, "")
+		SendErrorEnvelope(w, http.StatusUnauthorized, "Unauthorized", nil, "")
+		return
 	}
 
 	// Check permission
 	if !a.HasPermission(userID, "analytics", "read", orgID) {
-		return r.SendErrorEnvelope(fasthttp.StatusForbidden, "Permission denied", nil, "")
+		SendErrorEnvelope(w, http.StatusForbidden, "Permission denied", nil, "")
+		return
 	}
 
 	type AccountInfo struct {
@@ -361,7 +376,8 @@ func (a *App) ListMetaAccountsForAnalytics(r *fastglue.Request) error {
 	var accounts []models.WhatsAppAccount
 	if err := a.DB.Select("id, name, phone_id").Where("organization_id = ?", orgID).Find(&accounts).Error; err != nil {
 		a.Log.Error("Failed to fetch accounts", "error", err)
-		return r.SendErrorEnvelope(fasthttp.StatusInternalServerError, "Failed to fetch accounts", nil, "")
+		SendErrorEnvelope(w, http.StatusInternalServerError, "Failed to fetch accounts", nil, "")
+		return
 	}
 
 	result := make([]AccountInfo, 0, len(accounts))
@@ -373,21 +389,24 @@ func (a *App) ListMetaAccountsForAnalytics(r *fastglue.Request) error {
 		})
 	}
 
-	return r.SendEnvelope(map[string]any{
+	SendEnvelope(w, map[string]any{
 		"accounts": result,
 	})
+	return
 }
 
 // RefreshMetaAnalyticsCache invalidates the cache for Meta analytics
-func (a *App) RefreshMetaAnalyticsCache(r *fastglue.Request) error {
-	orgID, userID, err := a.getOrgAndUserID(r)
+func (a *App) RefreshMetaAnalyticsCache(w http.ResponseWriter, r *http.Request) {
+	orgID, userID, err := a.getOrgAndUserIDHTTP(r)
 	if err != nil {
-		return r.SendErrorEnvelope(fasthttp.StatusUnauthorized, "Unauthorized", nil, "")
+		SendErrorEnvelope(w, http.StatusUnauthorized, "Unauthorized", nil, "")
+		return
 	}
 
 	// Check permission
 	if !a.HasPermission(userID, "analytics", "write", orgID) {
-		return r.SendErrorEnvelope(fasthttp.StatusForbidden, "Permission denied", nil, "")
+		SendErrorEnvelope(w, http.StatusForbidden, "Permission denied", nil, "")
+		return
 	}
 
 	// Delete all cached analytics for this organization
@@ -395,9 +414,10 @@ func (a *App) RefreshMetaAnalyticsCache(r *fastglue.Request) error {
 	pattern := fmt.Sprintf("%s%s:*", metaAnalyticsCachePrefix, orgID.String())
 	a.deleteKeysByPattern(ctx, pattern)
 
-	return r.SendEnvelope(map[string]any{
+	SendEnvelope(w, map[string]any{
 		"message": "Analytics cache cleared successfully",
 	})
+	return
 }
 
 // buildMetaAnalyticsCacheKey builds a cache key for Meta analytics

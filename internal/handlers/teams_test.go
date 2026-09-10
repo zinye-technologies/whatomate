@@ -73,8 +73,7 @@ func TestApp_ListTeams_Success(t *testing.T) {
 	req := testutil.NewGETRequest(t)
 	testutil.SetAuthContext(req, org.ID, user.ID)
 
-	err := app.ListTeams(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.ListTeams, req)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	var resp struct {
@@ -83,7 +82,7 @@ func TestApp_ListTeams_Success(t *testing.T) {
 			Teams []handlers.TeamResponse `json:"teams"`
 		} `json:"data"`
 	}
-	err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+	err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 	require.NoError(t, err)
 
 	assert.Equal(t, "success", resp.Status)
@@ -109,8 +108,7 @@ func TestApp_ListTeams_Empty(t *testing.T) {
 	req := testutil.NewGETRequest(t)
 	testutil.SetAuthContext(req, org.ID, user.ID)
 
-	err := app.ListTeams(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.ListTeams, req)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	var resp struct {
@@ -119,7 +117,7 @@ func TestApp_ListTeams_Empty(t *testing.T) {
 			Teams []handlers.TeamResponse `json:"teams"`
 		} `json:"data"`
 	}
-	err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+	err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 	require.NoError(t, err)
 
 	assert.Equal(t, "success", resp.Status)
@@ -143,8 +141,7 @@ func TestApp_GetTeam_Success(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, user.ID)
 	testutil.SetPathParam(req, "id", team.ID.String())
 
-	err := app.GetTeam(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.GetTeam, req)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	var resp struct {
@@ -153,7 +150,7 @@ func TestApp_GetTeam_Success(t *testing.T) {
 			Team handlers.TeamResponse `json:"team"`
 		} `json:"data"`
 	}
-	err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+	err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 	require.NoError(t, err)
 
 	assert.Equal(t, "success", resp.Status)
@@ -177,8 +174,7 @@ func TestApp_GetTeam_NotFound(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, user.ID)
 	testutil.SetPathParam(req, "id", uuid.New().String())
 
-	err := app.GetTeam(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.GetTeam, req)
 	assert.Equal(t, fasthttp.StatusNotFound, testutil.GetResponseStatusCode(req))
 }
 
@@ -201,8 +197,7 @@ func TestApp_CreateTeam_Success(t *testing.T) {
 	req := testutil.NewJSONRequest(t, reqBody)
 	testutil.SetAuthContext(req, org.ID, user.ID)
 
-	err := app.CreateTeam(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.CreateTeam, req)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	var resp struct {
@@ -211,7 +206,7 @@ func TestApp_CreateTeam_Success(t *testing.T) {
 			Team handlers.TeamResponse `json:"team"`
 		} `json:"data"`
 	}
-	err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+	err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 	require.NoError(t, err)
 
 	assert.Equal(t, "success", resp.Status)
@@ -244,8 +239,7 @@ func TestApp_CreateTeam_DefaultStrategy(t *testing.T) {
 	req := testutil.NewJSONRequest(t, reqBody)
 	testutil.SetAuthContext(req, org.ID, user.ID)
 
-	err := app.CreateTeam(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.CreateTeam, req)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	var resp struct {
@@ -254,7 +248,7 @@ func TestApp_CreateTeam_DefaultStrategy(t *testing.T) {
 			Team handlers.TeamResponse `json:"team"`
 		} `json:"data"`
 	}
-	err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+	err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 	require.NoError(t, err)
 
 	assert.Equal(t, models.AssignmentStrategyRoundRobin, resp.Data.Team.AssignmentStrategy)
@@ -275,8 +269,7 @@ func TestApp_CreateTeam_MissingName(t *testing.T) {
 	req := testutil.NewJSONRequest(t, reqBody)
 	testutil.SetAuthContext(req, org.ID, user.ID)
 
-	err := app.CreateTeam(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.CreateTeam, req)
 	assert.Equal(t, fasthttp.StatusBadRequest, testutil.GetResponseStatusCode(req))
 }
 
@@ -302,8 +295,7 @@ func TestApp_UpdateTeam_Success(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, user.ID)
 	testutil.SetPathParam(req, "id", team.ID.String())
 
-	err := app.UpdateTeam(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.UpdateTeam, req)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	var resp struct {
@@ -312,7 +304,7 @@ func TestApp_UpdateTeam_Success(t *testing.T) {
 			Team handlers.TeamResponse `json:"team"`
 		} `json:"data"`
 	}
-	err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+	err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 	require.NoError(t, err)
 
 	assert.Equal(t, "success", resp.Status)
@@ -342,8 +334,7 @@ func TestApp_UpdateTeam_NotFound(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, user.ID)
 	testutil.SetPathParam(req, "id", uuid.New().String())
 
-	err := app.UpdateTeam(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.UpdateTeam, req)
 	assert.Equal(t, fasthttp.StatusNotFound, testutil.GetResponseStatusCode(req))
 }
 
@@ -366,13 +357,12 @@ func TestApp_DeleteTeam_Success(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, user.ID)
 	testutil.SetPathParam(req, "id", team.ID.String())
 
-	err := app.DeleteTeam(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.DeleteTeam, req)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	// Verify team was deleted
 	var dbTeam models.Team
-	err = app.DB.First(&dbTeam, "id = ?", team.ID).Error
+	err := app.DB.First(&dbTeam, "id = ?", team.ID).Error
 	assert.Error(t, err)
 
 	// Verify team members were also deleted
@@ -393,8 +383,7 @@ func TestApp_DeleteTeam_NotFound(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, user.ID)
 	testutil.SetPathParam(req, "id", uuid.New().String())
 
-	err := app.DeleteTeam(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.DeleteTeam, req)
 	assert.Equal(t, fasthttp.StatusNotFound, testutil.GetResponseStatusCode(req))
 }
 
@@ -418,8 +407,7 @@ func TestApp_ListTeamMembers_Success(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, user.ID)
 	testutil.SetPathParam(req, "id", team.ID.String())
 
-	err := app.ListTeamMembers(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.ListTeamMembers, req)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	var resp struct {
@@ -428,7 +416,7 @@ func TestApp_ListTeamMembers_Success(t *testing.T) {
 			Members []handlers.TeamMemberResponse `json:"members"`
 		} `json:"data"`
 	}
-	err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+	err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 	require.NoError(t, err)
 
 	assert.Equal(t, "success", resp.Status)
@@ -454,8 +442,7 @@ func TestApp_ListTeamMembers_TeamNotFound(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, user.ID)
 	testutil.SetPathParam(req, "id", uuid.New().String())
 
-	err := app.ListTeamMembers(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.ListTeamMembers, req)
 	assert.Equal(t, fasthttp.StatusNotFound, testutil.GetResponseStatusCode(req))
 }
 
@@ -480,8 +467,7 @@ func TestApp_AddTeamMember_Success(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, user.ID)
 	testutil.SetPathParam(req, "id", team.ID.String())
 
-	err := app.AddTeamMember(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.AddTeamMember, req)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	var resp struct {
@@ -490,7 +476,7 @@ func TestApp_AddTeamMember_Success(t *testing.T) {
 			Member handlers.TeamMemberResponse `json:"member"`
 		} `json:"data"`
 	}
-	err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+	err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 	require.NoError(t, err)
 
 	assert.Equal(t, "success", resp.Status)
@@ -524,8 +510,7 @@ func TestApp_AddTeamMember_DuplicateMember(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, user.ID)
 	testutil.SetPathParam(req, "id", team.ID.String())
 
-	err := app.AddTeamMember(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.AddTeamMember, req)
 	assert.Equal(t, fasthttp.StatusConflict, testutil.GetResponseStatusCode(req))
 }
 
@@ -548,8 +533,7 @@ func TestApp_RemoveTeamMember_Success(t *testing.T) {
 	testutil.SetPathParam(req, "id", team.ID.String())
 	testutil.SetPathParam(req, "member_user_id", agent.ID.String())
 
-	err := app.RemoveTeamMember(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.RemoveTeamMember, req)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	// Verify member was removed from DB
@@ -573,7 +557,6 @@ func TestApp_RemoveTeamMember_NotFound(t *testing.T) {
 	testutil.SetPathParam(req, "id", team.ID.String())
 	testutil.SetPathParam(req, "member_user_id", uuid.New().String())
 
-	err := app.RemoveTeamMember(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.RemoveTeamMember, req)
 	assert.Equal(t, fasthttp.StatusNotFound, testutil.GetResponseStatusCode(req))
 }

@@ -172,8 +172,7 @@ func TestApp_ListCatalogs_Success(t *testing.T) {
 	req := testutil.NewGETRequest(t)
 	testutil.SetAuthContext(req, org.ID, user.ID)
 
-	err := app.ListCatalogs(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.ListCatalogs, req)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	var resp struct {
@@ -181,7 +180,7 @@ func TestApp_ListCatalogs_Success(t *testing.T) {
 			Catalogs []handlers.CatalogResponse `json:"catalogs"`
 		} `json:"data"`
 	}
-	err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+	err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 	require.NoError(t, err)
 	assert.Len(t, resp.Data.Catalogs, 2)
 
@@ -201,8 +200,7 @@ func TestApp_ListCatalogs_Empty(t *testing.T) {
 	req := testutil.NewGETRequest(t)
 	testutil.SetAuthContext(req, org.ID, user.ID)
 
-	err := app.ListCatalogs(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.ListCatalogs, req)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	var resp struct {
@@ -210,7 +208,7 @@ func TestApp_ListCatalogs_Empty(t *testing.T) {
 			Catalogs []handlers.CatalogResponse `json:"catalogs"`
 		} `json:"data"`
 	}
-	err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+	err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 	require.NoError(t, err)
 	assert.Len(t, resp.Data.Catalogs, 0)
 }
@@ -231,8 +229,7 @@ func TestApp_ListCatalogs_FilterByWhatsAppAccount(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, user.ID)
 	testutil.SetQueryParam(req, "whatsapp_account", account1.Name)
 
-	err := app.ListCatalogs(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.ListCatalogs, req)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	var resp struct {
@@ -240,7 +237,7 @@ func TestApp_ListCatalogs_FilterByWhatsAppAccount(t *testing.T) {
 			Catalogs []handlers.CatalogResponse `json:"catalogs"`
 		} `json:"data"`
 	}
-	err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+	err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 	require.NoError(t, err)
 	assert.Len(t, resp.Data.Catalogs, 1)
 	assert.Equal(t, account1.Name, resp.Data.Catalogs[0].WhatsAppAccount)
@@ -261,8 +258,7 @@ func TestApp_ListCatalogs_WithProductCount(t *testing.T) {
 	req := testutil.NewGETRequest(t)
 	testutil.SetAuthContext(req, org.ID, user.ID)
 
-	err := app.ListCatalogs(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.ListCatalogs, req)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	var resp struct {
@@ -270,7 +266,7 @@ func TestApp_ListCatalogs_WithProductCount(t *testing.T) {
 			Catalogs []handlers.CatalogResponse `json:"catalogs"`
 		} `json:"data"`
 	}
-	err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+	err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 	require.NoError(t, err)
 	require.Len(t, resp.Data.Catalogs, 1)
 	assert.Equal(t, 2, resp.Data.Catalogs[0].ProductCount)
@@ -291,8 +287,7 @@ func TestApp_ListCatalogs_OrgIsolation(t *testing.T) {
 	req := testutil.NewGETRequest(t)
 	testutil.SetAuthContext(req, org2.ID, user2.ID)
 
-	err := app.ListCatalogs(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.ListCatalogs, req)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	var resp struct {
@@ -300,7 +295,7 @@ func TestApp_ListCatalogs_OrgIsolation(t *testing.T) {
 			Catalogs []handlers.CatalogResponse `json:"catalogs"`
 		} `json:"data"`
 	}
-	err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+	err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 	require.NoError(t, err)
 	assert.Len(t, resp.Data.Catalogs, 0)
 }
@@ -322,14 +317,13 @@ func TestApp_CreateCatalog_Success(t *testing.T) {
 	})
 	testutil.SetAuthContext(req, org.ID, user.ID)
 
-	err := app.CreateCatalog(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.CreateCatalog, req)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	var resp struct {
 		Data handlers.CatalogResponse `json:"data"`
 	}
-	err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+	err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 	require.NoError(t, err)
 	assert.Equal(t, "My Test Catalog", resp.Data.Name)
 	assert.Equal(t, account.Name, resp.Data.WhatsAppAccount)
@@ -379,8 +373,7 @@ func TestApp_CreateCatalog_MissingFields(t *testing.T) {
 			req := testutil.NewJSONRequest(t, tc.body)
 			testutil.SetAuthContext(req, org.ID, user.ID)
 
-			err := app.CreateCatalog(req)
-			require.NoError(t, err)
+			testutil.InvokeHTTP(t, app.CreateCatalog, req)
 			assert.Equal(t, fasthttp.StatusBadRequest, testutil.GetResponseStatusCode(req))
 		})
 	}
@@ -399,8 +392,7 @@ func TestApp_CreateCatalog_AccountNotFound(t *testing.T) {
 	})
 	testutil.SetAuthContext(req, org.ID, user.ID)
 
-	err := app.CreateCatalog(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.CreateCatalog, req)
 	assert.Equal(t, fasthttp.StatusNotFound, testutil.GetResponseStatusCode(req))
 }
 
@@ -415,8 +407,7 @@ func TestApp_CreateCatalog_Unauthorized(t *testing.T) {
 	})
 	// No auth context
 
-	err := app.CreateCatalog(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.CreateCatalog, req)
 	assert.Equal(t, fasthttp.StatusUnauthorized, testutil.GetResponseStatusCode(req))
 }
 
@@ -437,14 +428,13 @@ func TestApp_GetCatalog_Success(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, user.ID)
 	testutil.SetPathParam(req, "id", catalog.ID.String())
 
-	err := app.GetCatalog(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.GetCatalog, req)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	var resp struct {
 		Data handlers.CatalogResponse `json:"data"`
 	}
-	err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+	err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 	require.NoError(t, err)
 	assert.Equal(t, catalog.ID, resp.Data.ID)
 	assert.Equal(t, "Test Catalog", resp.Data.Name)
@@ -471,8 +461,7 @@ func TestApp_GetCatalog_NotFound(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, user.ID)
 	testutil.SetPathParam(req, "id", uuid.New().String())
 
-	err := app.GetCatalog(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.GetCatalog, req)
 	assert.Equal(t, fasthttp.StatusNotFound, testutil.GetResponseStatusCode(req))
 }
 
@@ -487,8 +476,7 @@ func TestApp_GetCatalog_InvalidID(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, user.ID)
 	testutil.SetPathParam(req, "id", "not-a-uuid")
 
-	err := app.GetCatalog(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.GetCatalog, req)
 	assert.Equal(t, fasthttp.StatusBadRequest, testutil.GetResponseStatusCode(req))
 }
 
@@ -508,8 +496,7 @@ func TestApp_GetCatalog_CrossOrgIsolation(t *testing.T) {
 	testutil.SetAuthContext(req, org2.ID, user2.ID)
 	testutil.SetPathParam(req, "id", catalog.ID.String())
 
-	err := app.GetCatalog(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.GetCatalog, req)
 	assert.Equal(t, fasthttp.StatusNotFound, testutil.GetResponseStatusCode(req))
 }
 
@@ -532,8 +519,7 @@ func TestApp_DeleteCatalog_Success(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, user.ID)
 	testutil.SetPathParam(req, "id", catalog.ID.String())
 
-	err := app.DeleteCatalog(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.DeleteCatalog, req)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	var resp struct {
@@ -541,7 +527,7 @@ func TestApp_DeleteCatalog_Success(t *testing.T) {
 			Message string `json:"message"`
 		} `json:"data"`
 	}
-	err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+	err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 	require.NoError(t, err)
 	assert.Equal(t, "Catalog deleted", resp.Data.Message)
 
@@ -567,8 +553,7 @@ func TestApp_DeleteCatalog_NotFound(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, user.ID)
 	testutil.SetPathParam(req, "id", uuid.New().String())
 
-	err := app.DeleteCatalog(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.DeleteCatalog, req)
 	assert.Equal(t, fasthttp.StatusNotFound, testutil.GetResponseStatusCode(req))
 }
 
@@ -583,8 +568,7 @@ func TestApp_DeleteCatalog_InvalidID(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, user.ID)
 	testutil.SetPathParam(req, "id", "not-a-uuid")
 
-	err := app.DeleteCatalog(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.DeleteCatalog, req)
 	assert.Equal(t, fasthttp.StatusBadRequest, testutil.GetResponseStatusCode(req))
 }
 
@@ -604,8 +588,7 @@ func TestApp_DeleteCatalog_CrossOrgIsolation(t *testing.T) {
 	testutil.SetAuthContext(req, org2.ID, user2.ID)
 	testutil.SetPathParam(req, "id", catalog.ID.String())
 
-	err := app.DeleteCatalog(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.DeleteCatalog, req)
 	assert.Equal(t, fasthttp.StatusNotFound, testutil.GetResponseStatusCode(req))
 
 	// Verify catalog still exists
@@ -632,8 +615,7 @@ func TestApp_ListCatalogProducts_Success(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, user.ID)
 	testutil.SetPathParam(req, "id", catalog.ID.String())
 
-	err := app.ListCatalogProducts(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.ListCatalogProducts, req)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	var resp struct {
@@ -641,7 +623,7 @@ func TestApp_ListCatalogProducts_Success(t *testing.T) {
 			Products []handlers.CatalogProductResponse `json:"products"`
 		} `json:"data"`
 	}
-	err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+	err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 	require.NoError(t, err)
 	assert.Len(t, resp.Data.Products, 2)
 
@@ -666,8 +648,7 @@ func TestApp_ListCatalogProducts_Empty(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, user.ID)
 	testutil.SetPathParam(req, "id", catalog.ID.String())
 
-	err := app.ListCatalogProducts(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.ListCatalogProducts, req)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	var resp struct {
@@ -675,7 +656,7 @@ func TestApp_ListCatalogProducts_Empty(t *testing.T) {
 			Products []handlers.CatalogProductResponse `json:"products"`
 		} `json:"data"`
 	}
-	err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+	err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 	require.NoError(t, err)
 	assert.Len(t, resp.Data.Products, 0)
 }
@@ -691,8 +672,7 @@ func TestApp_ListCatalogProducts_CatalogNotFound(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, user.ID)
 	testutil.SetPathParam(req, "id", uuid.New().String())
 
-	err := app.ListCatalogProducts(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.ListCatalogProducts, req)
 	assert.Equal(t, fasthttp.StatusNotFound, testutil.GetResponseStatusCode(req))
 }
 
@@ -715,8 +695,7 @@ func TestApp_ListCatalogProducts_OnlyShowsProductsForCatalog(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, user.ID)
 	testutil.SetPathParam(req, "id", catalog1.ID.String())
 
-	err := app.ListCatalogProducts(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.ListCatalogProducts, req)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	var resp struct {
@@ -724,7 +703,7 @@ func TestApp_ListCatalogProducts_OnlyShowsProductsForCatalog(t *testing.T) {
 			Products []handlers.CatalogProductResponse `json:"products"`
 		} `json:"data"`
 	}
-	err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+	err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 	require.NoError(t, err)
 	require.Len(t, resp.Data.Products, 1)
 	assert.Equal(t, "Product in Catalog 1", resp.Data.Products[0].Name)
@@ -758,14 +737,13 @@ func TestApp_CreateCatalogProduct_Success(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, user.ID)
 	testutil.SetPathParam(req, "id", catalog.ID.String())
 
-	err := app.CreateCatalogProduct(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.CreateCatalogProduct, req)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	var resp struct {
 		Data handlers.CatalogProductResponse `json:"data"`
 	}
-	err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+	err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 	require.NoError(t, err)
 	assert.Equal(t, "New Product", resp.Data.Name)
 	assert.Equal(t, "A great product", resp.Data.Description)
@@ -804,14 +782,13 @@ func TestApp_CreateCatalogProduct_DefaultCurrency(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, user.ID)
 	testutil.SetPathParam(req, "id", catalog.ID.String())
 
-	err := app.CreateCatalogProduct(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.CreateCatalogProduct, req)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	var resp struct {
 		Data handlers.CatalogProductResponse `json:"data"`
 	}
-	err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+	err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 	require.NoError(t, err)
 	assert.Equal(t, "USD", resp.Data.Currency)
 }
@@ -864,8 +841,7 @@ func TestApp_CreateCatalogProduct_MissingFields(t *testing.T) {
 			testutil.SetAuthContext(req, org.ID, user.ID)
 			testutil.SetPathParam(req, "id", catalog.ID.String())
 
-			err := app.CreateCatalogProduct(req)
-			require.NoError(t, err)
+			testutil.InvokeHTTP(t, app.CreateCatalogProduct, req)
 			assert.Equal(t, fasthttp.StatusBadRequest, testutil.GetResponseStatusCode(req))
 		})
 	}
@@ -885,8 +861,7 @@ func TestApp_CreateCatalogProduct_CatalogNotFound(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, user.ID)
 	testutil.SetPathParam(req, "id", uuid.New().String())
 
-	err := app.CreateCatalogProduct(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.CreateCatalogProduct, req)
 	assert.Equal(t, fasthttp.StatusNotFound, testutil.GetResponseStatusCode(req))
 }
 
@@ -907,14 +882,13 @@ func TestApp_GetCatalogProduct_Success(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, user.ID)
 	testutil.SetPathParam(req, "id", product.ID.String())
 
-	err := app.GetCatalogProduct(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.GetCatalogProduct, req)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	var resp struct {
 		Data handlers.CatalogProductResponse `json:"data"`
 	}
-	err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+	err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 	require.NoError(t, err)
 	assert.Equal(t, product.ID, resp.Data.ID)
 	assert.Equal(t, "Test Product", resp.Data.Name)
@@ -937,8 +911,7 @@ func TestApp_GetCatalogProduct_NotFound(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, user.ID)
 	testutil.SetPathParam(req, "id", uuid.New().String())
 
-	err := app.GetCatalogProduct(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.GetCatalogProduct, req)
 	assert.Equal(t, fasthttp.StatusNotFound, testutil.GetResponseStatusCode(req))
 }
 
@@ -953,8 +926,7 @@ func TestApp_GetCatalogProduct_InvalidID(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, user.ID)
 	testutil.SetPathParam(req, "id", "not-a-uuid")
 
-	err := app.GetCatalogProduct(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.GetCatalogProduct, req)
 	assert.Equal(t, fasthttp.StatusBadRequest, testutil.GetResponseStatusCode(req))
 }
 
@@ -975,8 +947,7 @@ func TestApp_GetCatalogProduct_CrossOrgIsolation(t *testing.T) {
 	testutil.SetAuthContext(req, org2.ID, user2.ID)
 	testutil.SetPathParam(req, "id", product.ID.String())
 
-	err := app.GetCatalogProduct(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.GetCatalogProduct, req)
 	assert.Equal(t, fasthttp.StatusNotFound, testutil.GetResponseStatusCode(req))
 }
 
@@ -1006,14 +977,13 @@ func TestApp_UpdateCatalogProduct_Success(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, user.ID)
 	testutil.SetPathParam(req, "id", product.ID.String())
 
-	err := app.UpdateCatalogProduct(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.UpdateCatalogProduct, req)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	var resp struct {
 		Data handlers.CatalogProductResponse `json:"data"`
 	}
-	err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+	err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 	require.NoError(t, err)
 	assert.Equal(t, product.ID, resp.Data.ID)
 	assert.Equal(t, "Updated Product", resp.Data.Name)
@@ -1051,14 +1021,13 @@ func TestApp_UpdateCatalogProduct_PartialUpdate(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, user.ID)
 	testutil.SetPathParam(req, "id", product.ID.String())
 
-	err := app.UpdateCatalogProduct(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.UpdateCatalogProduct, req)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	var resp struct {
 		Data handlers.CatalogProductResponse `json:"data"`
 	}
-	err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+	err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 	require.NoError(t, err)
 	assert.Equal(t, "Only Name Changed", resp.Data.Name)
 	// Original values should be preserved
@@ -1080,8 +1049,7 @@ func TestApp_UpdateCatalogProduct_NotFound(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, user.ID)
 	testutil.SetPathParam(req, "id", uuid.New().String())
 
-	err := app.UpdateCatalogProduct(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.UpdateCatalogProduct, req)
 	assert.Equal(t, fasthttp.StatusNotFound, testutil.GetResponseStatusCode(req))
 }
 
@@ -1098,8 +1066,7 @@ func TestApp_UpdateCatalogProduct_InvalidID(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, user.ID)
 	testutil.SetPathParam(req, "id", "not-a-uuid")
 
-	err := app.UpdateCatalogProduct(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.UpdateCatalogProduct, req)
 	assert.Equal(t, fasthttp.StatusBadRequest, testutil.GetResponseStatusCode(req))
 }
 
@@ -1121,8 +1088,7 @@ func TestApp_DeleteCatalogProduct_Success(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, user.ID)
 	testutil.SetPathParam(req, "id", product.ID.String())
 
-	err := app.DeleteCatalogProduct(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.DeleteCatalogProduct, req)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	var resp struct {
@@ -1130,7 +1096,7 @@ func TestApp_DeleteCatalogProduct_Success(t *testing.T) {
 			Message string `json:"message"`
 		} `json:"data"`
 	}
-	err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+	err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 	require.NoError(t, err)
 	assert.Equal(t, "Product deleted", resp.Data.Message)
 
@@ -1151,8 +1117,7 @@ func TestApp_DeleteCatalogProduct_NotFound(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, user.ID)
 	testutil.SetPathParam(req, "id", uuid.New().String())
 
-	err := app.DeleteCatalogProduct(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.DeleteCatalogProduct, req)
 	assert.Equal(t, fasthttp.StatusNotFound, testutil.GetResponseStatusCode(req))
 }
 
@@ -1167,8 +1132,7 @@ func TestApp_DeleteCatalogProduct_InvalidID(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, user.ID)
 	testutil.SetPathParam(req, "id", "not-a-uuid")
 
-	err := app.DeleteCatalogProduct(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.DeleteCatalogProduct, req)
 	assert.Equal(t, fasthttp.StatusBadRequest, testutil.GetResponseStatusCode(req))
 }
 
@@ -1189,8 +1153,7 @@ func TestApp_DeleteCatalogProduct_CrossOrgIsolation(t *testing.T) {
 	testutil.SetAuthContext(req, org2.ID, user2.ID)
 	testutil.SetPathParam(req, "id", product.ID.String())
 
-	err := app.DeleteCatalogProduct(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.DeleteCatalogProduct, req)
 	assert.Equal(t, fasthttp.StatusNotFound, testutil.GetResponseStatusCode(req))
 
 	// Verify product still exists

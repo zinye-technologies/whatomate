@@ -136,15 +136,17 @@ func (a *App) ReadyCheck(w http.ResponseWriter, r *http.Request) {
 }
 
 // GetEmbeddedSignupConfig returns public configuration values for the embedded signup flow
-func (a *App) GetEmbeddedSignupConfig(r *fastglue.Request) error {
-	orgID, err := a.getOrgID(r)
+func (a *App) GetEmbeddedSignupConfig(w http.ResponseWriter, r *http.Request) {
+	orgID, err := a.getOrgIDHTTP(r)
 	if err != nil {
-		return r.SendErrorEnvelope(fasthttp.StatusUnauthorized, "Unauthorized", nil, "")
+		SendErrorEnvelope(w, http.StatusUnauthorized, "Unauthorized", nil, "")
+		return
 	}
 
 	appID, _, configID, err := a.resolveMetaAppCreds(orgID)
 	if err != nil {
-		return r.SendErrorEnvelope(fasthttp.StatusInternalServerError, "Failed to resolve credentials", nil, "")
+		SendErrorEnvelope(w, http.StatusInternalServerError, "Failed to resolve credentials", nil, "")
+		return
 	}
 
 	type EmbeddedSignupConfig struct {
@@ -159,7 +161,7 @@ func (a *App) GetEmbeddedSignupConfig(r *fastglue.Request) error {
 		WhatsAppAPIVersion: a.Config.WhatsApp.APIVersion,
 	}
 
-	return r.SendEnvelope(config)
+	SendEnvelope(w, config)
 }
 
 // StartCampaignStatsSubscriber starts listening for campaign stats updates from Redis pub/sub

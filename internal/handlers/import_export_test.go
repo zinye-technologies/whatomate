@@ -31,7 +31,7 @@ func TestApp_GetExportConfig_Contacts(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, user.ID)
 	testutil.SetPathParam(req, "table", "contacts")
 
-	require.NoError(t, app.GetExportConfig(req))
+	testutil.InvokeHTTP(t, app.GetExportConfig, req)
 	require.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	var resp struct {
@@ -65,7 +65,7 @@ func TestApp_GetExportConfig_InvalidTable(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, user.ID)
 	testutil.SetPathParam(req, "table", "users") // not in exportConfigs
 
-	require.NoError(t, app.GetExportConfig(req))
+	testutil.InvokeHTTP(t, app.GetExportConfig, req)
 	testutil.AssertErrorResponse(t, req, fasthttp.StatusBadRequest, "Invalid table")
 }
 
@@ -79,7 +79,7 @@ func TestApp_GetExportConfig_PermissionDenied(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, user.ID)
 	testutil.SetPathParam(req, "table", "contacts")
 
-	require.NoError(t, app.GetExportConfig(req))
+	testutil.InvokeHTTP(t, app.GetExportConfig, req)
 	assert.Equal(t, fasthttp.StatusForbidden, testutil.GetResponseStatusCode(req))
 }
 
@@ -95,7 +95,7 @@ func TestApp_GetImportConfig_Contacts(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, user.ID)
 	testutil.SetPathParam(req, "table", "contacts")
 
-	require.NoError(t, app.GetImportConfig(req))
+	testutil.InvokeHTTP(t, app.GetImportConfig, req)
 	require.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	var resp struct {
@@ -124,7 +124,7 @@ func TestApp_GetImportConfig_InvalidTable(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, user.ID)
 	testutil.SetPathParam(req, "table", "made-up")
 
-	require.NoError(t, app.GetImportConfig(req))
+	testutil.InvokeHTTP(t, app.GetImportConfig, req)
 	testutil.AssertErrorResponse(t, req, fasthttp.StatusBadRequest, "Invalid table")
 }
 
@@ -153,7 +153,7 @@ func TestApp_ExportData_Contacts_OnlyOwnOrg(t *testing.T) {
 	req.RequestCtx.Request.SetBody(body)
 	testutil.SetAuthContext(req, orgA.ID, userA.ID)
 
-	require.NoError(t, app.ExportData(req))
+	testutil.InvokeHTTP(t, app.ExportData, req)
 	require.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 	csv := string(testutil.GetResponseBody(req))
 
@@ -187,7 +187,7 @@ func TestApp_ExportData_RejectsDisallowedColumn(t *testing.T) {
 	req.RequestCtx.Request.SetBody(body)
 	testutil.SetAuthContext(req, org.ID, user.ID)
 
-	require.NoError(t, app.ExportData(req))
+	testutil.InvokeHTTP(t, app.ExportData, req)
 	testutil.AssertErrorResponse(t, req, fasthttp.StatusBadRequest, "not allowed for export")
 }
 
@@ -205,7 +205,7 @@ func TestApp_ExportData_PermissionDenied(t *testing.T) {
 	req.RequestCtx.Request.SetBody(body)
 	testutil.SetAuthContext(req, org.ID, user.ID)
 
-	require.NoError(t, app.ExportData(req))
+	testutil.InvokeHTTP(t, app.ExportData, req)
 	assert.Equal(t, fasthttp.StatusForbidden, testutil.GetResponseStatusCode(req))
 }
 
@@ -222,7 +222,7 @@ func TestApp_ExportData_InvalidTable(t *testing.T) {
 	req.RequestCtx.Request.SetBody(body)
 	testutil.SetAuthContext(req, org.ID, user.ID)
 
-	require.NoError(t, app.ExportData(req))
+	testutil.InvokeHTTP(t, app.ExportData, req)
 	testutil.AssertErrorResponse(t, req, fasthttp.StatusBadRequest, "Invalid table")
 }
 
@@ -238,7 +238,7 @@ func TestApp_ExportData_InvalidJSONBody(t *testing.T) {
 	req.RequestCtx.Request.SetBody([]byte("not json"))
 	testutil.SetAuthContext(req, org.ID, user.ID)
 
-	require.NoError(t, app.ExportData(req))
+	testutil.InvokeHTTP(t, app.ExportData, req)
 	testutil.AssertErrorResponse(t, req, fasthttp.StatusBadRequest, "Invalid request body")
 }
 
@@ -257,7 +257,7 @@ func TestApp_ExportData_DefaultColumnsWhenEmpty(t *testing.T) {
 	req.RequestCtx.Request.SetBody(body)
 	testutil.SetAuthContext(req, org.ID, user.ID)
 
-	require.NoError(t, app.ExportData(req))
+	testutil.InvokeHTTP(t, app.ExportData, req)
 	require.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 	csv := string(testutil.GetResponseBody(req))
 	// Default columns are phone_number, profile_name, tags → header has all 3.
@@ -291,7 +291,7 @@ func TestApp_ExportData_CSVInjectionEscaped(t *testing.T) {
 	req.RequestCtx.Request.SetBody(body)
 	testutil.SetAuthContext(req, org.ID, user.ID)
 
-	require.NoError(t, app.ExportData(req))
+	testutil.InvokeHTTP(t, app.ExportData, req)
 	csv := string(testutil.GetResponseBody(req))
 	// The dangerous cell must be prefixed with a single quote.
 	assert.Contains(t, csv, "'=cmd",

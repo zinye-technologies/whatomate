@@ -145,8 +145,7 @@ func TestApp_GetDashboardStats_Success(t *testing.T) {
 	req := testutil.NewGETRequest(t)
 	testutil.SetAuthContext(req, org.ID, user.ID)
 
-	err := app.GetDashboardStats(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.GetDashboardStats, req)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	var resp struct {
@@ -155,7 +154,7 @@ func TestApp_GetDashboardStats_Success(t *testing.T) {
 			RecentMessages []handlers.RecentMessageResponse `json:"recent_messages"`
 		} `json:"data"`
 	}
-	err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+	err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 	require.NoError(t, err)
 
 	assert.Equal(t, int64(2), resp.Data.Stats.TotalMessages)
@@ -186,8 +185,7 @@ func TestApp_GetDashboardStats_WithDateFilters(t *testing.T) {
 	testutil.SetQueryParam(req, "from", "2025-01-01")
 	testutil.SetQueryParam(req, "to", "2025-01-31")
 
-	err := app.GetDashboardStats(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.GetDashboardStats, req)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	var resp struct {
@@ -195,7 +193,7 @@ func TestApp_GetDashboardStats_WithDateFilters(t *testing.T) {
 			Stats handlers.DashboardStats `json:"stats"`
 		} `json:"data"`
 	}
-	err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+	err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 	require.NoError(t, err)
 
 	// Only 2 messages fall within the Jan 1-31 range
@@ -212,8 +210,7 @@ func TestApp_GetDashboardStats_InvalidFromDate(t *testing.T) {
 	testutil.SetQueryParam(req, "from", "not-a-date")
 	testutil.SetQueryParam(req, "to", "2025-01-31")
 
-	err := app.GetDashboardStats(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.GetDashboardStats, req)
 	assert.Equal(t, fasthttp.StatusBadRequest, testutil.GetResponseStatusCode(req))
 }
 
@@ -227,8 +224,7 @@ func TestApp_GetDashboardStats_InvalidToDate(t *testing.T) {
 	testutil.SetQueryParam(req, "from", "2025-01-01")
 	testutil.SetQueryParam(req, "to", "invalid")
 
-	err := app.GetDashboardStats(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.GetDashboardStats, req)
 	assert.Equal(t, fasthttp.StatusBadRequest, testutil.GetResponseStatusCode(req))
 }
 
@@ -238,8 +234,7 @@ func TestApp_GetDashboardStats_Unauthorized(t *testing.T) {
 	req := testutil.NewGETRequest(t)
 	// No auth context set
 
-	err := app.GetDashboardStats(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.GetDashboardStats, req)
 	assert.Equal(t, fasthttp.StatusUnauthorized, testutil.GetResponseStatusCode(req))
 }
 
@@ -251,8 +246,7 @@ func TestApp_GetDashboardStats_EmptyData(t *testing.T) {
 	req := testutil.NewGETRequest(t)
 	testutil.SetAuthContext(req, org.ID, user.ID)
 
-	err := app.GetDashboardStats(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.GetDashboardStats, req)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	var resp struct {
@@ -261,7 +255,7 @@ func TestApp_GetDashboardStats_EmptyData(t *testing.T) {
 			RecentMessages []handlers.RecentMessageResponse `json:"recent_messages"`
 		} `json:"data"`
 	}
-	err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+	err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 	require.NoError(t, err)
 
 	assert.Equal(t, int64(0), resp.Data.Stats.TotalMessages)
@@ -302,14 +296,13 @@ func TestApp_GetAgentAnalytics_Success(t *testing.T) {
 	req := testutil.NewGETRequest(t)
 	testutil.SetAuthContext(req, org.ID, user.ID)
 
-	err := app.GetAgentAnalytics(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.GetAgentAnalytics, req)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	var resp struct {
 		Data handlers.AgentAnalyticsResponse `json:"data"`
 	}
-	err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+	err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 	require.NoError(t, err)
 
 	// User has analytics permission so sees summary + all agent stats + my_stats
@@ -331,14 +324,13 @@ func TestApp_GetAgentAnalytics_EmptyData(t *testing.T) {
 	req := testutil.NewGETRequest(t)
 	testutil.SetAuthContext(req, org.ID, user.ID)
 
-	err := app.GetAgentAnalytics(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.GetAgentAnalytics, req)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	var resp struct {
 		Data handlers.AgentAnalyticsResponse `json:"data"`
 	}
-	err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+	err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 	require.NoError(t, err)
 
 	assert.Equal(t, int64(0), resp.Data.Summary.TotalTransfersHandled)
@@ -353,8 +345,7 @@ func TestApp_GetAgentAnalytics_Unauthorized(t *testing.T) {
 	req := testutil.NewGETRequest(t)
 	// No auth context
 
-	err := app.GetAgentAnalytics(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.GetAgentAnalytics, req)
 	assert.Equal(t, fasthttp.StatusUnauthorized, testutil.GetResponseStatusCode(req))
 }
 
@@ -379,14 +370,13 @@ func TestApp_GetAgentAnalytics_AgentSeesOwnStats(t *testing.T) {
 	req := testutil.NewGETRequest(t)
 	testutil.SetAuthContext(req, org.ID, user.ID)
 
-	err := app.GetAgentAnalytics(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.GetAgentAnalytics, req)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	var resp struct {
 		Data handlers.AgentAnalyticsResponse `json:"data"`
 	}
-	err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+	err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 	require.NoError(t, err)
 
 	// User without analytics permission sees only their own stats
@@ -426,8 +416,7 @@ func TestApp_GetAgentDetails_Success(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, adminUser.ID)
 	testutil.SetPathParam(req, "id", agentUser.ID.String())
 
-	err := app.GetAgentDetails(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.GetAgentDetails, req)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	var resp struct {
@@ -436,7 +425,7 @@ func TestApp_GetAgentDetails_Success(t *testing.T) {
 			TrendData []handlers.TrendPoint          `json:"trend_data"`
 		} `json:"data"`
 	}
-	err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+	err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 	require.NoError(t, err)
 
 	assert.Equal(t, agentUser.ID.String(), resp.Data.Agent.AgentID)
@@ -459,8 +448,7 @@ func TestApp_GetAgentDetails_NotFound(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, user.ID)
 	testutil.SetPathParam(req, "id", uuid.New().String())
 
-	err := app.GetAgentDetails(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.GetAgentDetails, req)
 	assert.Equal(t, fasthttp.StatusNotFound, testutil.GetResponseStatusCode(req))
 }
 
@@ -479,8 +467,7 @@ func TestApp_GetAgentDetails_InvalidID(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, user.ID)
 	testutil.SetPathParam(req, "id", "not-a-uuid")
 
-	err := app.GetAgentDetails(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.GetAgentDetails, req)
 	assert.Equal(t, fasthttp.StatusBadRequest, testutil.GetResponseStatusCode(req))
 }
 
@@ -497,8 +484,7 @@ func TestApp_GetAgentDetails_NoPermission(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, user.ID)
 	testutil.SetPathParam(req, "id", uuid.New().String())
 
-	err := app.GetAgentDetails(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.GetAgentDetails, req)
 	assert.Equal(t, fasthttp.StatusForbidden, testutil.GetResponseStatusCode(req))
 }
 
@@ -509,8 +495,7 @@ func TestApp_GetAgentDetails_Unauthorized(t *testing.T) {
 	// No auth context
 	testutil.SetPathParam(req, "id", uuid.New().String())
 
-	err := app.GetAgentDetails(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.GetAgentDetails, req)
 	assert.Equal(t, fasthttp.StatusUnauthorized, testutil.GetResponseStatusCode(req))
 }
 
@@ -556,8 +541,7 @@ func TestApp_GetAgentComparison_Success(t *testing.T) {
 	req := testutil.NewGETRequest(t)
 	testutil.SetAuthContext(req, org.ID, adminUser.ID)
 
-	err := app.GetAgentComparison(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.GetAgentComparison, req)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	var resp struct {
@@ -565,7 +549,7 @@ func TestApp_GetAgentComparison_Success(t *testing.T) {
 			Agents []handlers.AgentPerformanceStats `json:"agents"`
 		} `json:"data"`
 	}
-	err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+	err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 	require.NoError(t, err)
 
 	assert.Len(t, resp.Data.Agents, 2)
@@ -583,8 +567,7 @@ func TestApp_GetAgentComparison_NoPermission(t *testing.T) {
 	req := testutil.NewGETRequest(t)
 	testutil.SetAuthContext(req, org.ID, user.ID)
 
-	err := app.GetAgentComparison(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.GetAgentComparison, req)
 	assert.Equal(t, fasthttp.StatusForbidden, testutil.GetResponseStatusCode(req))
 }
 
@@ -594,8 +577,7 @@ func TestApp_GetAgentComparison_Unauthorized(t *testing.T) {
 	req := testutil.NewGETRequest(t)
 	// No auth context
 
-	err := app.GetAgentComparison(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.GetAgentComparison, req)
 	assert.Equal(t, fasthttp.StatusUnauthorized, testutil.GetResponseStatusCode(req))
 }
 
@@ -613,8 +595,7 @@ func TestApp_GetAgentComparison_EmptyAgents(t *testing.T) {
 	req := testutil.NewGETRequest(t)
 	testutil.SetAuthContext(req, org.ID, user.ID)
 
-	err := app.GetAgentComparison(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.GetAgentComparison, req)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	var resp struct {
@@ -622,7 +603,7 @@ func TestApp_GetAgentComparison_EmptyAgents(t *testing.T) {
 			Agents []handlers.AgentPerformanceStats `json:"agents"`
 		} `json:"data"`
 	}
-	err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+	err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 	require.NoError(t, err)
 
 	assert.Empty(t, resp.Data.Agents)

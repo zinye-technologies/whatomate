@@ -48,8 +48,7 @@ func TestApp_ListCannedResponses(t *testing.T) {
 		req := testutil.NewGETRequest(t)
 		testutil.SetAuthContext(req, org.ID, user.ID)
 
-		err := app.ListCannedResponses(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.ListCannedResponses, req)
 		assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 		var resp struct {
@@ -57,7 +56,7 @@ func TestApp_ListCannedResponses(t *testing.T) {
 				CannedResponses []handlers.CannedResponseResponse `json:"canned_responses"`
 			} `json:"data"`
 		}
-		err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+		err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 		require.NoError(t, err)
 		assert.Len(t, resp.Data.CannedResponses, 2)
 	})
@@ -70,8 +69,7 @@ func TestApp_ListCannedResponses(t *testing.T) {
 		req := testutil.NewGETRequest(t)
 		testutil.SetAuthContext(req, org.ID, user.ID)
 
-		err := app.ListCannedResponses(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.ListCannedResponses, req)
 		assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 		var resp struct {
@@ -79,7 +77,7 @@ func TestApp_ListCannedResponses(t *testing.T) {
 				CannedResponses []handlers.CannedResponseResponse `json:"canned_responses"`
 			} `json:"data"`
 		}
-		err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+		err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 		require.NoError(t, err)
 		assert.Empty(t, resp.Data.CannedResponses)
 	})
@@ -96,8 +94,7 @@ func TestApp_ListCannedResponses(t *testing.T) {
 		testutil.SetAuthContext(req, org.ID, user.ID)
 		testutil.SetQueryParam(req, "category", "sales")
 
-		err := app.ListCannedResponses(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.ListCannedResponses, req)
 		assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 		var resp struct {
@@ -105,7 +102,7 @@ func TestApp_ListCannedResponses(t *testing.T) {
 				CannedResponses []handlers.CannedResponseResponse `json:"canned_responses"`
 			} `json:"data"`
 		}
-		err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+		err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 		require.NoError(t, err)
 		assert.Len(t, resp.Data.CannedResponses, 1)
 		assert.Equal(t, "Sales Intro", resp.Data.CannedResponses[0].Name)
@@ -123,8 +120,7 @@ func TestApp_ListCannedResponses(t *testing.T) {
 		testutil.SetAuthContext(req, org.ID, user.ID)
 		testutil.SetQueryParam(req, "search", "Hello")
 
-		err := app.ListCannedResponses(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.ListCannedResponses, req)
 		assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 		var resp struct {
@@ -132,7 +128,7 @@ func TestApp_ListCannedResponses(t *testing.T) {
 				CannedResponses []handlers.CannedResponseResponse `json:"canned_responses"`
 			} `json:"data"`
 		}
-		err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+		err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 		require.NoError(t, err)
 		assert.Len(t, resp.Data.CannedResponses, 1)
 		assert.Equal(t, "Hello World", resp.Data.CannedResponses[0].Name)
@@ -153,8 +149,7 @@ func TestApp_ListCannedResponses(t *testing.T) {
 		testutil.SetAuthContext(req, org.ID, user.ID)
 		testutil.SetQueryParam(req, "active_only", "true")
 
-		err := app.ListCannedResponses(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.ListCannedResponses, req)
 		assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 		var resp struct {
@@ -162,7 +157,7 @@ func TestApp_ListCannedResponses(t *testing.T) {
 				CannedResponses []handlers.CannedResponseResponse `json:"canned_responses"`
 			} `json:"data"`
 		}
-		err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+		err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 		require.NoError(t, err)
 		assert.Len(t, resp.Data.CannedResponses, 1)
 		assert.Equal(t, "Active One", resp.Data.CannedResponses[0].Name)
@@ -181,8 +176,7 @@ func TestApp_ListCannedResponses(t *testing.T) {
 		req := testutil.NewGETRequest(t)
 		testutil.SetAuthContext(req, org1.ID, user1.ID)
 
-		err := app.ListCannedResponses(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.ListCannedResponses, req)
 		assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 		var resp struct {
@@ -190,7 +184,7 @@ func TestApp_ListCannedResponses(t *testing.T) {
 				CannedResponses []handlers.CannedResponseResponse `json:"canned_responses"`
 			} `json:"data"`
 		}
-		err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+		err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 		require.NoError(t, err)
 		assert.Len(t, resp.Data.CannedResponses, 1)
 		assert.Equal(t, "Org1 Response", resp.Data.CannedResponses[0].Name)
@@ -202,8 +196,7 @@ func TestApp_ListCannedResponses(t *testing.T) {
 		req := testutil.NewGETRequest(t)
 		// No auth context
 
-		err := app.ListCannedResponses(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.ListCannedResponses, req)
 		assert.Equal(t, fasthttp.StatusUnauthorized, testutil.GetResponseStatusCode(req))
 	})
 }
@@ -226,14 +219,13 @@ func TestApp_CreateCannedResponse(t *testing.T) {
 		})
 		testutil.SetAuthContext(req, org.ID, user.ID)
 
-		err := app.CreateCannedResponse(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.CreateCannedResponse, req)
 		assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 		var resp struct {
 			Data handlers.CannedResponseResponse `json:"data"`
 		}
-		err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+		err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 		require.NoError(t, err)
 		assert.Equal(t, "Welcome Message", resp.Data.Name)
 		assert.Equal(t, "/welcome", resp.Data.Shortcut)
@@ -254,8 +246,7 @@ func TestApp_CreateCannedResponse(t *testing.T) {
 		})
 		testutil.SetAuthContext(req, org.ID, user.ID)
 
-		err := app.CreateCannedResponse(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.CreateCannedResponse, req)
 		assert.Equal(t, fasthttp.StatusBadRequest, testutil.GetResponseStatusCode(req))
 	})
 
@@ -273,7 +264,7 @@ func TestApp_CreateCannedResponse(t *testing.T) {
 		})
 		testutil.SetAuthContext(req, org.ID, user.ID)
 
-		require.NoError(t, app.CreateCannedResponse(req))
+		testutil.InvokeHTTP(t, app.CreateCannedResponse, req)
 		assert.Equal(t, fasthttp.StatusBadRequest, testutil.GetResponseStatusCode(req))
 	})
 
@@ -292,7 +283,7 @@ func TestApp_CreateCannedResponse(t *testing.T) {
 		})
 		testutil.SetAuthContext(req, org.ID, user.ID)
 
-		require.NoError(t, app.CreateCannedResponse(req))
+		testutil.InvokeHTTP(t, app.CreateCannedResponse, req)
 		assert.Equal(t, fasthttp.StatusBadRequest, testutil.GetResponseStatusCode(req))
 	})
 
@@ -310,7 +301,7 @@ func TestApp_CreateCannedResponse(t *testing.T) {
 		})
 		testutil.SetAuthContext(req, org.ID, user.ID)
 
-		require.NoError(t, app.CreateCannedResponse(req))
+		testutil.InvokeHTTP(t, app.CreateCannedResponse, req)
 		assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 	})
 
@@ -324,8 +315,7 @@ func TestApp_CreateCannedResponse(t *testing.T) {
 		})
 		testutil.SetAuthContext(req, org.ID, user.ID)
 
-		err := app.CreateCannedResponse(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.CreateCannedResponse, req)
 		assert.Equal(t, fasthttp.StatusBadRequest, testutil.GetResponseStatusCode(req))
 	})
 
@@ -339,8 +329,7 @@ func TestApp_CreateCannedResponse(t *testing.T) {
 		})
 		testutil.SetAuthContext(req, org.ID, user.ID)
 
-		err := app.CreateCannedResponse(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.CreateCannedResponse, req)
 		assert.Equal(t, fasthttp.StatusBadRequest, testutil.GetResponseStatusCode(req))
 	})
 
@@ -357,8 +346,7 @@ func TestApp_CreateCannedResponse(t *testing.T) {
 		})
 		testutil.SetAuthContext(req, org.ID, user.ID)
 
-		err := app.CreateCannedResponse(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.CreateCannedResponse, req)
 		assert.Equal(t, fasthttp.StatusConflict, testutil.GetResponseStatusCode(req))
 	})
 
@@ -371,8 +359,7 @@ func TestApp_CreateCannedResponse(t *testing.T) {
 		})
 		// No auth context
 
-		err := app.CreateCannedResponse(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.CreateCannedResponse, req)
 		assert.Equal(t, fasthttp.StatusUnauthorized, testutil.GetResponseStatusCode(req))
 	})
 }
@@ -393,14 +380,13 @@ func TestApp_GetCannedResponse(t *testing.T) {
 		testutil.SetAuthContext(req, org.ID, user.ID)
 		testutil.SetPathParam(req, "id", cr.ID.String())
 
-		err := app.GetCannedResponse(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.GetCannedResponse, req)
 		assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 		var resp struct {
 			Data handlers.CannedResponseResponse `json:"data"`
 		}
-		err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+		err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 		require.NoError(t, err)
 		assert.Equal(t, cr.ID, resp.Data.ID)
 		assert.Equal(t, "Get Me", resp.Data.Name)
@@ -419,8 +405,7 @@ func TestApp_GetCannedResponse(t *testing.T) {
 		testutil.SetAuthContext(req, org.ID, user.ID)
 		testutil.SetPathParam(req, "id", uuid.New().String())
 
-		err := app.GetCannedResponse(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.GetCannedResponse, req)
 		assert.Equal(t, fasthttp.StatusNotFound, testutil.GetResponseStatusCode(req))
 	})
 
@@ -433,8 +418,7 @@ func TestApp_GetCannedResponse(t *testing.T) {
 		testutil.SetAuthContext(req, org.ID, user.ID)
 		testutil.SetPathParam(req, "id", "not-a-uuid")
 
-		err := app.GetCannedResponse(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.GetCannedResponse, req)
 		assert.Equal(t, fasthttp.StatusBadRequest, testutil.GetResponseStatusCode(req))
 	})
 
@@ -452,8 +436,7 @@ func TestApp_GetCannedResponse(t *testing.T) {
 		testutil.SetAuthContext(req, org2.ID, user2.ID)
 		testutil.SetPathParam(req, "id", cr.ID.String())
 
-		err := app.GetCannedResponse(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.GetCannedResponse, req)
 		assert.Equal(t, fasthttp.StatusNotFound, testutil.GetResponseStatusCode(req))
 	})
 
@@ -463,8 +446,7 @@ func TestApp_GetCannedResponse(t *testing.T) {
 		req := testutil.NewGETRequest(t)
 		testutil.SetPathParam(req, "id", uuid.New().String())
 
-		err := app.GetCannedResponse(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.GetCannedResponse, req)
 		assert.Equal(t, fasthttp.StatusUnauthorized, testutil.GetResponseStatusCode(req))
 	})
 }
@@ -491,14 +473,13 @@ func TestApp_UpdateCannedResponse(t *testing.T) {
 		testutil.SetAuthContext(req, org.ID, user.ID)
 		testutil.SetPathParam(req, "id", cr.ID.String())
 
-		err := app.UpdateCannedResponse(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.UpdateCannedResponse, req)
 		assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 		var resp struct {
 			Data handlers.CannedResponseResponse `json:"data"`
 		}
-		err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+		err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 		require.NoError(t, err)
 		assert.Equal(t, cr.ID, resp.Data.ID)
 		assert.Equal(t, "Updated Name", resp.Data.Name)
@@ -522,14 +503,13 @@ func TestApp_UpdateCannedResponse(t *testing.T) {
 		testutil.SetAuthContext(req, org.ID, user.ID)
 		testutil.SetPathParam(req, "id", cr.ID.String())
 
-		err := app.UpdateCannedResponse(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.UpdateCannedResponse, req)
 		assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 		var resp struct {
 			Data handlers.CannedResponseResponse `json:"data"`
 		}
-		err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+		err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 		require.NoError(t, err)
 		// Name should remain unchanged since empty string is not sent
 		assert.Equal(t, "Keep Name", resp.Data.Name)
@@ -548,8 +528,7 @@ func TestApp_UpdateCannedResponse(t *testing.T) {
 		testutil.SetAuthContext(req, org.ID, user.ID)
 		testutil.SetPathParam(req, "id", uuid.New().String())
 
-		err := app.UpdateCannedResponse(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.UpdateCannedResponse, req)
 		assert.Equal(t, fasthttp.StatusNotFound, testutil.GetResponseStatusCode(req))
 	})
 
@@ -565,8 +544,7 @@ func TestApp_UpdateCannedResponse(t *testing.T) {
 		testutil.SetAuthContext(req, org.ID, user.ID)
 		testutil.SetPathParam(req, "id", "bad-uuid")
 
-		err := app.UpdateCannedResponse(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.UpdateCannedResponse, req)
 		assert.Equal(t, fasthttp.StatusBadRequest, testutil.GetResponseStatusCode(req))
 	})
 
@@ -586,8 +564,7 @@ func TestApp_UpdateCannedResponse(t *testing.T) {
 		testutil.SetAuthContext(req, org2.ID, user2.ID)
 		testutil.SetPathParam(req, "id", cr.ID.String())
 
-		err := app.UpdateCannedResponse(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.UpdateCannedResponse, req)
 		assert.Equal(t, fasthttp.StatusNotFound, testutil.GetResponseStatusCode(req))
 
 		// Verify the original is unchanged
@@ -605,8 +582,7 @@ func TestApp_UpdateCannedResponse(t *testing.T) {
 		})
 		testutil.SetPathParam(req, "id", uuid.New().String())
 
-		err := app.UpdateCannedResponse(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.UpdateCannedResponse, req)
 		assert.Equal(t, fasthttp.StatusUnauthorized, testutil.GetResponseStatusCode(req))
 	})
 }
@@ -627,8 +603,7 @@ func TestApp_DeleteCannedResponse(t *testing.T) {
 		testutil.SetAuthContext(req, org.ID, user.ID)
 		testutil.SetPathParam(req, "id", cr.ID.String())
 
-		err := app.DeleteCannedResponse(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.DeleteCannedResponse, req)
 		assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 		var resp struct {
@@ -636,7 +611,7 @@ func TestApp_DeleteCannedResponse(t *testing.T) {
 				Message string `json:"message"`
 			} `json:"data"`
 		}
-		err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+		err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 		require.NoError(t, err)
 		assert.Equal(t, "Canned response deleted", resp.Data.Message)
 
@@ -655,8 +630,7 @@ func TestApp_DeleteCannedResponse(t *testing.T) {
 		testutil.SetAuthContext(req, org.ID, user.ID)
 		testutil.SetPathParam(req, "id", uuid.New().String())
 
-		err := app.DeleteCannedResponse(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.DeleteCannedResponse, req)
 		assert.Equal(t, fasthttp.StatusNotFound, testutil.GetResponseStatusCode(req))
 	})
 
@@ -669,8 +643,7 @@ func TestApp_DeleteCannedResponse(t *testing.T) {
 		testutil.SetAuthContext(req, org.ID, user.ID)
 		testutil.SetPathParam(req, "id", "invalid-uuid")
 
-		err := app.DeleteCannedResponse(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.DeleteCannedResponse, req)
 		assert.Equal(t, fasthttp.StatusBadRequest, testutil.GetResponseStatusCode(req))
 	})
 
@@ -688,8 +661,7 @@ func TestApp_DeleteCannedResponse(t *testing.T) {
 		testutil.SetAuthContext(req, org2.ID, user2.ID)
 		testutil.SetPathParam(req, "id", cr.ID.String())
 
-		err := app.DeleteCannedResponse(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.DeleteCannedResponse, req)
 		assert.Equal(t, fasthttp.StatusNotFound, testutil.GetResponseStatusCode(req))
 
 		// Verify it still exists
@@ -704,8 +676,7 @@ func TestApp_DeleteCannedResponse(t *testing.T) {
 		req := testutil.NewGETRequest(t)
 		testutil.SetPathParam(req, "id", uuid.New().String())
 
-		err := app.DeleteCannedResponse(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.DeleteCannedResponse, req)
 		assert.Equal(t, fasthttp.StatusUnauthorized, testutil.GetResponseStatusCode(req))
 	})
 }
@@ -730,14 +701,13 @@ func TestApp_CreateCannedResponse_DuplicateShortcut(t *testing.T) {
 	})
 	testutil.SetAuthContext(req, org.ID, user.ID)
 
-	err := app.CreateCannedResponse(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.CreateCannedResponse, req)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	var resp struct {
 		Data handlers.CannedResponseResponse `json:"data"`
 	}
-	err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+	err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 	require.NoError(t, err)
 	assert.Equal(t, "Second", resp.Data.Name)
 	assert.Equal(t, "/dup-shortcut", resp.Data.Shortcut)
@@ -762,14 +732,13 @@ func TestApp_CreateCannedResponse_SameNameDifferentOrgs(t *testing.T) {
 	})
 	testutil.SetAuthContext(req, org2.ID, user2.ID)
 
-	err := app.CreateCannedResponse(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.CreateCannedResponse, req)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	var resp struct {
 		Data handlers.CannedResponseResponse `json:"data"`
 	}
-	err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+	err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 	require.NoError(t, err)
 	assert.Equal(t, "Shared Name", resp.Data.Name)
 }
@@ -789,8 +758,7 @@ func TestApp_CreateCannedResponse_InvalidJSON(t *testing.T) {
 	req := &fastglue.Request{RequestCtx: ctx}
 	testutil.SetAuthContext(req, org.ID, user.ID)
 
-	err := app.CreateCannedResponse(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.CreateCannedResponse, req)
 	assert.Equal(t, fasthttp.StatusBadRequest, testutil.GetResponseStatusCode(req))
 }
 
@@ -809,14 +777,13 @@ func TestApp_CreateCannedResponse_WithAllOptionalFields(t *testing.T) {
 	})
 	testutil.SetAuthContext(req, org.ID, user.ID)
 
-	err := app.CreateCannedResponse(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.CreateCannedResponse, req)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	var resp struct {
 		Data handlers.CannedResponseResponse `json:"data"`
 	}
-	err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+	err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 	require.NoError(t, err)
 	assert.Equal(t, "Full Response", resp.Data.Name)
 	assert.Equal(t, "/full", resp.Data.Shortcut)
@@ -842,14 +809,13 @@ func TestApp_CreateCannedResponse_WithoutShortcutOrCategory(t *testing.T) {
 	})
 	testutil.SetAuthContext(req, org.ID, user.ID)
 
-	err := app.CreateCannedResponse(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.CreateCannedResponse, req)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	var resp struct {
 		Data handlers.CannedResponseResponse `json:"data"`
 	}
-	err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+	err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 	require.NoError(t, err)
 	assert.Equal(t, "Minimal Response", resp.Data.Name)
 	assert.Equal(t, "", resp.Data.Shortcut)
@@ -873,8 +839,7 @@ func TestApp_ListCannedResponses_SearchByShortcut(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, user.ID)
 	testutil.SetQueryParam(req, "search", "/alpha")
 
-	err := app.ListCannedResponses(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.ListCannedResponses, req)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	var resp struct {
@@ -882,7 +847,7 @@ func TestApp_ListCannedResponses_SearchByShortcut(t *testing.T) {
 			CannedResponses []handlers.CannedResponseResponse `json:"canned_responses"`
 		} `json:"data"`
 	}
-	err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+	err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 	require.NoError(t, err)
 	assert.Len(t, resp.Data.CannedResponses, 1)
 	assert.Equal(t, "Alpha", resp.Data.CannedResponses[0].Name)
@@ -905,8 +870,7 @@ func TestApp_ListCannedResponses_OrderedByUsageCount(t *testing.T) {
 	req := testutil.NewGETRequest(t)
 	testutil.SetAuthContext(req, org.ID, user.ID)
 
-	err := app.ListCannedResponses(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.ListCannedResponses, req)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	var resp struct {
@@ -914,7 +878,7 @@ func TestApp_ListCannedResponses_OrderedByUsageCount(t *testing.T) {
 			CannedResponses []handlers.CannedResponseResponse `json:"canned_responses"`
 		} `json:"data"`
 	}
-	err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+	err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 	require.NoError(t, err)
 	require.Len(t, resp.Data.CannedResponses, 2)
 	// Higher usage count should come first
@@ -936,8 +900,7 @@ func TestApp_ListCannedResponses_SearchByContent(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, user.ID)
 	testutil.SetQueryParam(req, "search", "discount")
 
-	err := app.ListCannedResponses(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.ListCannedResponses, req)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	var resp struct {
@@ -945,7 +908,7 @@ func TestApp_ListCannedResponses_SearchByContent(t *testing.T) {
 			CannedResponses []handlers.CannedResponseResponse `json:"canned_responses"`
 		} `json:"data"`
 	}
-	err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+	err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 	require.NoError(t, err)
 	assert.Len(t, resp.Data.CannedResponses, 1)
 	assert.Equal(t, "Promo", resp.Data.CannedResponses[0].Name)
@@ -967,8 +930,7 @@ func TestApp_ListCannedResponses_CombinedCategoryAndSearch(t *testing.T) {
 	testutil.SetQueryParam(req, "category", "sales")
 	testutil.SetQueryParam(req, "search", "Hello")
 
-	err := app.ListCannedResponses(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.ListCannedResponses, req)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	var resp struct {
@@ -976,7 +938,7 @@ func TestApp_ListCannedResponses_CombinedCategoryAndSearch(t *testing.T) {
 			CannedResponses []handlers.CannedResponseResponse `json:"canned_responses"`
 		} `json:"data"`
 	}
-	err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+	err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 	require.NoError(t, err)
 	assert.Len(t, resp.Data.CannedResponses, 1)
 	assert.Equal(t, "Sales Hello", resp.Data.CannedResponses[0].Name)
@@ -1002,14 +964,13 @@ func TestApp_UpdateCannedResponse_DeactivateResponse(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, user.ID)
 	testutil.SetPathParam(req, "id", cr.ID.String())
 
-	err := app.UpdateCannedResponse(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.UpdateCannedResponse, req)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	var resp struct {
 		Data handlers.CannedResponseResponse `json:"data"`
 	}
-	err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+	err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 	require.NoError(t, err)
 	assert.False(t, resp.Data.IsActive)
 
@@ -1039,14 +1000,13 @@ func TestApp_UpdateCannedResponse_ClearShortcutAndCategory(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, user.ID)
 	testutil.SetPathParam(req, "id", cr.ID.String())
 
-	err := app.UpdateCannedResponse(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.UpdateCannedResponse, req)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	var resp struct {
 		Data handlers.CannedResponseResponse `json:"data"`
 	}
-	err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+	err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 	require.NoError(t, err)
 	assert.Equal(t, "", resp.Data.Shortcut)
 	assert.Equal(t, "", resp.Data.Category)
@@ -1071,14 +1031,13 @@ func TestApp_UpdateCannedResponse_PreservesUsageCount(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, user.ID)
 	testutil.SetPathParam(req, "id", cr.ID.String())
 
-	err := app.UpdateCannedResponse(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.UpdateCannedResponse, req)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	var resp struct {
 		Data handlers.CannedResponseResponse `json:"data"`
 	}
-	err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+	err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 	require.NoError(t, err)
 	assert.Equal(t, "Count Preserver Updated", resp.Data.Name)
 	assert.Equal(t, 42, resp.Data.UsageCount)
@@ -1100,8 +1059,7 @@ func TestApp_DeleteCannedResponse_DoubleDelete(t *testing.T) {
 	testutil.SetAuthContext(req1, org.ID, user.ID)
 	testutil.SetPathParam(req1, "id", cr.ID.String())
 
-	err := app.DeleteCannedResponse(req1)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.DeleteCannedResponse, req1)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req1))
 
 	// Second delete should return not found
@@ -1109,8 +1067,7 @@ func TestApp_DeleteCannedResponse_DoubleDelete(t *testing.T) {
 	testutil.SetAuthContext(req2, org.ID, user.ID)
 	testutil.SetPathParam(req2, "id", cr.ID.String())
 
-	err = app.DeleteCannedResponse(req2)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.DeleteCannedResponse, req2)
 	assert.Equal(t, fasthttp.StatusNotFound, testutil.GetResponseStatusCode(req2))
 }
 
@@ -1129,16 +1086,14 @@ func TestApp_DeleteCannedResponse_VerifyNotListedAfterDelete(t *testing.T) {
 	testutil.SetAuthContext(delReq, org.ID, user.ID)
 	testutil.SetPathParam(delReq, "id", cr.ID.String())
 
-	err := app.DeleteCannedResponse(delReq)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.DeleteCannedResponse, delReq)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(delReq))
 
 	// List should only return the remaining one
 	listReq := testutil.NewGETRequest(t)
 	testutil.SetAuthContext(listReq, org.ID, user.ID)
 
-	err = app.ListCannedResponses(listReq)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.ListCannedResponses, listReq)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(listReq))
 
 	var resp struct {
@@ -1146,7 +1101,7 @@ func TestApp_DeleteCannedResponse_VerifyNotListedAfterDelete(t *testing.T) {
 			CannedResponses []handlers.CannedResponseResponse `json:"canned_responses"`
 		} `json:"data"`
 	}
-	err = json.Unmarshal(testutil.GetResponseBody(listReq), &resp)
+	err := json.Unmarshal(testutil.GetResponseBody(listReq), &resp)
 	require.NoError(t, err)
 	assert.Len(t, resp.Data.CannedResponses, 1)
 	assert.Equal(t, "Will Stay", resp.Data.CannedResponses[0].Name)
@@ -1170,8 +1125,7 @@ func TestApp_IncrementCannedResponseUsage_CrossOrgIsolation(t *testing.T) {
 	testutil.SetAuthContext(req, org2.ID, user2.ID)
 	testutil.SetPathParam(req, "id", cr.ID.String())
 
-	err := app.IncrementCannedResponseUsage(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.IncrementCannedResponseUsage, req)
 	// The handler uses UpdateColumn which succeeds even if no rows matched,
 	// but the WHERE clause filters by org, so no row gets updated.
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
@@ -1196,8 +1150,7 @@ func TestApp_IncrementCannedResponseUsage_ReflectedInGet(t *testing.T) {
 	testutil.SetAuthContext(incReq, org.ID, user.ID)
 	testutil.SetPathParam(incReq, "id", cr.ID.String())
 
-	err := app.IncrementCannedResponseUsage(incReq)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.IncrementCannedResponseUsage, incReq)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(incReq))
 
 	// Get the canned response and verify usage_count is reflected
@@ -1205,14 +1158,13 @@ func TestApp_IncrementCannedResponseUsage_ReflectedInGet(t *testing.T) {
 	testutil.SetAuthContext(getReq, org.ID, user.ID)
 	testutil.SetPathParam(getReq, "id", cr.ID.String())
 
-	err = app.GetCannedResponse(getReq)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.GetCannedResponse, getReq)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(getReq))
 
 	var resp struct {
 		Data handlers.CannedResponseResponse `json:"data"`
 	}
-	err = json.Unmarshal(testutil.GetResponseBody(getReq), &resp)
+	err := json.Unmarshal(testutil.GetResponseBody(getReq), &resp)
 	require.NoError(t, err)
 	assert.Equal(t, 1, resp.Data.UsageCount)
 }
@@ -1235,14 +1187,13 @@ func TestApp_CannedResponse_FullLifecycle(t *testing.T) {
 	})
 	testutil.SetAuthContext(createReq, org.ID, user.ID)
 
-	err := app.CreateCannedResponse(createReq)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.CreateCannedResponse, createReq)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(createReq))
 
 	var createResp struct {
 		Data handlers.CannedResponseResponse `json:"data"`
 	}
-	err = json.Unmarshal(testutil.GetResponseBody(createReq), &createResp)
+	err := json.Unmarshal(testutil.GetResponseBody(createReq), &createResp)
 	require.NoError(t, err)
 	crID := createResp.Data.ID
 	assert.NotEqual(t, uuid.Nil, crID)
@@ -1252,8 +1203,7 @@ func TestApp_CannedResponse_FullLifecycle(t *testing.T) {
 	testutil.SetAuthContext(getReq, org.ID, user.ID)
 	testutil.SetPathParam(getReq, "id", crID.String())
 
-	err = app.GetCannedResponse(getReq)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.GetCannedResponse, getReq)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(getReq))
 
 	var getResp struct {
@@ -1275,8 +1225,7 @@ func TestApp_CannedResponse_FullLifecycle(t *testing.T) {
 	testutil.SetAuthContext(updateReq, org.ID, user.ID)
 	testutil.SetPathParam(updateReq, "id", crID.String())
 
-	err = app.UpdateCannedResponse(updateReq)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.UpdateCannedResponse, updateReq)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(updateReq))
 
 	var updateResp struct {
@@ -1293,16 +1242,14 @@ func TestApp_CannedResponse_FullLifecycle(t *testing.T) {
 	testutil.SetAuthContext(incReq, org.ID, user.ID)
 	testutil.SetPathParam(incReq, "id", crID.String())
 
-	err = app.IncrementCannedResponseUsage(incReq)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.IncrementCannedResponseUsage, incReq)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(incReq))
 
 	// 5. Verify in list
 	listReq := testutil.NewGETRequest(t)
 	testutil.SetAuthContext(listReq, org.ID, user.ID)
 
-	err = app.ListCannedResponses(listReq)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.ListCannedResponses, listReq)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(listReq))
 
 	var listResp struct {
@@ -1321,8 +1268,7 @@ func TestApp_CannedResponse_FullLifecycle(t *testing.T) {
 	testutil.SetAuthContext(delReq, org.ID, user.ID)
 	testutil.SetPathParam(delReq, "id", crID.String())
 
-	err = app.DeleteCannedResponse(delReq)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.DeleteCannedResponse, delReq)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(delReq))
 
 	// 7. Verify gone
@@ -1330,8 +1276,7 @@ func TestApp_CannedResponse_FullLifecycle(t *testing.T) {
 	testutil.SetAuthContext(getReq2, org.ID, user.ID)
 	testutil.SetPathParam(getReq2, "id", crID.String())
 
-	err = app.GetCannedResponse(getReq2)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.GetCannedResponse, getReq2)
 	assert.Equal(t, fasthttp.StatusNotFound, testutil.GetResponseStatusCode(getReq2))
 }
 
@@ -1352,8 +1297,7 @@ func TestApp_IncrementCannedResponseUsage(t *testing.T) {
 		testutil.SetAuthContext(req, org.ID, user.ID)
 		testutil.SetPathParam(req, "id", cr.ID.String())
 
-		err := app.IncrementCannedResponseUsage(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.IncrementCannedResponseUsage, req)
 		assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 		var resp struct {
@@ -1361,7 +1305,7 @@ func TestApp_IncrementCannedResponseUsage(t *testing.T) {
 				Message string `json:"message"`
 			} `json:"data"`
 		}
-		err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+		err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 		require.NoError(t, err)
 		assert.Equal(t, "Usage incremented", resp.Data.Message)
 
@@ -1384,8 +1328,7 @@ func TestApp_IncrementCannedResponseUsage(t *testing.T) {
 			testutil.SetAuthContext(req, org.ID, user.ID)
 			testutil.SetPathParam(req, "id", cr.ID.String())
 
-			err := app.IncrementCannedResponseUsage(req)
-			require.NoError(t, err)
+			testutil.InvokeHTTP(t, app.IncrementCannedResponseUsage, req)
 			assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 		}
 
@@ -1403,8 +1346,7 @@ func TestApp_IncrementCannedResponseUsage(t *testing.T) {
 		testutil.SetAuthContext(req, org.ID, user.ID)
 		testutil.SetPathParam(req, "id", uuid.New().String())
 
-		err := app.IncrementCannedResponseUsage(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.IncrementCannedResponseUsage, req)
 		// The handler uses UpdateColumn which succeeds even if no rows matched,
 		// so this returns 200 with success message
 		assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
@@ -1419,8 +1361,7 @@ func TestApp_IncrementCannedResponseUsage(t *testing.T) {
 		testutil.SetAuthContext(req, org.ID, user.ID)
 		testutil.SetPathParam(req, "id", "not-a-uuid")
 
-		err := app.IncrementCannedResponseUsage(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.IncrementCannedResponseUsage, req)
 		assert.Equal(t, fasthttp.StatusBadRequest, testutil.GetResponseStatusCode(req))
 	})
 
@@ -1430,8 +1371,7 @@ func TestApp_IncrementCannedResponseUsage(t *testing.T) {
 		req := testutil.NewJSONRequest(t, nil)
 		testutil.SetPathParam(req, "id", uuid.New().String())
 
-		err := app.IncrementCannedResponseUsage(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.IncrementCannedResponseUsage, req)
 		assert.Equal(t, fasthttp.StatusUnauthorized, testutil.GetResponseStatusCode(req))
 	})
 }

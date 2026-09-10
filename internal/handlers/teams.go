@@ -1,12 +1,11 @@
 package handlers
 
 import (
+	"net/http"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/shridarpatil/whatomate/internal/models"
-	"github.com/valyala/fasthttp"
-	"github.com/zerodha/fastglue"
 )
 
 // TeamRequest represents create/update team request
@@ -54,14 +53,15 @@ type TeamMemberResponse struct {
 }
 
 // ListTeams returns teams based on user access
-func (a *App) ListTeams(r *fastglue.Request) error {
-	orgID, userID, err := a.getOrgAndUserID(r)
+func (a *App) ListTeams(w http.ResponseWriter, r *http.Request) {
+	orgID, userID, err := a.getOrgAndUserIDHTTP(r)
 	if err != nil {
-		return r.SendErrorEnvelope(fasthttp.StatusUnauthorized, "Unauthorized", nil, "")
+		SendErrorEnvelope(w, http.StatusUnauthorized, "Unauthorized", nil, "")
+		return
 	}
 
-	pg := parsePagination(r)
-	search := string(r.RequestCtx.QueryArgs().Peek("search"))
+	pg := parsePaginationHTTP(r)
+	search := r.URL.Query().Get("search")
 	var teams []models.Team
 	var total int64
 
@@ -76,7 +76,8 @@ func (a *App) ListTeams(r *fastglue.Request) error {
 			Preload("Members").Preload("Members.User").
 			Order("name ASC")).Find(&teams).Error; err != nil {
 			a.Log.Error("Failed to list teams", "error", err)
-			return r.SendErrorEnvelope(fasthttp.StatusInternalServerError, "Failed to list teams", nil, "")
+			SendErrorEnvelope(w, http.StatusInternalServerError, "Failed to list teams", nil, "")
+			return
 		}
 	} else {
 		// Users only see teams they belong to
@@ -90,7 +91,8 @@ func (a *App) ListTeams(r *fastglue.Request) error {
 			Preload("Members").Preload("Members.User").
 			Order("teams.name ASC")).Find(&teams).Error; err != nil {
 			a.Log.Error("Failed to list teams", "error", err)
-			return r.SendErrorEnvelope(fasthttp.StatusInternalServerError, "Failed to list teams", nil, "")
+			SendErrorEnvelope(w, http.StatusInternalServerError, "Failed to list teams", nil, "")
+			return
 		}
 	}
 
@@ -100,19 +102,21 @@ func (a *App) ListTeams(r *fastglue.Request) error {
 		response[i] = buildTeamResponse(&t, false)
 	}
 
-	return r.SendEnvelope(listEnvelope("teams", response, total, pg))
+	SendEnvelope(w, listEnvelope("teams", response, total, pg))
+	return
 }
 
 // GetTeam returns a single team with members
-func (a *App) GetTeam(r *fastglue.Request) error {
-	orgID, userID, err := a.getOrgAndUserID(r)
+func (a *App) GetTeam(w http.ResponseWriter, r *http.Request) {
+	orgID, userID, err := a.getOrgAndUserIDHTTP(r)
 	if err != nil {
-		return r.SendErrorEnvelope(fasthttp.StatusUnauthorized, "Unauthorized", nil, "")
+		SendErrorEnvelope(w, http.StatusUnauthorized, "Unauthorized", nil, "")
+		return
 	}
 
-	teamID, err := parsePathUUID(r, "id", "team")
+	teamID, err := parsePathUUIDHTTP(w, r, "id", "team")
 	if err != nil {
-		return nil
+		return
 	}
 
 	var team models.Team
@@ -120,7 +124,8 @@ func (a *App) GetTeam(r *fastglue.Request) error {
 		Preload("Members").Preload("Members.User").
 		Preload("CreatedBy").Preload("UpdatedBy").
 		First(&team).Error; err != nil {
-		return r.SendErrorEnvelope(fasthttp.StatusNotFound, "Team not found", nil, "")
+		SendErrorEnvelope(w, http.StatusNotFound, "Team not found", nil, "")
+		return
 	}
 
 	// Check access: users with teams:read permission can see all teams, otherwise must be a member
@@ -133,27 +138,30 @@ func (a *App) GetTeam(r *fastglue.Request) error {
 			}
 		}
 		if !hasAccess {
-			return r.SendErrorEnvelope(fasthttp.StatusForbidden, "Access denied", nil, "")
+			SendErrorEnvelope(w, http.StatusForbidden, "Access denied", nil, "")
+			return
 		}
 	}
 
-	return r.SendEnvelope(map[string]any{"team": buildTeamResponse(&team, true)})
+	SendEnvelope(w, map[string]any{"team": buildTeamResponse(&team, true)})
+	return
 }
 
 // CreateTeam creates a new team
-func (a *App) CreateTeam(r *fastglue.Request) error {
-	orgID, userID, err := a.requireAuth(r, models.ResourceTeams, models.ActionWrite)
+func (a *App) CreateTeam(w http.ResponseWriter, r *http.Request) {
+	orgID, userID, err := a.requireAuthHTTP(w, r, models.ResourceTeams, models.ActionWrite)
 	if err != nil {
-		return nil
+		return
 	}
 
 	var req TeamRequest
-	if err := a.decodeRequest(r, &req); err != nil {
-		return nil
+	if err := a.decodeRequestHTTP(w, r, &req); err != nil {
+		return
 	}
 
 	if req.Name == "" {
-		return r.SendErrorEnvelope(fasthttp.StatusBadRequest, "Team name is required", nil, "")
+		SendErrorEnvelope(w, http.StatusBadRequest, "Team name is required", nil, "")
+		return
 	}
 
 	// Validate assignment strategy
@@ -162,7 +170,8 @@ func (a *App) CreateTeam(r *fastglue.Request) error {
 		strategy = models.AssignmentStrategyRoundRobin
 	}
 	if strategy != models.AssignmentStrategyRoundRobin && strategy != models.AssignmentStrategyLoadBalanced && strategy != models.AssignmentStrategyManual {
-		return r.SendErrorEnvelope(fasthttp.StatusBadRequest, "Invalid assignment strategy", nil, "")
+		SendErrorEnvelope(w, http.StatusBadRequest, "Invalid assignment strategy", nil, "")
+		return
 	}
 
 	team := models.Team{
@@ -178,7 +187,8 @@ func (a *App) CreateTeam(r *fastglue.Request) error {
 
 	if err := a.DB.Create(&team).Error; err != nil {
 		a.Log.Error("Failed to create team", "error", err)
-		return r.SendErrorEnvelope(fasthttp.StatusInternalServerError, "Failed to create team", nil, "")
+		SendErrorEnvelope(w, http.StatusInternalServerError, "Failed to create team", nil, "")
+		return
 	}
 
 	// Preload relations for response
@@ -187,25 +197,28 @@ func (a *App) CreateTeam(r *fastglue.Request) error {
 	a.logAudit(orgID, userID,
 		"team", team.ID, models.AuditActionCreated, nil, &team)
 
-	return r.SendEnvelope(map[string]any{"team": buildTeamResponse(&team, false)})
+	SendEnvelope(w, map[string]any{"team": buildTeamResponse(&team, false)})
+	return
 }
 
 // UpdateTeam updates a team
-func (a *App) UpdateTeam(r *fastglue.Request) error {
-	orgID, userID, err := a.getOrgAndUserID(r)
+func (a *App) UpdateTeam(w http.ResponseWriter, r *http.Request) {
+	orgID, userID, err := a.getOrgAndUserIDHTTP(r)
 	if err != nil {
-		return r.SendErrorEnvelope(fasthttp.StatusUnauthorized, "Unauthorized", nil, "")
+		SendErrorEnvelope(w, http.StatusUnauthorized, "Unauthorized", nil, "")
+		return
 	}
 
-	teamID, err := parsePathUUID(r, "id", "team")
+	teamID, err := parsePathUUIDHTTP(w, r, "id", "team")
 	if err != nil {
-		return nil
+		return
 	}
 
 	var team models.Team
 	if err := a.DB.Where("id = ? AND organization_id = ?", teamID, orgID).
 		Preload("Members").First(&team).Error; err != nil {
-		return r.SendErrorEnvelope(fasthttp.StatusNotFound, "Team not found", nil, "")
+		SendErrorEnvelope(w, http.StatusNotFound, "Team not found", nil, "")
+		return
 	}
 
 	oldTeam := team // value copy for audit diff
@@ -220,13 +233,14 @@ func (a *App) UpdateTeam(r *fastglue.Request) error {
 			}
 		}
 		if !isManager {
-			return r.SendErrorEnvelope(fasthttp.StatusForbidden, "Insufficient permissions", nil, "")
+			SendErrorEnvelope(w, http.StatusForbidden, "Insufficient permissions", nil, "")
+			return
 		}
 	}
 
 	var req TeamRequest
-	if err := a.decodeRequest(r, &req); err != nil {
-		return nil
+	if err := a.decodeRequestHTTP(w, r, &req); err != nil {
+		return
 	}
 
 	// Update fields
@@ -238,7 +252,8 @@ func (a *App) UpdateTeam(r *fastglue.Request) error {
 
 	if req.AssignmentStrategy != "" {
 		if req.AssignmentStrategy != models.AssignmentStrategyRoundRobin && req.AssignmentStrategy != models.AssignmentStrategyLoadBalanced && req.AssignmentStrategy != models.AssignmentStrategyManual {
-			return r.SendErrorEnvelope(fasthttp.StatusBadRequest, "Invalid assignment strategy", nil, "")
+			SendErrorEnvelope(w, http.StatusBadRequest, "Invalid assignment strategy", nil, "")
+			return
 		}
 		team.AssignmentStrategy = req.AssignmentStrategy
 	}
@@ -247,7 +262,8 @@ func (a *App) UpdateTeam(r *fastglue.Request) error {
 
 	if err := a.DB.Save(&team).Error; err != nil {
 		a.Log.Error("Failed to update team", "error", err)
-		return r.SendErrorEnvelope(fasthttp.StatusInternalServerError, "Failed to update team", nil, "")
+		SendErrorEnvelope(w, http.StatusInternalServerError, "Failed to update team", nil, "")
+		return
 	}
 
 	if a.Assigner != nil {
@@ -260,19 +276,20 @@ func (a *App) UpdateTeam(r *fastglue.Request) error {
 	a.logAudit(orgID, userID,
 		"team", team.ID, models.AuditActionUpdated, &oldTeam, &team)
 
-	return r.SendEnvelope(map[string]any{"team": buildTeamResponse(&team, false)})
+	SendEnvelope(w, map[string]any{"team": buildTeamResponse(&team, false)})
+	return
 }
 
 // DeleteTeam deletes a team
-func (a *App) DeleteTeam(r *fastglue.Request) error {
-	orgID, userID, err := a.requireAuth(r, models.ResourceTeams, models.ActionDelete)
+func (a *App) DeleteTeam(w http.ResponseWriter, r *http.Request) {
+	orgID, userID, err := a.requireAuthHTTP(w, r, models.ResourceTeams, models.ActionDelete)
 	if err != nil {
-		return nil
+		return
 	}
 
-	teamID, err := parsePathUUID(r, "id", "team")
+	teamID, err := parsePathUUIDHTTP(w, r, "id", "team")
 	if err != nil {
-		return nil
+		return
 	}
 
 	// Load team for audit log before deleting
@@ -282,18 +299,21 @@ func (a *App) DeleteTeam(r *fastglue.Request) error {
 	// Delete team members first
 	if err := a.DB.Where("team_id = ?", teamID).Delete(&models.TeamMember{}).Error; err != nil {
 		a.Log.Error("Failed to delete team members", "error", err)
-		return r.SendErrorEnvelope(fasthttp.StatusInternalServerError, "Failed to delete team", nil, "")
+		SendErrorEnvelope(w, http.StatusInternalServerError, "Failed to delete team", nil, "")
+		return
 	}
 
 	// Delete team
 	result := a.DB.Where("id = ? AND organization_id = ?", teamID, orgID).Delete(&models.Team{})
 	if result.Error != nil {
 		a.Log.Error("Failed to delete team", "error", result.Error)
-		return r.SendErrorEnvelope(fasthttp.StatusInternalServerError, "Failed to delete team", nil, "")
+		SendErrorEnvelope(w, http.StatusInternalServerError, "Failed to delete team", nil, "")
+		return
 	}
 
 	if result.RowsAffected == 0 {
-		return r.SendErrorEnvelope(fasthttp.StatusNotFound, "Team not found", nil, "")
+		SendErrorEnvelope(w, http.StatusNotFound, "Team not found", nil, "")
+		return
 	}
 
 	if a.Assigner != nil {
@@ -303,19 +323,21 @@ func (a *App) DeleteTeam(r *fastglue.Request) error {
 	a.logAudit(orgID, userID,
 		"team", teamID, models.AuditActionDeleted, &teamForAudit, nil)
 
-	return r.SendEnvelope(map[string]string{"message": "Team deleted"})
+	SendEnvelope(w, map[string]string{"message": "Team deleted"})
+	return
 }
 
 // ListTeamMembers lists members of a team
-func (a *App) ListTeamMembers(r *fastglue.Request) error {
-	orgID, userID, err := a.getOrgAndUserID(r)
+func (a *App) ListTeamMembers(w http.ResponseWriter, r *http.Request) {
+	orgID, userID, err := a.getOrgAndUserIDHTTP(r)
 	if err != nil {
-		return r.SendErrorEnvelope(fasthttp.StatusUnauthorized, "Unauthorized", nil, "")
+		SendErrorEnvelope(w, http.StatusUnauthorized, "Unauthorized", nil, "")
+		return
 	}
 
-	teamID, err := parsePathUUID(r, "id", "team")
+	teamID, err := parsePathUUIDHTTP(w, r, "id", "team")
 	if err != nil {
-		return nil
+		return
 	}
 
 	// Verify team exists and user has access
@@ -323,7 +345,8 @@ func (a *App) ListTeamMembers(r *fastglue.Request) error {
 	if err := a.DB.Where("id = ? AND organization_id = ?", teamID, orgID).
 		Preload("Members").Preload("Members.User").
 		First(&team).Error; err != nil {
-		return r.SendErrorEnvelope(fasthttp.StatusNotFound, "Team not found", nil, "")
+		SendErrorEnvelope(w, http.StatusNotFound, "Team not found", nil, "")
+		return
 	}
 
 	// Check access: users with teams:read permission can see all, otherwise must be a member
@@ -336,7 +359,8 @@ func (a *App) ListTeamMembers(r *fastglue.Request) error {
 			}
 		}
 		if !hasAccess {
-			return r.SendErrorEnvelope(fasthttp.StatusForbidden, "Access denied", nil, "")
+			SendErrorEnvelope(w, http.StatusForbidden, "Access denied", nil, "")
+			return
 		}
 	}
 
@@ -353,26 +377,29 @@ func (a *App) ListTeamMembers(r *fastglue.Request) error {
 		}
 	}
 
-	return r.SendEnvelope(map[string]any{"members": members})
+	SendEnvelope(w, map[string]any{"members": members})
+	return
 }
 
 // AddTeamMember adds a member to a team
-func (a *App) AddTeamMember(r *fastglue.Request) error {
-	orgID, userID, err := a.getOrgAndUserID(r)
+func (a *App) AddTeamMember(w http.ResponseWriter, r *http.Request) {
+	orgID, userID, err := a.getOrgAndUserIDHTTP(r)
 	if err != nil {
-		return r.SendErrorEnvelope(fasthttp.StatusUnauthorized, "Unauthorized", nil, "")
+		SendErrorEnvelope(w, http.StatusUnauthorized, "Unauthorized", nil, "")
+		return
 	}
 
-	teamID, err := parsePathUUID(r, "id", "team")
+	teamID, err := parsePathUUIDHTTP(w, r, "id", "team")
 	if err != nil {
-		return nil
+		return
 	}
 
 	// Verify team exists
 	var team models.Team
 	if err := a.DB.Where("id = ? AND organization_id = ?", teamID, orgID).
 		Preload("Members").First(&team).Error; err != nil {
-		return r.SendErrorEnvelope(fasthttp.StatusNotFound, "Team not found", nil, "")
+		SendErrorEnvelope(w, http.StatusNotFound, "Team not found", nil, "")
+		return
 	}
 
 	hasWritePermission := a.HasPermission(userID, models.ResourceTeams, models.ActionWrite, orgID)
@@ -387,30 +414,33 @@ func (a *App) AddTeamMember(r *fastglue.Request) error {
 			}
 		}
 		if !isManager {
-			return r.SendErrorEnvelope(fasthttp.StatusForbidden, "Insufficient permissions", nil, "")
+			SendErrorEnvelope(w, http.StatusForbidden, "Insufficient permissions", nil, "")
+			return
 		}
 	}
 
 	var req TeamMemberRequest
-	if err := a.decodeRequest(r, &req); err != nil {
-		return nil
+	if err := a.decodeRequestHTTP(w, r, &req); err != nil {
+		return
 	}
 
 	memberUserID, err := uuid.Parse(req.UserID)
 	if err != nil {
-		return r.SendErrorEnvelope(fasthttp.StatusBadRequest, "Invalid user ID", nil, "")
+		SendErrorEnvelope(w, http.StatusBadRequest, "Invalid user ID", nil, "")
+		return
 	}
 
 	// Verify user exists in org
-	user, err := findByIDAndOrg[models.User](a.DB, r, memberUserID, orgID, "User")
+	user, err := findByIDAndOrgHTTP[models.User](a.DB, w, memberUserID, orgID, "User")
 	if err != nil {
-		return nil
+		return
 	}
 
 	// Check if already a member
 	var existingMember models.TeamMember
 	if err := a.DB.Where("team_id = ? AND user_id = ?", teamID, memberUserID).First(&existingMember).Error; err == nil {
-		return r.SendErrorEnvelope(fasthttp.StatusConflict, "User is already a member of this team", nil, "")
+		SendErrorEnvelope(w, http.StatusConflict, "User is already a member of this team", nil, "")
+		return
 	}
 
 	// Validate role
@@ -419,12 +449,14 @@ func (a *App) AddTeamMember(r *fastglue.Request) error {
 		role = models.TeamRoleAgent
 	}
 	if role != models.TeamRoleManager && role != models.TeamRoleAgent {
-		return r.SendErrorEnvelope(fasthttp.StatusBadRequest, "Invalid role. Must be 'manager' or 'agent'", nil, "")
+		SendErrorEnvelope(w, http.StatusBadRequest, "Invalid role. Must be 'manager' or 'agent'", nil, "")
+		return
 	}
 
 	// Only users with teams:write permission can add managers
 	if !hasWritePermission && role == models.TeamRoleManager {
-		return r.SendErrorEnvelope(fasthttp.StatusForbidden, "Insufficient permissions to add managers", nil, "")
+		SendErrorEnvelope(w, http.StatusForbidden, "Insufficient permissions to add managers", nil, "")
+		return
 	}
 
 	member := models.TeamMember{
@@ -435,14 +467,15 @@ func (a *App) AddTeamMember(r *fastglue.Request) error {
 
 	if err := a.DB.Create(&member).Error; err != nil {
 		a.Log.Error("Failed to add team member", "error", err)
-		return r.SendErrorEnvelope(fasthttp.StatusInternalServerError, "Failed to add member", nil, "")
+		SendErrorEnvelope(w, http.StatusInternalServerError, "Failed to add member", nil, "")
+		return
 	}
 
 	if a.Assigner != nil {
 		a.Assigner.InvalidateTeamCache(teamID)
 	}
 
-	return r.SendEnvelope(map[string]any{"member": TeamMemberResponse{
+	SendEnvelope(w, map[string]any{"member": TeamMemberResponse{
 		ID:          member.ID,
 		UserID:      member.UserID,
 		FullName:    user.FullName,
@@ -450,30 +483,33 @@ func (a *App) AddTeamMember(r *fastglue.Request) error {
 		Role:        member.Role,
 		IsAvailable: user.IsAvailable,
 	}})
+	return
 }
 
 // RemoveTeamMember removes a member from a team
-func (a *App) RemoveTeamMember(r *fastglue.Request) error {
-	orgID, userID, err := a.getOrgAndUserID(r)
+func (a *App) RemoveTeamMember(w http.ResponseWriter, r *http.Request) {
+	orgID, userID, err := a.getOrgAndUserIDHTTP(r)
 	if err != nil {
-		return r.SendErrorEnvelope(fasthttp.StatusUnauthorized, "Unauthorized", nil, "")
+		SendErrorEnvelope(w, http.StatusUnauthorized, "Unauthorized", nil, "")
+		return
 	}
 
-	teamID, err := parsePathUUID(r, "id", "team")
+	teamID, err := parsePathUUIDHTTP(w, r, "id", "team")
 	if err != nil {
-		return nil
+		return
 	}
 
-	memberUserID, err := parsePathUUID(r, "member_user_id", "user")
+	memberUserID, err := parsePathUUIDHTTP(w, r, "member_user_id", "user")
 	if err != nil {
-		return nil
+		return
 	}
 
 	// Verify team exists
 	var team models.Team
 	if err := a.DB.Where("id = ? AND organization_id = ?", teamID, orgID).
 		Preload("Members").First(&team).Error; err != nil {
-		return r.SendErrorEnvelope(fasthttp.StatusNotFound, "Team not found", nil, "")
+		SendErrorEnvelope(w, http.StatusNotFound, "Team not found", nil, "")
+		return
 	}
 
 	hasWritePermission := a.HasPermission(userID, models.ResourceTeams, models.ActionWrite, orgID)
@@ -488,13 +524,15 @@ func (a *App) RemoveTeamMember(r *fastglue.Request) error {
 			}
 		}
 		if !isManager {
-			return r.SendErrorEnvelope(fasthttp.StatusForbidden, "Insufficient permissions", nil, "")
+			SendErrorEnvelope(w, http.StatusForbidden, "Insufficient permissions", nil, "")
+			return
 		}
 
 		// Team managers cannot remove other managers
 		for _, m := range team.Members {
 			if m.UserID == memberUserID && m.Role == models.TeamRoleManager {
-				return r.SendErrorEnvelope(fasthttp.StatusForbidden, "Insufficient permissions to remove managers", nil, "")
+				SendErrorEnvelope(w, http.StatusForbidden, "Insufficient permissions to remove managers", nil, "")
+				return
 			}
 		}
 	}
@@ -502,18 +540,21 @@ func (a *App) RemoveTeamMember(r *fastglue.Request) error {
 	result := a.DB.Where("team_id = ? AND user_id = ?", teamID, memberUserID).Delete(&models.TeamMember{})
 	if result.Error != nil {
 		a.Log.Error("Failed to remove team member", "error", result.Error)
-		return r.SendErrorEnvelope(fasthttp.StatusInternalServerError, "Failed to remove member", nil, "")
+		SendErrorEnvelope(w, http.StatusInternalServerError, "Failed to remove member", nil, "")
+		return
 	}
 
 	if result.RowsAffected == 0 {
-		return r.SendErrorEnvelope(fasthttp.StatusNotFound, "Member not found in team", nil, "")
+		SendErrorEnvelope(w, http.StatusNotFound, "Member not found in team", nil, "")
+		return
 	}
 
 	if a.Assigner != nil {
 		a.Assigner.InvalidateTeamCache(teamID)
 	}
 
-	return r.SendEnvelope(map[string]string{"message": "Member removed from team"})
+	SendEnvelope(w, map[string]string{"message": "Member removed from team"})
+	return
 }
 
 // Helper function to build team response

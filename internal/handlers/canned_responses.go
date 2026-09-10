@@ -2,12 +2,11 @@ package handlers
 
 import (
 	"encoding/json"
+	"net/http"
 	"strconv"
 
 	"github.com/google/uuid"
 	"github.com/shridarpatil/whatomate/internal/models"
-	"github.com/valyala/fasthttp"
-	"github.com/zerodha/fastglue"
 	"gorm.io/gorm"
 )
 
@@ -55,18 +54,19 @@ type CannedResponseResponse struct {
 }
 
 // ListCannedResponses returns all canned responses for the organization
-func (a *App) ListCannedResponses(r *fastglue.Request) error {
-	orgID, err := a.getOrgID(r)
+func (a *App) ListCannedResponses(w http.ResponseWriter, r *http.Request) {
+	orgID, err := a.getOrgIDHTTP(r)
 	if err != nil {
-		return r.SendErrorEnvelope(fasthttp.StatusUnauthorized, "Unauthorized", nil, "")
+		SendErrorEnvelope(w, http.StatusUnauthorized, "Unauthorized", nil, "")
+		return
 	}
 
-	pg := parsePagination(r)
+	pg := parsePaginationHTTP(r)
 
 	// Optional filters
-	category := string(r.RequestCtx.QueryArgs().Peek("category"))
-	search := string(r.RequestCtx.QueryArgs().Peek("search"))
-	activeOnly := string(r.RequestCtx.QueryArgs().Peek("active_only"))
+	category := r.URL.Query().Get("category")
+	search := r.URL.Query().Get("search")
+	activeOnly := r.URL.Query().Get("active_only")
 
 	query := a.DB.Where("organization_id = ?", orgID)
 
@@ -91,8 +91,8 @@ func (a *App) ListCannedResponses(r *fastglue.Request) error {
 	if err := pg.Apply(query.Order("usage_count DESC, name ASC")).
 		Find(&responses).Error; err != nil {
 		a.Log.Error("Failed to list canned responses", "error", err)
-		return r.SendErrorEnvelope(fasthttp.StatusInternalServerError,
-			"Failed to list canned responses", nil, "")
+		SendErrorEnvelope(w, http.StatusInternalServerError, "Failed to list canned responses", nil, "")
+		return
 	}
 
 	result := make([]CannedResponseResponse, len(responses))
@@ -100,36 +100,39 @@ func (a *App) ListCannedResponses(r *fastglue.Request) error {
 		result[i] = cannedResponseToResponse(cr)
 	}
 
-	return r.SendEnvelope(listEnvelope("canned_responses", result, total, pg))
+	SendEnvelope(w, listEnvelope("canned_responses", result, total, pg))
+	return
 }
 
 // CreateCannedResponse creates a new canned response
-func (a *App) CreateCannedResponse(r *fastglue.Request) error {
-	orgID, userID, err := a.getOrgAndUserID(r)
+func (a *App) CreateCannedResponse(w http.ResponseWriter, r *http.Request) {
+	orgID, userID, err := a.getOrgAndUserIDHTTP(r)
 	if err != nil {
-		return r.SendErrorEnvelope(fasthttp.StatusUnauthorized, "Unauthorized", nil, "")
+		SendErrorEnvelope(w, http.StatusUnauthorized, "Unauthorized", nil, "")
+		return
 	}
 
 	var req CannedResponseRequest
-	if err := a.decodeRequest(r, &req); err != nil {
-		return nil
+	if err := a.decodeRequestHTTP(w, r, &req); err != nil {
+		return
 	}
 
 	if req.Name == "" || req.Content == "" {
-		return r.SendErrorEnvelope(fasthttp.StatusBadRequest,
-			"name and content are required", nil, "")
+		SendErrorEnvelope(w, http.StatusBadRequest, "name and content are required", nil, "")
+		return
 	}
 
 	if err := validateCannedResponseButtons(req.Buttons); err != nil {
-		return r.SendErrorEnvelope(fasthttp.StatusBadRequest, err.Error(), nil, "")
+		SendErrorEnvelope(w, http.StatusBadRequest, err.Error(), nil, "")
+		return
 	}
 
 	// Check for duplicate name
 	var existing models.CannedResponse
 	if err := a.DB.Where("organization_id = ? AND name = ?", orgID, req.Name).
 		First(&existing).Error; err == nil {
-		return r.SendErrorEnvelope(fasthttp.StatusConflict,
-			"Canned response with this name already exists", nil, "")
+		SendErrorEnvelope(w, http.StatusConflict, "Canned response with this name already exists", nil, "")
+		return
 	}
 
 	cannedResponse := models.CannedResponse{
@@ -145,64 +148,69 @@ func (a *App) CreateCannedResponse(r *fastglue.Request) error {
 
 	if err := a.DB.Create(&cannedResponse).Error; err != nil {
 		a.Log.Error("Failed to create canned response", "error", err)
-		return r.SendErrorEnvelope(fasthttp.StatusInternalServerError,
-			"Failed to create canned response", nil, "")
+		SendErrorEnvelope(w, http.StatusInternalServerError, "Failed to create canned response", nil, "")
+		return
 	}
 
 	a.logAudit(orgID, userID,
 		"canned_response", cannedResponse.ID, models.AuditActionCreated, nil, cannedResponseAuditSnapshot(&cannedResponse))
 
-	return r.SendEnvelope(cannedResponseToResponse(cannedResponse))
+	SendEnvelope(w, cannedResponseToResponse(cannedResponse))
+	return
 }
 
 // GetCannedResponse returns a single canned response
-func (a *App) GetCannedResponse(r *fastglue.Request) error {
-	orgID, err := a.getOrgID(r)
+func (a *App) GetCannedResponse(w http.ResponseWriter, r *http.Request) {
+	orgID, err := a.getOrgIDHTTP(r)
 	if err != nil {
-		return r.SendErrorEnvelope(fasthttp.StatusUnauthorized, "Unauthorized", nil, "")
+		SendErrorEnvelope(w, http.StatusUnauthorized, "Unauthorized", nil, "")
+		return
 	}
 
-	id, err := parsePathUUID(r, "id", "canned response")
+	id, err := parsePathUUIDHTTP(w, r, "id", "canned response")
 	if err != nil {
-		return nil
+		return
 	}
 
 	var cannedResponse models.CannedResponse
 	if err := a.DB.Where("id = ? AND organization_id = ?", id, orgID).
 		First(&cannedResponse).Error; err != nil {
-		return r.SendErrorEnvelope(fasthttp.StatusNotFound,
-			"Canned response not found", nil, "")
+		SendErrorEnvelope(w, http.StatusNotFound, "Canned response not found", nil, "")
+		return
 	}
 
-	return r.SendEnvelope(cannedResponseToResponse(cannedResponse))
+	SendEnvelope(w, cannedResponseToResponse(cannedResponse))
+	return
 }
 
 // UpdateCannedResponse updates an existing canned response
-func (a *App) UpdateCannedResponse(r *fastglue.Request) error {
-	orgID, userID, err := a.getOrgAndUserID(r)
+func (a *App) UpdateCannedResponse(w http.ResponseWriter, r *http.Request) {
+	orgID, userID, err := a.getOrgAndUserIDHTTP(r)
 	if err != nil {
-		return r.SendErrorEnvelope(fasthttp.StatusUnauthorized, "Unauthorized", nil, "")
+		SendErrorEnvelope(w, http.StatusUnauthorized, "Unauthorized", nil, "")
+		return
 	}
 
-	id, err := parsePathUUID(r, "id", "canned response")
+	id, err := parsePathUUIDHTTP(w, r, "id", "canned response")
 	if err != nil {
-		return nil
+		return
 	}
 
 	var cannedResponse models.CannedResponse
 	if err := a.DB.Where("id = ? AND organization_id = ?", id, orgID).
 		First(&cannedResponse).Error; err != nil {
-		return r.SendErrorEnvelope(fasthttp.StatusNotFound,
-			"Canned response not found", nil, "")
+		SendErrorEnvelope(w, http.StatusNotFound, "Canned response not found", nil, "")
+		return
 	}
 
 	var req CannedResponseRequest
-	if err := a.decodeRequest(r, &req); err != nil {
-		return nil
+	if err := a.decodeRequestHTTP(w, r, &req); err != nil {
+		return
 	}
 
 	if err := validateCannedResponseButtons(req.Buttons); err != nil {
-		return r.SendErrorEnvelope(fasthttp.StatusBadRequest, err.Error(), nil, "")
+		SendErrorEnvelope(w, http.StatusBadRequest, err.Error(), nil, "")
+		return
 	}
 
 	oldSnap := cannedResponseAuditSnapshot(&cannedResponse)
@@ -221,68 +229,73 @@ func (a *App) UpdateCannedResponse(r *fastglue.Request) error {
 
 	if err := a.DB.Save(&cannedResponse).Error; err != nil {
 		a.Log.Error("Failed to update canned response", "error", err)
-		return r.SendErrorEnvelope(fasthttp.StatusInternalServerError,
-			"Failed to update canned response", nil, "")
+		SendErrorEnvelope(w, http.StatusInternalServerError, "Failed to update canned response", nil, "")
+		return
 	}
 
 	a.logAudit(orgID, userID,
 		"canned_response", cannedResponse.ID, models.AuditActionUpdated, oldSnap, cannedResponseAuditSnapshot(&cannedResponse))
 
-	return r.SendEnvelope(cannedResponseToResponse(cannedResponse))
+	SendEnvelope(w, cannedResponseToResponse(cannedResponse))
+	return
 }
 
 // DeleteCannedResponse deletes a canned response
-func (a *App) DeleteCannedResponse(r *fastglue.Request) error {
-	orgID, userID, err := a.getOrgAndUserID(r)
+func (a *App) DeleteCannedResponse(w http.ResponseWriter, r *http.Request) {
+	orgID, userID, err := a.getOrgAndUserIDHTTP(r)
 	if err != nil {
-		return r.SendErrorEnvelope(fasthttp.StatusUnauthorized, "Unauthorized", nil, "")
+		SendErrorEnvelope(w, http.StatusUnauthorized, "Unauthorized", nil, "")
+		return
 	}
 
-	id, err := parsePathUUID(r, "id", "canned response")
+	id, err := parsePathUUIDHTTP(w, r, "id", "canned response")
 	if err != nil {
-		return nil
+		return
 	}
 
 	var cannedResponse models.CannedResponse
 	if err := a.DB.Where("id = ? AND organization_id = ?", id, orgID).
 		First(&cannedResponse).Error; err != nil {
-		return r.SendErrorEnvelope(fasthttp.StatusNotFound,
-			"Canned response not found", nil, "")
+		SendErrorEnvelope(w, http.StatusNotFound, "Canned response not found", nil, "")
+		return
 	}
 
 	if err := a.DB.Delete(&cannedResponse).Error; err != nil {
 		a.Log.Error("Failed to delete canned response", "error", err)
-		return r.SendErrorEnvelope(fasthttp.StatusInternalServerError,
-			"Failed to delete canned response", nil, "")
+		SendErrorEnvelope(w, http.StatusInternalServerError, "Failed to delete canned response", nil, "")
+		return
 	}
 
 	a.logAudit(orgID, userID,
 		"canned_response", cannedResponse.ID, models.AuditActionDeleted, cannedResponseAuditSnapshot(&cannedResponse), nil)
 
-	return r.SendEnvelope(map[string]string{"message": "Canned response deleted"})
+	SendEnvelope(w, map[string]string{"message": "Canned response deleted"})
+	return
 }
 
 // IncrementCannedResponseUsage increments the usage counter
-func (a *App) IncrementCannedResponseUsage(r *fastglue.Request) error {
-	orgID, err := a.getOrgID(r)
+func (a *App) IncrementCannedResponseUsage(w http.ResponseWriter, r *http.Request) {
+	orgID, err := a.getOrgIDHTTP(r)
 	if err != nil {
-		return r.SendErrorEnvelope(fasthttp.StatusUnauthorized, "Unauthorized", nil, "")
+		SendErrorEnvelope(w, http.StatusUnauthorized, "Unauthorized", nil, "")
+		return
 	}
 
-	id, err := parsePathUUID(r, "id", "canned response")
+	id, err := parsePathUUIDHTTP(w, r, "id", "canned response")
 	if err != nil {
-		return nil
+		return
 	}
 
 	if err := a.DB.Model(&models.CannedResponse{}).
 		Where("id = ? AND organization_id = ?", id, orgID).
 		UpdateColumn("usage_count", gorm.Expr("usage_count + 1")).Error; err != nil {
 		a.Log.Error("Failed to update usage", "error", err)
-		return r.SendErrorEnvelope(fasthttp.StatusInternalServerError,
-			"Failed to update usage", nil, "")
+		SendErrorEnvelope(w, http.StatusInternalServerError, "Failed to update usage", nil, "")
+		return
 	}
 
-	return r.SendEnvelope(map[string]string{"message": "Usage incremented"})
+	SendEnvelope(w, map[string]string{"message": "Usage incremented"})
+	return
 }
 
 // cannedResponseAuditSnapshot returns a diff-friendly representation of a

@@ -11,20 +11,20 @@ Replace `github.com/zerodha/fastglue` + `github.com/valyala/fasthttp` with Go's 
 | Area | Paths | Role today |
 |------|--------|------------|
 | Server bootstrap | `cmd/whatomate/main.go` | Uses `internal/httpapi` (`net/http` + chi) |
-| Handlers | `internal/handlers/*.go` (~60+ files) | Mix of native `http.HandlerFunc` and legacy `func(*fastglue.Request) error` behind `httpapi.Wrap` |
+| Handlers | `internal/handlers/*.go` (~60+ files) | Essentially all route handlers are native `http.HandlerFunc`; Wrap unused on chi mounts |
 | Middleware | `internal/middleware/{middleware,csrf,ratelimit,http}.go` | Parallel fasthttp + stdlib middleware |
 | Tests | `test/testutil/http.go`, `internal/handlers/*_test.go` | Legacy fasthttp builders; native handlers via `testutil.InvokeHTTP` |
 | Frontend | `internal/frontend/embed.go` | Native `http.Handler` |
 | WebSocket | `internal/handlers/websocket.go` | Native `WebSocketHTTP` on chi |
 | Other | `pkg/whatsapp`, calling media paths | Occasional fasthttp types; not the HTTP server surface |
 
-Calling / IVR features are **not** in scope for deletion; they keep working through wrapped handlers.
+Calling / IVR features remain fully supported and are now mounted as **native** chi handlers (no Wrap).
 
 ## Strategy: adapter layer (not big-bang)
 
 1. **`internal/httpapi`** owns the chi router and route mounting.
 2. **`httpapi.Wrap`** adapts remaining fastglue handlers → `http.Handler`.
-3. **Native slices** (no Wrap): health/ready, auth session, `/api/me*`, current org, users CRUD, roles, API keys, accounts, contacts (+ tags/notes/messages), media serve, templates, WhatsApp flows, campaigns, chatbot (+ transfers/sessions), Meta webhook, outbound webhooks, custom actions, WebSocket, SPA.
+3. **Native slices** (no Wrap): essentially the full API surface (auth, CRUD, chatbot, campaigns, calling/IVR, org/SSO/analytics/widgets/catalog/import-export, WebSocket, SPA).
 
 ## Progress
 
@@ -36,7 +36,7 @@ Chi edge, Wrap shim, stdlib middleware, native WebSocket + SPA.
 
 - `internal/handlers/http.go`: `SendEnvelope`, `SendErrorEnvelope`, `DecodeJSON`, `getOrgIDHTTP`, `requireAuthHTTP`, …
 - Middleware: `UserIDFromContext`, `OrganizationIDFromContext`, `WithUserID`, …
-- Cookies: `setAuthCookiesHTTP` / `clearAuthCookiesHTTP` (fasthttp variants kept for SSO).
+- Cookies: `setAuthCookiesHTTP` / `clearAuthCookiesHTTP` (SSO uses HTTP variants; fasthttp cookie helpers are unused leftovers).
 - `testutil.InvokeHTTP` for existing unit tests.
 
 ### Phase 2 batch 1 — native (no Wrap)
@@ -124,25 +124,48 @@ Chi edge, Wrap shim, stdlib middleware, native WebSocket + SPA.
 | `GET/POST /api/custom-actions`, CRUD + execute | custom action handlers | **native** |
 
 
-### Leftovers (still Wrap)
+### Phase 2 batch 6 — native (no Wrap)
 
-- **SSO**: `GetPublicSSOProviders`, `InitSSO`, `CallbackSSO` (still use fasthttp `setAuthCookies`).
-- **Org admin CRUD**: `ListOrganizations`, `CreateOrganization`, members, settings, audio upload.
-- Teams, audit logs, canned responses.
-- Analytics (dashboard/agents/meta), widgets, catalog.
-- Import/export, embedded signup config.
-- Calling / IVR / call-logs / call-transfers / outgoing calls (last).
+| Route(s) | Handler | Status |
+|----------|---------|--------|
+| `GET/POST /api/ivr-flows`, CRUD + audio | IVR flow handlers + `UploadIVRAudio` / `ServeIVRAudio` | **native** |
+| `GET /api/call-logs`, `GET .../{id}`, recording | `ListCallLogs`, `GetCallLog`, `GetCallRecording` | **native** |
+| `GET/POST /api/call-transfers*`, hold/resume | call transfer + hold/resume handlers | **native** |
+| `POST /api/calls/outgoing*`, permission, ICE | outgoing call handlers | **native** |
+| `POST /api/org/audio` | `UploadOrgAudio` | **native** |
 
-### Counts (batch 5)
+### Phase 2 batch 7 — native (no Wrap)
 
-- Native `http.HandlerFunc` handlers: **140**
-- Remaining `func(*fastglue.Request) error` handlers: **85**
-- Chi routes without Wrap: **147**
-- Chi routes still using Wrap: **86**
+| Route(s) | Handler | Status |
+|----------|---------|--------|
+| Teams CRUD + members | `ListTeams` … `RemoveTeamMember` | **native** |
+| Audit logs | `ListAuditLogs`, `GetAuditLog` | **native** |
+| Canned responses | full CRUD + use | **native** |
+| Analytics dashboard/agents/meta | `GetDashboardStats`, agent + meta analytics | **native** |
+| Widgets | list/CRUD/layout/data sources/data | **native** |
+| Org settings / orgs / members | settings + org admin CRUD | **native** |
+| SSO public + admin settings | `GetPublicSSOProviders`, `InitSSO`, `CallbackSSO`, settings CRUD | **native** |
+| Import/export | `ExportData`, `ImportData`, configs | **native** |
+| Catalogs / products | catalog + product CRUD + sync | **native** |
+| `GET /api/embedded-signup/config` | `GetEmbeddedSignupConfig` | **native** |
+
+### Leftovers (intentional)
+
+- **`httpapi.Wrap`**: still defined in `adapt.go` but **0** chi mounts use it.
+- **Legacy fasthttp helpers**: `getOrgID` / `requireAuth` / `decodeRequest` / `parsePathUUID` / cookie helpers in `app.go` / `helpers.go` / `cookies.go` — unused by routes; keep until Phase 3 cleanup + test harness migration.
+- **`WebSocketHandler` (fastglue)**: unused; routes use native `WebSocketHTTP`.
+- **Tests**: many still build `fasthttp.RequestCtx` and bridge via `testutil.InvokeHTTP`.
+
+### Counts (batch 7)
+
+- Native exported `http.HandlerFunc` handlers: **224**
+- Remaining exported `func(*fastglue.Request) error` handlers: **1** (`WebSocketHandler`, unused on chi)
+- Chi routes without Wrap: **228**
+- Chi routes still using Wrap: **0**
 
 ### Next
 
-Batch 6: teams / canned / audit / analytics / widgets / org admin + SSO → calling/IVR last → Phase 3 delete Wrap.
+Phase 3: delete `Wrap` + unused fasthttp helpers/cookies/`WebSocketHandler`; migrate `testutil` off fasthttp; drop `fastglue` from `go.mod` when `go mod why` is clean.
 
 ## Non-goals / constraints
 

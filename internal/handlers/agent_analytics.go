@@ -1,12 +1,11 @@
 package handlers
 
 import (
+	"net/http"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/shridarpatil/whatomate/internal/models"
-	"github.com/valyala/fasthttp"
-	"github.com/zerodha/fastglue"
 )
 
 // AgentAnalyticsSummary represents overall agent analytics
@@ -53,17 +52,18 @@ type AgentAnalyticsResponse struct {
 
 // GetAgentAnalytics returns agent analytics for the organization
 // Agents see only their own stats; Admin/Manager see all agents
-func (a *App) GetAgentAnalytics(r *fastglue.Request) error {
-	orgID, userID, err := a.getOrgAndUserID(r)
+func (a *App) GetAgentAnalytics(w http.ResponseWriter, r *http.Request) {
+	orgID, userID, err := a.getOrgAndUserIDHTTP(r)
 	if err != nil {
-		return r.SendErrorEnvelope(fasthttp.StatusUnauthorized, "Unauthorized", nil, "")
+		SendErrorEnvelope(w, http.StatusUnauthorized, "Unauthorized", nil, "")
+		return
 	}
 
 	// Parse date range
-	fromStr := string(r.RequestCtx.QueryArgs().Peek("from"))
-	toStr := string(r.RequestCtx.QueryArgs().Peek("to"))
-	groupBy := string(r.RequestCtx.QueryArgs().Peek("group_by"))
-	agentIDStr := string(r.RequestCtx.QueryArgs().Peek("agent_id"))
+	fromStr := r.URL.Query().Get("from")
+	toStr := r.URL.Query().Get("to")
+	groupBy := r.URL.Query().Get("group_by")
+	agentIDStr := r.URL.Query().Get("agent_id")
 	if groupBy == "" {
 		groupBy = "day"
 	}
@@ -75,7 +75,8 @@ func (a *App) GetAgentAnalytics(r *fastglue.Request) error {
 		var errMsg string
 		periodStart, periodEnd, errMsg = parseDateRange(fromStr, toStr)
 		if errMsg != "" {
-			return r.SendErrorEnvelope(fasthttp.StatusBadRequest, errMsg, nil, "")
+			SendErrorEnvelope(w, http.StatusBadRequest, errMsg, nil, "")
+			return
 		}
 	} else {
 		// Default to current month
@@ -122,25 +123,26 @@ func (a *App) GetAgentAnalytics(r *fastglue.Request) error {
 		response.MyStats = &myStats
 	}
 
-	return r.SendEnvelope(response)
+	SendEnvelope(w, response)
+	return
 }
 
 // GetAgentDetails returns detailed analytics for a specific agent
-func (a *App) GetAgentDetails(r *fastglue.Request) error {
-	orgID, _, err := a.requireAuth(r, models.ResourceAnalytics, models.ActionRead)
+func (a *App) GetAgentDetails(w http.ResponseWriter, r *http.Request) {
+	orgID, _, err := a.requireAuthHTTP(w, r, models.ResourceAnalytics, models.ActionRead)
 	if err != nil {
-		return nil
+		return
 	}
 
-	agentID, err := parsePathUUID(r, "id", "agent")
+	agentID, err := parsePathUUIDHTTP(w, r, "id", "agent")
 	if err != nil {
-		return nil
+		return
 	}
 
 	// Parse date range
-	fromStr := string(r.RequestCtx.QueryArgs().Peek("from"))
-	toStr := string(r.RequestCtx.QueryArgs().Peek("to"))
-	groupBy := string(r.RequestCtx.QueryArgs().Peek("group_by"))
+	fromStr := r.URL.Query().Get("from")
+	toStr := r.URL.Query().Get("to")
+	groupBy := r.URL.Query().Get("group_by")
 	if groupBy == "" {
 		groupBy = "day"
 	}
@@ -162,34 +164,37 @@ func (a *App) GetAgentDetails(r *fastglue.Request) error {
 	}
 
 	// Verify agent exists
-	_, err = findByIDAndOrg[models.User](a.DB, r, agentID, orgID, "Agent")
+	_, err = findByIDAndOrgHTTP[models.User](a.DB, w, agentID, orgID, "Agent")
 	if err != nil {
-		return nil
+		return
 	}
 
 	stats := a.calculateAgentStats(orgID, agentID, periodStart, periodEnd)
 	trendData := a.calculateTrendData(orgID, periodStart, periodEnd, groupBy, &agentID)
 
-	return r.SendEnvelope(map[string]any{
+	SendEnvelope(w, map[string]any{
 		"agent":      stats,
 		"trend_data": trendData,
 	})
+	return
 }
 
 // GetAgentComparison returns comparison data for multiple agents
-func (a *App) GetAgentComparison(r *fastglue.Request) error {
-	orgID, userID, err := a.getOrgAndUserID(r)
+func (a *App) GetAgentComparison(w http.ResponseWriter, r *http.Request) {
+	orgID, userID, err := a.getOrgAndUserIDHTTP(r)
 	if err != nil {
-		return r.SendErrorEnvelope(fasthttp.StatusUnauthorized, "Unauthorized", nil, "")
+		SendErrorEnvelope(w, http.StatusUnauthorized, "Unauthorized", nil, "")
+		return
 	}
 
 	if !a.HasPermission(userID, models.ResourceAnalytics, models.ActionRead, orgID) {
-		return r.SendErrorEnvelope(fasthttp.StatusForbidden, "Access denied", nil, "")
+		SendErrorEnvelope(w, http.StatusForbidden, "Access denied", nil, "")
+		return
 	}
 
 	// Parse date range
-	fromStr := string(r.RequestCtx.QueryArgs().Peek("from"))
-	toStr := string(r.RequestCtx.QueryArgs().Peek("to"))
+	fromStr := r.URL.Query().Get("from")
+	toStr := r.URL.Query().Get("to")
 
 	now := time.Now()
 	var periodStart, periodEnd time.Time
@@ -209,9 +214,10 @@ func (a *App) GetAgentComparison(r *fastglue.Request) error {
 
 	agentStats := a.calculateAllAgentStats(orgID, periodStart, periodEnd)
 
-	return r.SendEnvelope(map[string]any{
+	SendEnvelope(w, map[string]any{
 		"agents": agentStats,
 	})
+	return
 }
 
 // Helper functions

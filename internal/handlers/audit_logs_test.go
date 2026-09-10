@@ -54,7 +54,7 @@ func TestApp_ListAuditLogs_Success(t *testing.T) {
 
 	req := testutil.NewGETRequest(t)
 	testutil.SetAuthContext(req, org.ID, user.ID)
-	require.NoError(t, app.ListAuditLogs(req))
+	testutil.InvokeHTTP(t, app.ListAuditLogs, req)
 	require.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	var resp struct {
@@ -84,7 +84,7 @@ func TestApp_ListAuditLogs_FilterByResourceType(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, user.ID)
 	testutil.SetQueryParam(req, "resource_type", "contact")
 
-	require.NoError(t, app.ListAuditLogs(req))
+	testutil.InvokeHTTP(t, app.ListAuditLogs, req)
 	var resp struct {
 		Data struct {
 			AuditLogs []handlers.AuditLogResponse `json:"audit_logs"`
@@ -111,7 +111,7 @@ func TestApp_ListAuditLogs_FilterByAction(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, user.ID)
 	testutil.SetQueryParam(req, "action", "deleted")
 
-	require.NoError(t, app.ListAuditLogs(req))
+	testutil.InvokeHTTP(t, app.ListAuditLogs, req)
 	var resp struct {
 		Data struct {
 			AuditLogs []handlers.AuditLogResponse `json:"audit_logs"`
@@ -137,7 +137,7 @@ func TestApp_ListAuditLogs_DateRangeFilter(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, user.ID)
 	testutil.SetQueryParam(req, "from", now.Add(-24*time.Hour).Format(time.RFC3339))
 
-	require.NoError(t, app.ListAuditLogs(req))
+	testutil.InvokeHTTP(t, app.ListAuditLogs, req)
 	var resp struct {
 		Data struct {
 			AuditLogs []handlers.AuditLogResponse `json:"audit_logs"`
@@ -161,7 +161,7 @@ func TestApp_ListAuditLogs_CrossOrgIsolation(t *testing.T) {
 
 	req := testutil.NewGETRequest(t)
 	testutil.SetAuthContext(req, orgB.ID, userB.ID)
-	require.NoError(t, app.ListAuditLogs(req))
+	testutil.InvokeHTTP(t, app.ListAuditLogs, req)
 	var resp struct {
 		Data struct {
 			AuditLogs []handlers.AuditLogResponse `json:"audit_logs"`
@@ -181,7 +181,7 @@ func TestApp_ListAuditLogs_PermissionDenied(t *testing.T) {
 
 	req := testutil.NewGETRequest(t)
 	testutil.SetAuthContext(req, org.ID, user.ID)
-	require.NoError(t, app.ListAuditLogs(req))
+	testutil.InvokeHTTP(t, app.ListAuditLogs, req)
 	assert.Equal(t, fasthttp.StatusForbidden, testutil.GetResponseStatusCode(req))
 }
 
@@ -198,7 +198,7 @@ func TestApp_GetAuditLog_Success(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, user.ID)
 	testutil.SetPathParam(req, "id", log.ID.String())
 
-	require.NoError(t, app.GetAuditLog(req))
+	testutil.InvokeHTTP(t, app.GetAuditLog, req)
 	require.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	var resp struct {
@@ -219,7 +219,7 @@ func TestApp_GetAuditLog_NotFound(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, user.ID)
 	testutil.SetPathParam(req, "id", uuid.New().String())
 
-	require.NoError(t, app.GetAuditLog(req))
+	testutil.InvokeHTTP(t, app.GetAuditLog, req)
 	testutil.AssertErrorResponse(t, req, fasthttp.StatusNotFound, "Audit log not found")
 }
 
@@ -236,7 +236,7 @@ func TestApp_GetAuditLog_CrossOrgIsolation(t *testing.T) {
 	testutil.SetAuthContext(req, orgB.ID, userB.ID)
 	testutil.SetPathParam(req, "id", log.ID.String())
 
-	require.NoError(t, app.GetAuditLog(req))
+	testutil.InvokeHTTP(t, app.GetAuditLog, req)
 	assert.Equal(t, fasthttp.StatusNotFound, testutil.GetResponseStatusCode(req),
 		"cross-org access must look like not-found")
 }

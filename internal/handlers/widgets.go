@@ -2,13 +2,12 @@ package handlers
 
 import (
 	"fmt"
+	"net/http"
 	"strings"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/shridarpatil/whatomate/internal/models"
-	"github.com/valyala/fasthttp"
-	"github.com/zerodha/fastglue"
 	"gorm.io/gorm"
 )
 
@@ -138,15 +137,17 @@ var staticDisplayTypes = map[string]bool{
 }
 
 // ListWidgets returns all widgets for the user (their own + shared)
-func (a *App) ListWidgets(r *fastglue.Request) error {
-	orgID, userID, err := a.getOrgAndUserID(r)
+func (a *App) ListWidgets(w http.ResponseWriter, r *http.Request) {
+	orgID, userID, err := a.getOrgAndUserIDHTTP(r)
 	if err != nil {
-		return r.SendErrorEnvelope(fasthttp.StatusUnauthorized, "Unauthorized", nil, "")
+		SendErrorEnvelope(w, http.StatusUnauthorized, "Unauthorized", nil, "")
+		return
 	}
 
 	// Check analytics read permission
 	if !a.HasPermission(userID, models.ResourceAnalytics, models.ActionRead, orgID) {
-		return r.SendErrorEnvelope(fasthttp.StatusForbidden, "You don't have permission to view analytics", nil, "")
+		SendErrorEnvelope(w, http.StatusForbidden, "You don't have permission to view analytics", nil, "")
+		return
 	}
 
 	// Get user's own widgets + shared widgets from org
@@ -156,7 +157,8 @@ func (a *App) ListWidgets(r *fastglue.Request) error {
 		orgID, userID,
 	).Order("display_order ASC, created_at ASC").Find(&widgets).Error; err != nil {
 		a.Log.Error("Failed to list widgets", "error", err)
-		return r.SendErrorEnvelope(fasthttp.StatusInternalServerError, "Failed to list widgets", nil, "")
+		SendErrorEnvelope(w, http.StatusInternalServerError, "Failed to list widgets", nil, "")
+		return
 	}
 
 	// Convert to response format
@@ -165,26 +167,29 @@ func (a *App) ListWidgets(r *fastglue.Request) error {
 		response[i] = widgetToResponse(w, userID)
 	}
 
-	return r.SendEnvelope(map[string]any{
+	SendEnvelope(w, map[string]any{
 		"widgets": response,
 	})
+	return
 }
 
 // GetWidget returns a single widget
-func (a *App) GetWidget(r *fastglue.Request) error {
-	orgID, userID, err := a.getOrgAndUserID(r)
+func (a *App) GetWidget(w http.ResponseWriter, r *http.Request) {
+	orgID, userID, err := a.getOrgAndUserIDHTTP(r)
 	if err != nil {
-		return r.SendErrorEnvelope(fasthttp.StatusUnauthorized, "Unauthorized", nil, "")
+		SendErrorEnvelope(w, http.StatusUnauthorized, "Unauthorized", nil, "")
+		return
 	}
 
 	// Check analytics read permission
 	if !a.HasPermission(userID, models.ResourceAnalytics, models.ActionRead, orgID) {
-		return r.SendErrorEnvelope(fasthttp.StatusForbidden, "You don't have permission to view analytics", nil, "")
+		SendErrorEnvelope(w, http.StatusForbidden, "You don't have permission to view analytics", nil, "")
+		return
 	}
 
-	id, err := parsePathUUID(r, "id", "widget")
+	id, err := parsePathUUIDHTTP(w, r, "id", "widget")
 	if err != nil {
-		return nil
+		return
 	}
 
 	var widget models.Widget
@@ -192,32 +197,37 @@ func (a *App) GetWidget(r *fastglue.Request) error {
 		"id = ? AND organization_id = ? AND (user_id = ? OR is_shared = true)",
 		id, orgID, userID,
 	).First(&widget).Error; err != nil {
-		return r.SendErrorEnvelope(fasthttp.StatusNotFound, "Widget not found", nil, "")
+		SendErrorEnvelope(w, http.StatusNotFound, "Widget not found", nil, "")
+		return
 	}
 
-	return r.SendEnvelope(widgetToResponse(widget, userID))
+	SendEnvelope(w, widgetToResponse(widget, userID))
+	return
 }
 
 // CreateWidget creates a new widget
-func (a *App) CreateWidget(r *fastglue.Request) error {
-	orgID, userID, err := a.getOrgAndUserID(r)
+func (a *App) CreateWidget(w http.ResponseWriter, r *http.Request) {
+	orgID, userID, err := a.getOrgAndUserIDHTTP(r)
 	if err != nil {
-		return r.SendErrorEnvelope(fasthttp.StatusUnauthorized, "Unauthorized", nil, "")
+		SendErrorEnvelope(w, http.StatusUnauthorized, "Unauthorized", nil, "")
+		return
 	}
 
 	// Check analytics write permission
 	if !a.HasPermission(userID, models.ResourceAnalytics, models.ActionWrite, orgID) {
-		return r.SendErrorEnvelope(fasthttp.StatusForbidden, "You don't have permission to create widgets", nil, "")
+		SendErrorEnvelope(w, http.StatusForbidden, "You don't have permission to create widgets", nil, "")
+		return
 	}
 
 	var req WidgetRequest
-	if err := a.decodeRequest(r, &req); err != nil {
-		return nil
+	if err := a.decodeRequestHTTP(w, r, &req); err != nil {
+		return
 	}
 
 	// Validate required fields
 	if req.Name == "" {
-		return r.SendErrorEnvelope(fasthttp.StatusBadRequest, "Name is required", nil, "")
+		SendErrorEnvelope(w, http.StatusBadRequest, "Name is required", nil, "")
+		return
 	}
 
 	// Validate display type
@@ -226,7 +236,8 @@ func (a *App) CreateWidget(r *fastglue.Request) error {
 		displayType = "number"
 	}
 	if !contains(widgetDisplayTypes, displayType) {
-		return r.SendErrorEnvelope(fasthttp.StatusBadRequest, "Invalid display type", nil, "")
+		SendErrorEnvelope(w, http.StatusBadRequest, "Invalid display type", nil, "")
+		return
 	}
 
 	// For static display types (e.g. shortcuts), auto-set data_source and metric
@@ -235,20 +246,24 @@ func (a *App) CreateWidget(r *fastglue.Request) error {
 		req.Metric = "count"
 	} else {
 		if req.DataSource == "" {
-			return r.SendErrorEnvelope(fasthttp.StatusBadRequest, "Data source is required", nil, "")
+			SendErrorEnvelope(w, http.StatusBadRequest, "Data source is required", nil, "")
+			return
 		}
 		if req.Metric == "" {
-			return r.SendErrorEnvelope(fasthttp.StatusBadRequest, "Metric is required", nil, "")
+			SendErrorEnvelope(w, http.StatusBadRequest, "Metric is required", nil, "")
+			return
 		}
 
 		// Validate data source
 		if _, ok := widgetDataSources[req.DataSource]; !ok {
-			return r.SendErrorEnvelope(fasthttp.StatusBadRequest, "Invalid data source", nil, "")
+			SendErrorEnvelope(w, http.StatusBadRequest, "Invalid data source", nil, "")
+			return
 		}
 
 		// Validate metric
 		if !contains(widgetMetrics, req.Metric) {
-			return r.SendErrorEnvelope(fasthttp.StatusBadRequest, "Invalid metric", nil, "")
+			SendErrorEnvelope(w, http.StatusBadRequest, "Invalid metric", nil, "")
+			return
 		}
 	}
 
@@ -288,7 +303,8 @@ func (a *App) CreateWidget(r *fastglue.Request) error {
 	if req.GroupByField != "" && !staticDisplayTypes[displayType] {
 		fields := widgetDataSources[req.DataSource]
 		if !contains(fields, req.GroupByField) {
-			return r.SendErrorEnvelope(fasthttp.StatusBadRequest, "Invalid group by field for this data source", nil, "")
+			SendErrorEnvelope(w, http.StatusBadRequest, "Invalid group by field for this data source", nil, "")
+			return
 		}
 	}
 
@@ -350,43 +366,48 @@ func (a *App) CreateWidget(r *fastglue.Request) error {
 
 	if err := a.DB.Create(&widget).Error; err != nil {
 		a.Log.Error("Failed to create widget", "error", err)
-		return r.SendErrorEnvelope(fasthttp.StatusInternalServerError, "Failed to create widget", nil, "")
+		SendErrorEnvelope(w, http.StatusInternalServerError, "Failed to create widget", nil, "")
+		return
 	}
 
-	return r.SendEnvelope(widgetToResponse(widget, userID))
+	SendEnvelope(w, widgetToResponse(widget, userID))
+	return
 }
 
 // UpdateWidget updates a widget
-func (a *App) UpdateWidget(r *fastglue.Request) error {
-	orgID, userID, err := a.getOrgAndUserID(r)
+func (a *App) UpdateWidget(w http.ResponseWriter, r *http.Request) {
+	orgID, userID, err := a.getOrgAndUserIDHTTP(r)
 	if err != nil {
-		return r.SendErrorEnvelope(fasthttp.StatusUnauthorized, "Unauthorized", nil, "")
+		SendErrorEnvelope(w, http.StatusUnauthorized, "Unauthorized", nil, "")
+		return
 	}
 
 	// Check analytics write permission
 	if !a.HasPermission(userID, models.ResourceAnalytics, models.ActionWrite, orgID) {
-		return r.SendErrorEnvelope(fasthttp.StatusForbidden, "You don't have permission to edit widgets", nil, "")
+		SendErrorEnvelope(w, http.StatusForbidden, "You don't have permission to edit widgets", nil, "")
+		return
 	}
 
-	id, err := parsePathUUID(r, "id", "widget")
+	id, err := parsePathUUIDHTTP(w, r, "id", "widget")
 	if err != nil {
-		return nil
+		return
 	}
 
 	// Find the widget - must belong to same organization
-	widget, err := findByIDAndOrg[models.Widget](a.DB, r, id, orgID, "Widget")
+	widget, err := findByIDAndOrgHTTP[models.Widget](a.DB, w, id, orgID, "Widget")
 	if err != nil {
-		return nil
+		return
 	}
 
 	// Only the owner can edit the widget
 	if widget.UserID == nil || *widget.UserID != userID {
-		return r.SendErrorEnvelope(fasthttp.StatusForbidden, "Only the widget owner can edit this widget", nil, "")
+		SendErrorEnvelope(w, http.StatusForbidden, "Only the widget owner can edit this widget", nil, "")
+		return
 	}
 
 	var req WidgetRequest
-	if err := a.decodeRequest(r, &req); err != nil {
-		return nil
+	if err := a.decodeRequestHTTP(w, r, &req); err != nil {
+		return
 	}
 
 	// Update fields
@@ -398,13 +419,15 @@ func (a *App) UpdateWidget(r *fastglue.Request) error {
 	}
 	if req.DataSource != "" {
 		if _, ok := widgetDataSources[req.DataSource]; !ok {
-			return r.SendErrorEnvelope(fasthttp.StatusBadRequest, "Invalid data source", nil, "")
+			SendErrorEnvelope(w, http.StatusBadRequest, "Invalid data source", nil, "")
+			return
 		}
 		widget.DataSource = req.DataSource
 	}
 	if req.Metric != "" {
 		if !contains(widgetMetrics, req.Metric) {
-			return r.SendErrorEnvelope(fasthttp.StatusBadRequest, "Invalid metric", nil, "")
+			SendErrorEnvelope(w, http.StatusBadRequest, "Invalid metric", nil, "")
+			return
 		}
 		widget.Metric = req.Metric
 	}
@@ -424,7 +447,8 @@ func (a *App) UpdateWidget(r *fastglue.Request) error {
 	}
 	if req.DisplayType != "" {
 		if !contains(widgetDisplayTypes, req.DisplayType) {
-			return r.SendErrorEnvelope(fasthttp.StatusBadRequest, "Invalid display type", nil, "")
+			SendErrorEnvelope(w, http.StatusBadRequest, "Invalid display type", nil, "")
+			return
 		}
 		widget.DisplayType = req.DisplayType
 	}
@@ -439,7 +463,8 @@ func (a *App) UpdateWidget(r *fastglue.Request) error {
 		}
 		fields := widgetDataSources[ds]
 		if !contains(fields, req.GroupByField) {
-			return r.SendErrorEnvelope(fasthttp.StatusBadRequest, "Invalid group by field for this data source", nil, "")
+			SendErrorEnvelope(w, http.StatusBadRequest, "Invalid group by field for this data source", nil, "")
+			return
 		}
 	}
 	widget.GroupByField = req.GroupByField
@@ -473,53 +498,61 @@ func (a *App) UpdateWidget(r *fastglue.Request) error {
 
 	if err := a.DB.Save(widget).Error; err != nil {
 		a.Log.Error("Failed to update widget", "error", err)
-		return r.SendErrorEnvelope(fasthttp.StatusInternalServerError, "Failed to update widget", nil, "")
+		SendErrorEnvelope(w, http.StatusInternalServerError, "Failed to update widget", nil, "")
+		return
 	}
 
-	return r.SendEnvelope(widgetToResponse(*widget, userID))
+	SendEnvelope(w, widgetToResponse(*widget, userID))
+	return
 }
 
 // DeleteWidget deletes a widget
-func (a *App) DeleteWidget(r *fastglue.Request) error {
-	orgID, userID, err := a.getOrgAndUserID(r)
+func (a *App) DeleteWidget(w http.ResponseWriter, r *http.Request) {
+	orgID, userID, err := a.getOrgAndUserIDHTTP(r)
 	if err != nil {
-		return r.SendErrorEnvelope(fasthttp.StatusUnauthorized, "Unauthorized", nil, "")
+		SendErrorEnvelope(w, http.StatusUnauthorized, "Unauthorized", nil, "")
+		return
 	}
 
 	// Check analytics delete permission
 	if !a.HasPermission(userID, models.ResourceAnalytics, models.ActionDelete, orgID) {
-		return r.SendErrorEnvelope(fasthttp.StatusForbidden, "You don't have permission to delete widgets", nil, "")
+		SendErrorEnvelope(w, http.StatusForbidden, "You don't have permission to delete widgets", nil, "")
+		return
 	}
 
-	id, err := parsePathUUID(r, "id", "widget")
+	id, err := parsePathUUIDHTTP(w, r, "id", "widget")
 	if err != nil {
-		return nil
+		return
 	}
 
 	// Find the widget - must belong to same organization
-	widget, err := findByIDAndOrg[models.Widget](a.DB, r, id, orgID, "Widget")
+	widget, err := findByIDAndOrgHTTP[models.Widget](a.DB, w, id, orgID, "Widget")
 	if err != nil {
-		return nil
+		return
 	}
 
 	// Only the owner can delete the widget
 	if widget.UserID == nil || *widget.UserID != userID {
-		return r.SendErrorEnvelope(fasthttp.StatusForbidden, "Only the widget owner can delete this widget", nil, "")
+		SendErrorEnvelope(w, http.StatusForbidden, "Only the widget owner can delete this widget", nil, "")
+		return
 	}
 
 	if err := a.DB.Delete(widget).Error; err != nil {
 		a.Log.Error("Failed to delete widget", "error", err)
-		return r.SendErrorEnvelope(fasthttp.StatusInternalServerError, "Failed to delete widget", nil, "")
+		SendErrorEnvelope(w, http.StatusInternalServerError, "Failed to delete widget", nil, "")
+		return
 	}
 
-	return r.SendEnvelope(map[string]string{"message": "Widget deleted successfully"})
+	SendEnvelope(w, map[string]string{"message": "Widget deleted successfully"})
+	return
 }
 
 // SaveWidgetLayout bulk saves grid positions for all widgets
-func (a *App) SaveWidgetLayout(r *fastglue.Request) error {
-	orgID, userID, err := a.getOrgAndUserID(r)
+func (a *App) SaveWidgetLayout(w http.ResponseWriter, r *http.Request) {
+	orgID, userID, err := a.getOrgAndUserIDHTTP(r)
 	if err != nil {
-		return r.SendErrorEnvelope(fasthttp.StatusUnauthorized, "Unauthorized", nil, "")
+		SendErrorEnvelope(w, http.StatusUnauthorized, "Unauthorized", nil, "")
+		return
 	}
 
 	var req struct {
@@ -531,12 +564,13 @@ func (a *App) SaveWidgetLayout(r *fastglue.Request) error {
 			GridH int       `json:"grid_h"`
 		} `json:"layout"`
 	}
-	if err := a.decodeRequest(r, &req); err != nil {
-		return nil
+	if err := a.decodeRequestHTTP(w, r, &req); err != nil {
+		return
 	}
 
 	if len(req.Layout) == 0 {
-		return r.SendErrorEnvelope(fasthttp.StatusBadRequest, "Layout is required", nil, "")
+		SendErrorEnvelope(w, http.StatusBadRequest, "Layout is required", nil, "")
+		return
 	}
 
 	// Update all widgets in a transaction
@@ -560,14 +594,16 @@ func (a *App) SaveWidgetLayout(r *fastglue.Request) error {
 
 	if err != nil {
 		a.Log.Error("Failed to save widget layout", "error", err)
-		return r.SendErrorEnvelope(fasthttp.StatusInternalServerError, "Failed to save layout", nil, "")
+		SendErrorEnvelope(w, http.StatusInternalServerError, "Failed to save layout", nil, "")
+		return
 	}
 
-	return r.SendEnvelope(map[string]string{"message": "Layout saved successfully"})
+	SendEnvelope(w, map[string]string{"message": "Layout saved successfully"})
+	return
 }
 
 // GetWidgetDataSources returns available data sources and their filterable fields
-func (a *App) GetWidgetDataSources(r *fastglue.Request) error {
+func (a *App) GetWidgetDataSources(w http.ResponseWriter, r *http.Request) {
 	sources := make([]map[string]any, 0)
 	for source, fields := range widgetDataSources {
 		sources = append(sources, map[string]any{
@@ -577,7 +613,7 @@ func (a *App) GetWidgetDataSources(r *fastglue.Request) error {
 		})
 	}
 
-	return r.SendEnvelope(map[string]any{
+	SendEnvelope(w, map[string]any{
 		"data_sources":  sources,
 		"metrics":       widgetMetrics,
 		"display_types": widgetDisplayTypes,
@@ -591,6 +627,7 @@ func (a *App) GetWidgetDataSources(r *fastglue.Request) error {
 			{"value": "lte", "label": "Less Than or Equal"},
 		},
 	})
+	return
 }
 
 // Helper functions
@@ -668,20 +705,21 @@ func formatLabel(s string) string {
 }
 
 // GetWidgetData executes the widget query and returns the data
-func (a *App) GetWidgetData(r *fastglue.Request) error {
-	orgID, userID, err := a.getOrgAndUserID(r)
+func (a *App) GetWidgetData(w http.ResponseWriter, r *http.Request) {
+	orgID, userID, err := a.getOrgAndUserIDHTTP(r)
 	if err != nil {
-		return r.SendErrorEnvelope(fasthttp.StatusUnauthorized, "Unauthorized", nil, "")
+		SendErrorEnvelope(w, http.StatusUnauthorized, "Unauthorized", nil, "")
+		return
 	}
 
-	id, err := parsePathUUID(r, "id", "widget")
+	id, err := parsePathUUIDHTTP(w, r, "id", "widget")
 	if err != nil {
-		return nil
+		return
 	}
 
 	// Parse date range from query params
-	fromStr := string(r.RequestCtx.QueryArgs().Peek("from"))
-	toStr := string(r.RequestCtx.QueryArgs().Peek("to"))
+	fromStr := r.URL.Query().Get("from")
+	toStr := r.URL.Query().Get("to")
 
 	// Get the widget
 	var widget models.Widget
@@ -689,30 +727,34 @@ func (a *App) GetWidgetData(r *fastglue.Request) error {
 		"id = ? AND organization_id = ? AND (user_id = ? OR is_shared = true)",
 		id, orgID, userID,
 	).First(&widget).Error; err != nil {
-		return r.SendErrorEnvelope(fasthttp.StatusNotFound, "Widget not found", nil, "")
+		SendErrorEnvelope(w, http.StatusNotFound, "Widget not found", nil, "")
+		return
 	}
 
 	// Execute the query
 	data, err := a.executeWidgetQuery(orgID, widget, fromStr, toStr)
 	if err != nil {
 		a.Log.Error("Failed to execute widget query", "error", err, "widget_id", id)
-		return r.SendErrorEnvelope(fasthttp.StatusInternalServerError, "Failed to get widget data", nil, "")
+		SendErrorEnvelope(w, http.StatusInternalServerError, "Failed to get widget data", nil, "")
+		return
 	}
 
 	data.WidgetID = widget.ID
-	return r.SendEnvelope(data)
+	SendEnvelope(w, data)
+	return
 }
 
 // GetAllWidgetsData returns data for all user's widgets in a single request
-func (a *App) GetAllWidgetsData(r *fastglue.Request) error {
-	orgID, userID, err := a.getOrgAndUserID(r)
+func (a *App) GetAllWidgetsData(w http.ResponseWriter, r *http.Request) {
+	orgID, userID, err := a.getOrgAndUserIDHTTP(r)
 	if err != nil {
-		return r.SendErrorEnvelope(fasthttp.StatusUnauthorized, "Unauthorized", nil, "")
+		SendErrorEnvelope(w, http.StatusUnauthorized, "Unauthorized", nil, "")
+		return
 	}
 
 	// Parse date range from query params
-	fromStr := string(r.RequestCtx.QueryArgs().Peek("from"))
-	toStr := string(r.RequestCtx.QueryArgs().Peek("to"))
+	fromStr := r.URL.Query().Get("from")
+	toStr := r.URL.Query().Get("to")
 
 	// Get user's widgets
 	var widgets []models.Widget
@@ -721,7 +763,8 @@ func (a *App) GetAllWidgetsData(r *fastglue.Request) error {
 		orgID, userID,
 	).Order("display_order ASC").Find(&widgets).Error; err != nil {
 		a.Log.Error("Failed to list widgets", "error", err)
-		return r.SendErrorEnvelope(fasthttp.StatusInternalServerError, "Failed to list widgets", nil, "")
+		SendErrorEnvelope(w, http.StatusInternalServerError, "Failed to list widgets", nil, "")
+		return
 	}
 
 	// Execute queries for all widgets
@@ -736,9 +779,10 @@ func (a *App) GetAllWidgetsData(r *fastglue.Request) error {
 		results[widget.ID.String()] = data
 	}
 
-	return r.SendEnvelope(map[string]any{
+	SendEnvelope(w, map[string]any{
 		"data": results,
 	})
+	return
 }
 
 // executeWidgetQuery executes the query for a widget and returns the data

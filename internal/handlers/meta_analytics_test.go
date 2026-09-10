@@ -94,7 +94,7 @@ func TestApp_GetMetaAnalytics_RequiresAnalyticsRead(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, user.ID)
 	testutil.SetQueryParam(req, "analytics_type", "analytics")
 
-	require.NoError(t, app.GetMetaAnalytics(req))
+	testutil.InvokeHTTP(t, app.GetMetaAnalytics, req)
 	assert.Equal(t, fasthttp.StatusForbidden, testutil.GetResponseStatusCode(req))
 }
 
@@ -109,7 +109,7 @@ func TestApp_GetMetaAnalytics_MissingAnalyticsType(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, user.ID)
 	// No analytics_type query param.
 
-	require.NoError(t, app.GetMetaAnalytics(req))
+	testutil.InvokeHTTP(t, app.GetMetaAnalytics, req)
 	testutil.AssertErrorResponse(t, req, fasthttp.StatusBadRequest, "analytics_type is required")
 }
 
@@ -124,7 +124,7 @@ func TestApp_GetMetaAnalytics_InvalidAnalyticsType(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, user.ID)
 	testutil.SetQueryParam(req, "analytics_type", "made_up")
 
-	require.NoError(t, app.GetMetaAnalytics(req))
+	testutil.InvokeHTTP(t, app.GetMetaAnalytics, req)
 	testutil.AssertErrorResponse(t, req, fasthttp.StatusBadRequest, "Invalid analytics_type")
 }
 
@@ -140,7 +140,7 @@ func TestApp_GetMetaAnalytics_MissingDates(t *testing.T) {
 	testutil.SetQueryParam(req, "analytics_type", "analytics")
 	// No start/end.
 
-	require.NoError(t, app.GetMetaAnalytics(req))
+	testutil.InvokeHTTP(t, app.GetMetaAnalytics, req)
 	testutil.AssertErrorResponse(t, req, fasthttp.StatusBadRequest, "start and end dates are required")
 }
 
@@ -157,7 +157,7 @@ func TestApp_GetMetaAnalytics_EndBeforeStartRejected(t *testing.T) {
 	testutil.SetQueryParam(req, "start", "2024-12-31")
 	testutil.SetQueryParam(req, "end", "2024-01-01")
 
-	require.NoError(t, app.GetMetaAnalytics(req))
+	testutil.InvokeHTTP(t, app.GetMetaAnalytics, req)
 	testutil.AssertErrorResponse(t, req, fasthttp.StatusBadRequest, "End date must be after start date")
 }
 
@@ -177,7 +177,7 @@ func TestApp_GetMetaAnalytics_TemplateAnalyticsBeyond90DaysRejected(t *testing.T
 	testutil.SetQueryParam(req, "start", from)
 	testutil.SetQueryParam(req, "end", to)
 
-	require.NoError(t, app.GetMetaAnalytics(req))
+	testutil.InvokeHTTP(t, app.GetMetaAnalytics, req)
 	testutil.AssertErrorResponse(t, req, fasthttp.StatusBadRequest, "90-day lookback")
 }
 
@@ -195,7 +195,7 @@ func TestApp_GetMetaAnalytics_NoAccountsReturnsEmptyList(t *testing.T) {
 	testutil.SetQueryParam(req, "start", from)
 	testutil.SetQueryParam(req, "end", to)
 
-	require.NoError(t, app.GetMetaAnalytics(req))
+	testutil.InvokeHTTP(t, app.GetMetaAnalytics, req)
 	require.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	var resp struct {
@@ -225,7 +225,7 @@ func TestApp_GetMetaAnalytics_SpecificAccountNotFound(t *testing.T) {
 	testutil.SetQueryParam(req, "end", to)
 	testutil.SetQueryParam(req, "account_id", uuid.New().String())
 
-	require.NoError(t, app.GetMetaAnalytics(req))
+	testutil.InvokeHTTP(t, app.GetMetaAnalytics, req)
 	assert.Equal(t, fasthttp.StatusNotFound, testutil.GetResponseStatusCode(req))
 }
 
@@ -246,7 +246,7 @@ func TestApp_GetMetaAnalytics_SpecificAccountCrossOrg(t *testing.T) {
 	testutil.SetQueryParam(req, "end", to)
 	testutil.SetQueryParam(req, "account_id", accA.ID.String())
 
-	require.NoError(t, app.GetMetaAnalytics(req))
+	testutil.InvokeHTTP(t, app.GetMetaAnalytics, req)
 	assert.Equal(t, fasthttp.StatusNotFound, testutil.GetResponseStatusCode(req),
 		"cross-org account access must look like not-found")
 	assert.Equal(t, int64(0), srv.Hits(), "Meta must not be called for cross-org account")
@@ -272,7 +272,7 @@ func TestApp_GetMetaAnalytics_CacheHitSkipsMetaCall(t *testing.T) {
 		testutil.SetQueryParam(req, "start", from)
 		testutil.SetQueryParam(req, "end", to)
 		testutil.SetQueryParam(req, "granularity", "DAY")
-		require.NoError(t, app.GetMetaAnalytics(req))
+		testutil.InvokeHTTP(t, app.GetMetaAnalytics, req)
 		require.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 		var resp struct {
 			Data struct {
@@ -312,7 +312,7 @@ func TestApp_GetMetaAnalytics_AdjustedGranularityReportedWhenChanged(t *testing.
 	testutil.SetQueryParam(req, "end", to)
 	testutil.SetQueryParam(req, "granularity", "MONTH")
 
-	require.NoError(t, app.GetMetaAnalytics(req))
+	testutil.InvokeHTTP(t, app.GetMetaAnalytics, req)
 	require.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	var resp struct {
@@ -341,7 +341,7 @@ func TestApp_ListMetaAccountsForAnalytics_OnlyOwnOrg(t *testing.T) {
 	req := testutil.NewGETRequest(t)
 	testutil.SetAuthContext(req, orgA.ID, user.ID)
 
-	require.NoError(t, app.ListMetaAccountsForAnalytics(req))
+	testutil.InvokeHTTP(t, app.ListMetaAccountsForAnalytics, req)
 	require.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	var resp struct {
@@ -367,7 +367,7 @@ func TestApp_ListMetaAccountsForAnalytics_PermissionDenied(t *testing.T) {
 	req := testutil.NewGETRequest(t)
 	testutil.SetAuthContext(req, org.ID, user.ID)
 
-	require.NoError(t, app.ListMetaAccountsForAnalytics(req))
+	testutil.InvokeHTTP(t, app.ListMetaAccountsForAnalytics, req)
 	assert.Equal(t, fasthttp.StatusForbidden, testutil.GetResponseStatusCode(req))
 }
 
@@ -385,7 +385,7 @@ func TestApp_RefreshMetaAnalyticsCache_RequiresAnalyticsWrite(t *testing.T) {
 	req.RequestCtx.Request.Header.SetMethod("POST")
 	testutil.SetAuthContext(req, org.ID, user.ID)
 
-	require.NoError(t, app.RefreshMetaAnalyticsCache(req))
+	testutil.InvokeHTTP(t, app.RefreshMetaAnalyticsCache, req)
 	assert.Equal(t, fasthttp.StatusForbidden, testutil.GetResponseStatusCode(req))
 }
 
@@ -417,7 +417,7 @@ func TestApp_RefreshMetaAnalyticsCache_ClearsOnlyOrgScopedKeys(t *testing.T) {
 	req.RequestCtx.Request.Header.SetMethod("POST")
 	testutil.SetAuthContext(req, orgA.ID, user.ID)
 
-	require.NoError(t, app.RefreshMetaAnalyticsCache(req))
+	testutil.InvokeHTTP(t, app.RefreshMetaAnalyticsCache, req)
 	require.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	for _, k := range keysA {

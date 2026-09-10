@@ -1,9 +1,12 @@
 package handlers
 
 import (
+	"net/http"
+
 	"encoding/csv"
 	"encoding/json"
 	"fmt"
+	"github.com/go-chi/chi/v5"
 	"io"
 	"reflect"
 	"strings"
@@ -12,8 +15,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/shridarpatil/whatomate/internal/models"
 	"github.com/shridarpatil/whatomate/internal/utils"
-	"github.com/valyala/fasthttp"
-	"github.com/zerodha/fastglue"
 	"gorm.io/gorm"
 )
 
@@ -184,26 +185,30 @@ type ExportRequest struct {
 }
 
 // ExportData handles generic data export
-func (a *App) ExportData(r *fastglue.Request) error {
-	orgID, userID, err := a.getOrgAndUserID(r)
+func (a *App) ExportData(w http.ResponseWriter, r *http.Request) {
+	orgID, userID, err := a.getOrgAndUserIDHTTP(r)
 	if err != nil {
-		return r.SendErrorEnvelope(fasthttp.StatusUnauthorized, "Unauthorized", nil, "")
+		SendErrorEnvelope(w, http.StatusUnauthorized, "Unauthorized", nil, "")
+		return
 	}
 
 	var req ExportRequest
-	if err := json.Unmarshal(r.RequestCtx.PostBody(), &req); err != nil {
-		return r.SendErrorEnvelope(fasthttp.StatusBadRequest, "Invalid request body", nil, "")
+	if err := json.Unmarshal(readBody(r), &req); err != nil {
+		SendErrorEnvelope(w, http.StatusBadRequest, "Invalid request body", nil, "")
+		return
 	}
 
 	// Get export config
 	config, ok := exportConfigs[req.Table]
 	if !ok {
-		return r.SendErrorEnvelope(fasthttp.StatusBadRequest, "Invalid table", nil, "")
+		SendErrorEnvelope(w, http.StatusBadRequest, "Invalid table", nil, "")
+		return
 	}
 
 	// Check permission
 	if !a.HasPermission(userID, config.Resource, models.ActionExport, orgID) {
-		return r.SendErrorEnvelope(fasthttp.StatusForbidden, "You do not have permission to export "+req.Table, nil, "")
+		SendErrorEnvelope(w, http.StatusForbidden, "You do not have permission to export "+req.Table, nil, "")
+		return
 	}
 
 	// Validate and set columns
@@ -220,7 +225,8 @@ func (a *App) ExportData(r *fastglue.Request) error {
 	requestedCols := make(map[string]bool, len(columns))
 	for _, col := range columns {
 		if !allowedSet[col] {
-			return r.SendErrorEnvelope(fasthttp.StatusBadRequest, fmt.Sprintf("Column '%s' is not allowed for export", col), nil, "")
+			SendErrorEnvelope(w, http.StatusBadRequest, fmt.Sprintf("Column '%s' is not allowed for export", col), nil, "")
+			return
 		}
 		requestedCols[col] = true
 	}
@@ -274,7 +280,8 @@ func (a *App) ExportData(r *fastglue.Request) error {
 	rows, err := query.Rows()
 	if err != nil {
 		a.Log.Error("Failed to export data", "error", err)
-		return r.SendErrorEnvelope(fasthttp.StatusInternalServerError, "Failed to export data", nil, "")
+		SendErrorEnvelope(w, http.StatusInternalServerError, "Failed to export data", nil, "")
+		return
 	}
 	defer rows.Close() //nolint:errcheck
 
@@ -345,11 +352,10 @@ func (a *App) ExportData(r *fastglue.Request) error {
 
 	// Set response headers for CSV download
 	filename := fmt.Sprintf("%s_export_%s.csv", req.Table, time.Now().Format("20060102_150405"))
-	r.RequestCtx.Response.Header.Set("Content-Type", "text/csv")
-	r.RequestCtx.Response.Header.Set("Content-Disposition", fmt.Sprintf("attachment; filename=%s", filename))
-	r.RequestCtx.SetBody([]byte(buf.String()))
-
-	return nil
+	w.Header().Set("Content-Type", "text/csv")
+	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%s", filename))
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write([]byte(buf.String()))
 }
 
 // ImportDataRequest represents an import request metadata
@@ -360,34 +366,39 @@ type ImportDataRequest struct {
 }
 
 // ImportData handles generic data import
-func (a *App) ImportData(r *fastglue.Request) error {
-	orgID, userID, err := a.getOrgAndUserID(r)
+func (a *App) ImportData(w http.ResponseWriter, r *http.Request) {
+	orgID, userID, err := a.getOrgAndUserIDHTTP(r)
 	if err != nil {
-		return r.SendErrorEnvelope(fasthttp.StatusUnauthorized, "Unauthorized", nil, "")
+		SendErrorEnvelope(w, http.StatusUnauthorized, "Unauthorized", nil, "")
+		return
 	}
 
 	// Parse multipart form
-	form, err := r.RequestCtx.MultipartForm()
-	if err != nil {
-		return r.SendErrorEnvelope(fasthttp.StatusBadRequest, "Invalid multipart form", nil, "")
+	if err := r.ParseMultipartForm(32 << 20); err != nil {
+		SendErrorEnvelope(w, http.StatusBadRequest, "Invalid multipart form", nil, "")
+		return
 	}
+	form := r.MultipartForm
 
 	// Get table name
 	tableValues := form.Value["table"]
 	if len(tableValues) == 0 {
-		return r.SendErrorEnvelope(fasthttp.StatusBadRequest, "table is required", nil, "")
+		SendErrorEnvelope(w, http.StatusBadRequest, "table is required", nil, "")
+		return
 	}
 	tableName := tableValues[0]
 
 	// Get import config
 	config, ok := importConfigs[tableName]
 	if !ok {
-		return r.SendErrorEnvelope(fasthttp.StatusBadRequest, "Invalid table", nil, "")
+		SendErrorEnvelope(w, http.StatusBadRequest, "Invalid table", nil, "")
+		return
 	}
 
 	// Check permission
 	if !a.HasPermission(userID, config.Resource, models.ActionImport, orgID) {
-		return r.SendErrorEnvelope(fasthttp.StatusForbidden, "You do not have permission to import "+tableName, nil, "")
+		SendErrorEnvelope(w, http.StatusForbidden, "You do not have permission to import "+tableName, nil, "")
+		return
 	}
 
 	// Get update_on_duplicate flag
@@ -405,13 +416,15 @@ func (a *App) ImportData(r *fastglue.Request) error {
 	// Get CSV file
 	files := form.File["file"]
 	if len(files) == 0 {
-		return r.SendErrorEnvelope(fasthttp.StatusBadRequest, "file is required", nil, "")
+		SendErrorEnvelope(w, http.StatusBadRequest, "file is required", nil, "")
+		return
 	}
 	fileHeader := files[0]
 
 	file, err := fileHeader.Open()
 	if err != nil {
-		return r.SendErrorEnvelope(fasthttp.StatusBadRequest, "Failed to read file", nil, "")
+		SendErrorEnvelope(w, http.StatusBadRequest, "Failed to read file", nil, "")
+		return
 	}
 	defer file.Close() //nolint:errcheck
 
@@ -425,7 +438,8 @@ func (a *App) ImportData(r *fastglue.Request) error {
 	// Read header
 	header, err := reader.Read()
 	if err != nil {
-		return r.SendErrorEnvelope(fasthttp.StatusBadRequest, "Failed to read CSV header", nil, "")
+		SendErrorEnvelope(w, http.StatusBadRequest, "Failed to read CSV header", nil, "")
+		return
 	}
 
 	// Build column index mapping
@@ -451,7 +465,8 @@ func (a *App) ImportData(r *fastglue.Request) error {
 			}
 		}
 		if !found {
-			return r.SendErrorEnvelope(fasthttp.StatusBadRequest, fmt.Sprintf("Required column '%s' not found in CSV", reqCol), nil, "")
+			SendErrorEnvelope(w, http.StatusBadRequest, fmt.Sprintf("Required column '%s' not found in CSV", reqCol), nil, "")
+			return
 		}
 	}
 
@@ -623,32 +638,36 @@ func (a *App) ImportData(r *fastglue.Request) error {
 		created++
 	}
 
-	return r.SendEnvelope(map[string]any{
+	SendEnvelope(w, map[string]any{
 		"created":  created,
 		"updated":  updated,
 		"skipped":  skipped,
 		"errors":   errors,
 		"messages": errorMessages,
 	})
+	return
 }
 
 // GetExportConfig returns the export configuration for a table
-func (a *App) GetExportConfig(r *fastglue.Request) error {
-	orgID, userID, err := a.getOrgAndUserID(r)
+func (a *App) GetExportConfig(w http.ResponseWriter, r *http.Request) {
+	orgID, userID, err := a.getOrgAndUserIDHTTP(r)
 	if err != nil {
-		return r.SendErrorEnvelope(fasthttp.StatusUnauthorized, "Unauthorized", nil, "")
+		SendErrorEnvelope(w, http.StatusUnauthorized, "Unauthorized", nil, "")
+		return
 	}
 
-	tableName := r.RequestCtx.UserValue("table").(string)
+	tableName := chi.URLParam(r, "table")
 
 	config, ok := exportConfigs[tableName]
 	if !ok {
-		return r.SendErrorEnvelope(fasthttp.StatusBadRequest, "Invalid table", nil, "")
+		SendErrorEnvelope(w, http.StatusBadRequest, "Invalid table", nil, "")
+		return
 	}
 
 	// Check permission
 	if !a.HasPermission(userID, config.Resource, models.ActionExport, orgID) {
-		return r.SendErrorEnvelope(fasthttp.StatusForbidden, "You do not have permission to export "+tableName, nil, "")
+		SendErrorEnvelope(w, http.StatusForbidden, "You do not have permission to export "+tableName, nil, "")
+		return
 	}
 
 	// Build column info
@@ -664,30 +683,34 @@ func (a *App) GetExportConfig(r *fastglue.Request) error {
 		}
 	}
 
-	return r.SendEnvelope(map[string]any{
+	SendEnvelope(w, map[string]any{
 		"table":           tableName,
 		"columns":         columns,
 		"default_columns": config.DefaultColumns,
 	})
+	return
 }
 
 // GetImportConfig returns the import configuration for a table
-func (a *App) GetImportConfig(r *fastglue.Request) error {
-	orgID, userID, err := a.getOrgAndUserID(r)
+func (a *App) GetImportConfig(w http.ResponseWriter, r *http.Request) {
+	orgID, userID, err := a.getOrgAndUserIDHTTP(r)
 	if err != nil {
-		return r.SendErrorEnvelope(fasthttp.StatusUnauthorized, "Unauthorized", nil, "")
+		SendErrorEnvelope(w, http.StatusUnauthorized, "Unauthorized", nil, "")
+		return
 	}
 
-	tableName := r.RequestCtx.UserValue("table").(string)
+	tableName := chi.URLParam(r, "table")
 
 	config, ok := importConfigs[tableName]
 	if !ok {
-		return r.SendErrorEnvelope(fasthttp.StatusBadRequest, "Invalid table", nil, "")
+		SendErrorEnvelope(w, http.StatusBadRequest, "Invalid table", nil, "")
+		return
 	}
 
 	// Check permission
 	if !a.HasPermission(userID, config.Resource, models.ActionImport, orgID) {
-		return r.SendErrorEnvelope(fasthttp.StatusForbidden, "You do not have permission to import "+tableName, nil, "")
+		SendErrorEnvelope(w, http.StatusForbidden, "You do not have permission to import "+tableName, nil, "")
+		return
 	}
 
 	// Get labels from export config if available
@@ -725,12 +748,13 @@ func (a *App) GetImportConfig(r *fastglue.Request) error {
 		}
 	}
 
-	return r.SendEnvelope(map[string]any{
+	SendEnvelope(w, map[string]any{
 		"table":            tableName,
 		"required_columns": requiredCols,
 		"optional_columns": optionalCols,
 		"unique_column":    config.UniqueColumn,
 	})
+	return
 }
 
 // Helper function to convert snake_case to PascalCase
