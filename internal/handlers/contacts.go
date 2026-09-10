@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/go-chi/chi/v5"
 	"io"
 	"net/http"
 	"os"
@@ -17,8 +18,6 @@ import (
 	"github.com/shridarpatil/whatomate/internal/models"
 	"github.com/shridarpatil/whatomate/internal/utils"
 	"github.com/shridarpatil/whatomate/pkg/whatsapp"
-	"github.com/valyala/fasthttp"
-	"github.com/zerodha/fastglue"
 	"gorm.io/gorm"
 )
 
@@ -254,14 +253,15 @@ func (a *App) GetContact(w http.ResponseWriter, r *http.Request) {
 // GetMessages returns messages for a contact
 // Agents can only access messages for their assigned contacts
 // Supports cursor-based pagination with before_id for loading older messages
-func (a *App) GetMessages(r *fastglue.Request) error {
-	orgID, userID, err := a.getOrgAndUserID(r)
+func (a *App) GetMessages(w http.ResponseWriter, r *http.Request) {
+	orgID, userID, err := a.getOrgAndUserIDHTTP(r)
 	if err != nil {
-		return r.SendErrorEnvelope(fasthttp.StatusUnauthorized, "Unauthorized", nil, "")
+		SendErrorEnvelope(w, http.StatusUnauthorized, "Unauthorized", nil, "")
+		return
 	}
-	contactID, err := parsePathUUID(r, "id", "contact")
+	contactID, err := parsePathUUIDHTTP(w, r, "id", "contact")
 	if err != nil {
-		return nil
+		return
 	}
 
 	hasContactsReadPermission := a.HasPermission(userID, models.ResourceContacts, models.ActionRead, orgID)
@@ -271,12 +271,13 @@ func (a *App) GetMessages(r *fastglue.Request) error {
 	query := a.DB.Where("id = ? AND organization_id = ?", contactID, orgID)
 	query = a.scopeAssignedContact(query, userID, orgID)
 	if err := query.First(&contact).Error; err != nil {
-		return r.SendErrorEnvelope(fasthttp.StatusNotFound, "Contact not found", nil, "")
+		SendErrorEnvelope(w, http.StatusNotFound, "Contact not found", nil, "")
+		return
 	}
 
 	// Pagination parameters
-	limit, _ := strconv.Atoi(string(r.RequestCtx.QueryArgs().Peek("limit")))
-	beforeIDStr := string(r.RequestCtx.QueryArgs().Peek("before_id"))
+	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
+	beforeIDStr := r.URL.Query().Get("before_id")
 
 	if limit < 1 || limit > 100 {
 		limit = 50
@@ -286,7 +287,7 @@ func (a *App) GetMessages(r *fastglue.Request) error {
 	msgQuery := a.DB.Where("contact_id = ?", contactID)
 
 	// Filter by WhatsApp account if specified
-	accountFilter := string(r.RequestCtx.QueryArgs().Peek("account"))
+	accountFilter := r.URL.Query().Get("account")
 	if accountFilter != "" {
 		msgQuery = msgQuery.Where("whats_app_account = ?", accountFilter)
 	}
@@ -325,7 +326,8 @@ func (a *App) GetMessages(r *fastglue.Request) error {
 		var messages []models.Message
 		if err := msgQuery.Preload("ReplyToMessage").Order("created_at DESC").Limit(limit).Find(&messages).Error; err != nil {
 			a.Log.Error("Failed to list messages", "error", err)
-			return r.SendErrorEnvelope(fasthttp.StatusInternalServerError, "Failed to list messages", nil, "")
+			SendErrorEnvelope(w, http.StatusInternalServerError, "Failed to list messages", nil, "")
+			return
 		}
 		// Reverse to get chronological order
 		for i, j := 0, len(messages)-1; i < j; i, j = i+1, j-1 {
@@ -333,15 +335,16 @@ func (a *App) GetMessages(r *fastglue.Request) error {
 		}
 
 		response := a.buildMessagesResponse(messages)
-		return r.SendEnvelope(map[string]any{
+		SendEnvelope(w, map[string]any{
 			"messages": response,
 			"total":    total,
 			"has_more": len(messages) == limit,
 		})
+		return
 	}
 
 	// Default: load most recent messages (page 1)
-	page, _ := strconv.Atoi(string(r.RequestCtx.QueryArgs().Peek("page")))
+	page, _ := strconv.Atoi(r.URL.Query().Get("page"))
 	if page < 1 {
 		page = 1
 	}
@@ -361,20 +364,22 @@ func (a *App) GetMessages(r *fastglue.Request) error {
 	var messages []models.Message
 	if err := msgQuery.Preload("ReplyToMessage").Order("created_at ASC").Offset(offset).Limit(queryLimit).Find(&messages).Error; err != nil {
 		a.Log.Error("Failed to list messages", "error", err)
-		return r.SendErrorEnvelope(fasthttp.StatusInternalServerError, "Failed to list messages", nil, "")
+		SendErrorEnvelope(w, http.StatusInternalServerError, "Failed to list messages", nil, "")
+		return
 	}
 
 	// Mark messages as read
 	a.markMessagesAsRead(orgID, contactID, &contact)
 
 	response := a.buildMessagesResponse(messages)
-	return r.SendEnvelope(map[string]any{
+	SendEnvelope(w, map[string]any{
 		"messages": response,
 		"total":    total,
 		"page":     page,
 		"limit":    responseLimit,
 		"has_more": offset > 0,
 	})
+	return
 }
 
 // buildMessagesResponse converts messages to response format
@@ -447,25 +452,28 @@ func (a *App) buildMessagesResponse(messages []models.Message) []MessageResponse
 // MarkContactRead marks all incoming messages from a contact as read.
 // Called from the frontend when a new message arrives for the chat the
 // user is currently viewing, so the sidebar unread badge stays at zero.
-func (a *App) MarkContactRead(r *fastglue.Request) error {
-	orgID, userID, err := a.getOrgAndUserID(r)
+func (a *App) MarkContactRead(w http.ResponseWriter, r *http.Request) {
+	orgID, userID, err := a.getOrgAndUserIDHTTP(r)
 	if err != nil {
-		return r.SendErrorEnvelope(fasthttp.StatusUnauthorized, "Unauthorized", nil, "")
+		SendErrorEnvelope(w, http.StatusUnauthorized, "Unauthorized", nil, "")
+		return
 	}
-	contactID, err := parsePathUUID(r, "id", "contact")
+	contactID, err := parsePathUUIDHTTP(w, r, "id", "contact")
 	if err != nil {
-		return nil
+		return
 	}
 
 	var contact models.Contact
 	query := a.DB.Where("id = ? AND organization_id = ?", contactID, orgID)
 	query = a.scopeAssignedContact(query, userID, orgID)
 	if err := query.First(&contact).Error; err != nil {
-		return r.SendErrorEnvelope(fasthttp.StatusNotFound, "Contact not found", nil, "")
+		SendErrorEnvelope(w, http.StatusNotFound, "Contact not found", nil, "")
+		return
 	}
 
 	a.markMessagesAsRead(orgID, contactID, &contact)
-	return r.SendEnvelope(map[string]any{"status": "ok"})
+	SendEnvelope(w, map[string]any{"status": "ok"})
+	return
 }
 
 // markMessagesAsRead marks messages as read and sends read receipts
@@ -550,20 +558,21 @@ type ButtonContent struct {
 
 // SendMessage sends a message to a contact
 // Agents can only send messages to their assigned contacts
-func (a *App) SendMessage(r *fastglue.Request) error {
-	orgID, userID, err := a.getOrgAndUserID(r)
+func (a *App) SendMessage(w http.ResponseWriter, r *http.Request) {
+	orgID, userID, err := a.getOrgAndUserIDHTTP(r)
 	if err != nil {
-		return r.SendErrorEnvelope(fasthttp.StatusUnauthorized, "Unauthorized", nil, "")
+		SendErrorEnvelope(w, http.StatusUnauthorized, "Unauthorized", nil, "")
+		return
 	}
-	contactID, err := parsePathUUID(r, "id", "contact")
+	contactID, err := parsePathUUIDHTTP(w, r, "id", "contact")
 	if err != nil {
-		return nil
+		return
 	}
 
 	// Parse request body
 	var req SendMessageRequest
-	if err := json.Unmarshal(r.RequestCtx.PostBody(), &req); err != nil {
-		return r.SendErrorEnvelope(fasthttp.StatusBadRequest, "Invalid request body", nil, "")
+	if err := a.decodeRequestHTTP(w, r, &req); err != nil {
+		return
 	}
 
 	// Get contact (users without full read permission can only message their assigned contacts)
@@ -571,7 +580,8 @@ func (a *App) SendMessage(r *fastglue.Request) error {
 	query := a.DB.Where("id = ? AND organization_id = ?", contactID, orgID)
 	query = a.scopeAssignedContact(query, userID, orgID)
 	if err := query.First(&contact).Error; err != nil {
-		return r.SendErrorEnvelope(fasthttp.StatusNotFound, "Contact not found", nil, "")
+		SendErrorEnvelope(w, http.StatusNotFound, "Contact not found", nil, "")
+		return
 	}
 
 	// Get WhatsApp account - prefer request-specified account over contact default
@@ -581,7 +591,8 @@ func (a *App) SendMessage(r *fastglue.Request) error {
 	}
 	account, err := a.resolveWhatsAppAccount(orgID, accountName)
 	if err != nil {
-		return r.SendErrorEnvelope(fasthttp.StatusBadRequest, "Failed to resolve WhatsApp account", nil, "")
+		SendErrorEnvelope(w, http.StatusBadRequest, "Failed to resolve WhatsApp account", nil, "")
+		return
 	}
 
 	// Handle reply context
@@ -625,13 +636,15 @@ func (a *App) SendMessage(r *fastglue.Request) error {
 
 		if req.Interactive.Type == "flow" {
 			if req.Interactive.FlowID == "" {
-				return r.SendErrorEnvelope(fasthttp.StatusBadRequest, "flow_id is required to send a flow", nil, "")
+				SendErrorEnvelope(w, http.StatusBadRequest, "flow_id is required to send a flow", nil, "")
+				return
 			}
 			// Ensure the flow belongs to this org so an agent can't send another
 			// org's flow by supplying its Meta id.
 			var waFlow models.WhatsAppFlow
 			if err := a.DB.Where("meta_flow_id = ? AND organization_id = ?", req.Interactive.FlowID, orgID).First(&waFlow).Error; err != nil {
-				return r.SendErrorEnvelope(fasthttp.StatusBadRequest, "Flow not found for this organization", nil, "")
+				SendErrorEnvelope(w, http.StatusBadRequest, "Flow not found for this organization", nil, "")
+				return
 			}
 			cta := req.Interactive.ButtonText
 			if cta == "" {
@@ -652,9 +665,10 @@ func (a *App) SendMessage(r *fastglue.Request) error {
 
 		if req.Interactive.Type == "voice_call" {
 			if !account.BusinessCallingEnabled {
-				return r.SendErrorEnvelope(fasthttp.StatusBadRequest,
+				SendErrorEnvelope(w, http.StatusBadRequest,
 					"This WhatsApp account is not enrolled in the Business Calling API. Enable it under Settings → Accounts before sending Call buttons.",
 					nil, "")
+				return
 			}
 			msgReq.DisplayText = req.Interactive.DisplayText
 			msgReq.TTLMinutes = req.Interactive.TTLMinutes
@@ -678,7 +692,8 @@ func (a *App) SendMessage(r *fastglue.Request) error {
 	message, err := a.SendOutgoingMessage(ctx, msgReq, opts)
 	if err != nil {
 		a.Log.Error("Failed to send message", "error", err)
-		return r.SendErrorEnvelope(fasthttp.StatusInternalServerError, "Failed to send message", nil, "")
+		SendErrorEnvelope(w, http.StatusInternalServerError, "Failed to send message", nil, "")
+		return
 	}
 
 	// Build response
@@ -708,7 +723,8 @@ func (a *App) SendMessage(r *fastglue.Request) error {
 		}
 	}
 
-	return r.SendEnvelope(response)
+	SendEnvelope(w, response)
+	return
 }
 
 // resolveWhatsAppAccount gets the WhatsApp account for sending messages
@@ -752,26 +768,30 @@ func truncateString(s string, maxLen int) string {
 	return s[:maxLen-3] + "..."
 }
 
-func (a *App) SendMediaMessage(r *fastglue.Request) error {
-	orgID, userID, err := a.getOrgAndUserID(r)
+func (a *App) SendMediaMessage(w http.ResponseWriter, r *http.Request) {
+	orgID, userID, err := a.getOrgAndUserIDHTTP(r)
 	if err != nil {
-		return r.SendErrorEnvelope(fasthttp.StatusUnauthorized, "Unauthorized", nil, "")
+		SendErrorEnvelope(w, http.StatusUnauthorized, "Unauthorized", nil, "")
+		return
 	}
 
 	// Parse multipart form
-	form, err := r.RequestCtx.MultipartForm()
-	if err != nil {
-		return r.SendErrorEnvelope(fasthttp.StatusBadRequest, "Invalid multipart form", nil, "")
+	if err := r.ParseMultipartForm(32 << 20); err != nil {
+		SendErrorEnvelope(w, http.StatusBadRequest, "Invalid multipart form", nil, "")
+		return
 	}
+	form := r.MultipartForm
 
 	// Get contact ID from form
 	contactIDValues := form.Value["contact_id"]
 	if len(contactIDValues) == 0 {
-		return r.SendErrorEnvelope(fasthttp.StatusBadRequest, "contact_id is required", nil, "")
+		SendErrorEnvelope(w, http.StatusBadRequest, "contact_id is required", nil, "")
+		return
 	}
 	contactID, err := uuid.Parse(contactIDValues[0])
 	if err != nil {
-		return r.SendErrorEnvelope(fasthttp.StatusBadRequest, "Invalid contact ID", nil, "")
+		SendErrorEnvelope(w, http.StatusBadRequest, "Invalid contact ID", nil, "")
+		return
 	}
 
 	// Get media type (image, document, video, audio)
@@ -795,14 +815,16 @@ func (a *App) SendMediaMessage(r *fastglue.Request) error {
 	// Get uploaded file
 	files := form.File["file"]
 	if len(files) == 0 {
-		return r.SendErrorEnvelope(fasthttp.StatusBadRequest, "file is required", nil, "")
+		SendErrorEnvelope(w, http.StatusBadRequest, "file is required", nil, "")
+		return
 	}
 	fileHeader := files[0]
 
 	// Open the file
 	file, err := fileHeader.Open()
 	if err != nil {
-		return r.SendErrorEnvelope(fasthttp.StatusBadRequest, "Failed to read file", nil, "")
+		SendErrorEnvelope(w, http.StatusBadRequest, "Failed to read file", nil, "")
+		return
 	}
 	defer func() { _ = file.Close() }()
 
@@ -810,7 +832,8 @@ func (a *App) SendMediaMessage(r *fastglue.Request) error {
 	fileData, err := io.ReadAll(file)
 	if err != nil {
 		a.Log.Error("Failed to read file data", "error", err)
-		return r.SendErrorEnvelope(fasthttp.StatusInternalServerError, "Failed to read file data", nil, "")
+		SendErrorEnvelope(w, http.StatusInternalServerError, "Failed to read file data", nil, "")
+		return
 	}
 
 	// Get MIME type
@@ -824,7 +847,8 @@ func (a *App) SendMediaMessage(r *fastglue.Request) error {
 	query := a.DB.Where("id = ? AND organization_id = ?", contactID, orgID)
 	query = a.scopeAssignedContact(query, userID, orgID)
 	if err := query.First(&contact).Error; err != nil {
-		return r.SendErrorEnvelope(fasthttp.StatusNotFound, "Contact not found", nil, "")
+		SendErrorEnvelope(w, http.StatusNotFound, "Contact not found", nil, "")
+		return
 	}
 
 	// Get WhatsApp account - prefer form-specified account over contact default
@@ -834,14 +858,16 @@ func (a *App) SendMediaMessage(r *fastglue.Request) error {
 	}
 	account, err := a.resolveWhatsAppAccount(orgID, mediaAccountName)
 	if err != nil {
-		return r.SendErrorEnvelope(fasthttp.StatusBadRequest, err.Error(), nil, "")
+		SendErrorEnvelope(w, http.StatusBadRequest, err.Error(), nil, "")
+		return
 	}
 
 	// Save file locally first
 	localPath, err := a.saveMediaLocally(fileData, mimeType, fileHeader.Filename)
 	if err != nil {
 		a.Log.Error("Failed to save media locally", "error", err)
-		return r.SendErrorEnvelope(fasthttp.StatusInternalServerError, "Failed to save media", nil, "")
+		SendErrorEnvelope(w, http.StatusInternalServerError, "Failed to save media", nil, "")
+		return
 	}
 
 	// Build and send via unified message sender
@@ -863,7 +889,8 @@ func (a *App) SendMediaMessage(r *fastglue.Request) error {
 	message, err := a.SendOutgoingMessage(ctx, msgReq, opts)
 	if err != nil {
 		a.Log.Error("Failed to send message", "error", err)
-		return r.SendErrorEnvelope(fasthttp.StatusInternalServerError, "Failed to send message", nil, "")
+		SendErrorEnvelope(w, http.StatusInternalServerError, "Failed to send message", nil, "")
+		return
 	}
 
 	response := MessageResponse{
@@ -881,7 +908,8 @@ func (a *App) SendMediaMessage(r *fastglue.Request) error {
 		UpdatedAt:       message.UpdatedAt,
 	}
 
-	return r.SendEnvelope(response)
+	SendEnvelope(w, response)
+	return
 }
 
 // saveMediaLocally saves media data to local storage and returns the relative path
@@ -937,27 +965,29 @@ type SendReactionRequest struct {
 }
 
 // SendReaction sends a reaction to a message
-func (a *App) SendReaction(r *fastglue.Request) error {
-	orgID, userID, err := a.getOrgAndUserID(r)
+func (a *App) SendReaction(w http.ResponseWriter, r *http.Request) {
+	orgID, userID, err := a.getOrgAndUserIDHTTP(r)
 	if err != nil {
-		return r.SendErrorEnvelope(fasthttp.StatusUnauthorized, "Unauthorized", nil, "")
+		SendErrorEnvelope(w, http.StatusUnauthorized, "Unauthorized", nil, "")
+		return
 	}
-	contactID, err := parsePathUUID(r, "id", "contact")
+	contactID, err := parsePathUUIDHTTP(w, r, "id", "contact")
 	if err != nil {
-		return nil
+		return
 	}
 
-	messageIDStr := r.RequestCtx.UserValue("message_id").(string)
+	messageIDStr := chi.URLParam(r, "message_id")
 
 	messageID, err := uuid.Parse(messageIDStr)
 	if err != nil {
-		return r.SendErrorEnvelope(fasthttp.StatusBadRequest, "Invalid message ID", nil, "")
+		SendErrorEnvelope(w, http.StatusBadRequest, "Invalid message ID", nil, "")
+		return
 	}
 
 	// Parse request body
 	var req SendReactionRequest
-	if err := json.Unmarshal(r.RequestCtx.PostBody(), &req); err != nil {
-		return r.SendErrorEnvelope(fasthttp.StatusBadRequest, "Invalid request body", nil, "")
+	if err := a.decodeRequestHTTP(w, r, &req); err != nil {
+		return
 	}
 
 	// Get contact (users without full read permission can only react to messages in their assigned contacts)
@@ -965,13 +995,15 @@ func (a *App) SendReaction(r *fastglue.Request) error {
 	query := a.DB.Where("id = ? AND organization_id = ?", contactID, orgID)
 	query = a.scopeAssignedContact(query, userID, orgID)
 	if err := query.First(&contact).Error; err != nil {
-		return r.SendErrorEnvelope(fasthttp.StatusNotFound, "Contact not found", nil, "")
+		SendErrorEnvelope(w, http.StatusNotFound, "Contact not found", nil, "")
+		return
 	}
 
 	// Get message
 	var message models.Message
 	if err := a.DB.Where("id = ? AND contact_id = ?", messageID, contactID).First(&message).Error; err != nil {
-		return r.SendErrorEnvelope(fasthttp.StatusNotFound, "Message not found", nil, "")
+		SendErrorEnvelope(w, http.StatusNotFound, "Message not found", nil, "")
+		return
 	}
 
 	// Get WhatsApp account from the message being reacted to (not from contact, which may be stale)
@@ -981,7 +1013,8 @@ func (a *App) SendReaction(r *fastglue.Request) error {
 	}
 	account, err := a.resolveWhatsAppAccount(orgID, reactionAccountName)
 	if err != nil {
-		return r.SendErrorEnvelope(fasthttp.StatusBadRequest, err.Error(), nil, "")
+		SendErrorEnvelope(w, http.StatusBadRequest, err.Error(), nil, "")
+		return
 	}
 
 	// Parse existing reactions from Metadata
@@ -1037,7 +1070,8 @@ func (a *App) SendReaction(r *fastglue.Request) error {
 	metadata["reactions"] = newReactions
 	if err := a.DB.Model(&message).Update("metadata", metadata).Error; err != nil {
 		a.Log.Error("Failed to update message reactions", "error", err)
-		return r.SendErrorEnvelope(fasthttp.StatusInternalServerError, "Failed to update reaction", nil, "")
+		SendErrorEnvelope(w, http.StatusInternalServerError, "Failed to update reaction", nil, "")
+		return
 	}
 
 	// Send reaction to WhatsApp API
@@ -1046,10 +1080,11 @@ func (a *App) SendReaction(r *fastglue.Request) error {
 	// Broadcast via WebSocket
 	a.broadcastReactionUpdate(orgID, message.ID, contact.ID, newReactions)
 
-	return r.SendEnvelope(map[string]any{
+	SendEnvelope(w, map[string]any{
 		"message_id": message.ID.String(),
 		"reactions":  newReactions,
 	})
+	return
 }
 
 // sendWhatsAppReaction sends a reaction to WhatsApp

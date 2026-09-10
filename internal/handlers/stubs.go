@@ -1,22 +1,24 @@
 package handlers
 
 import (
-	"github.com/valyala/fasthttp"
-	"github.com/zerodha/fastglue"
+	"net/http"
 )
 
 // Stub handlers - not yet implemented
 
 // Message handlers
-func (a *App) MarkMessageRead(r *fastglue.Request) error {
-	return r.SendErrorEnvelope(fasthttp.StatusNotImplemented, "Not implemented yet", nil, "")
+func (a *App) MarkMessageRead(w http.ResponseWriter, r *http.Request) {
+	SendErrorEnvelope(w, http.StatusNotImplemented, "Not implemented yet", nil, "")
+	return
 }
 
 // Analytics handlers
-func (a *App) GetMessageAnalytics(r *fastglue.Request) error {
-	return r.SendErrorEnvelope(fasthttp.StatusNotImplemented, "Not implemented yet", nil, "")
+func (a *App) GetMessageAnalytics(w http.ResponseWriter, r *http.Request) {
+	SendErrorEnvelope(w, http.StatusNotImplemented, "Not implemented yet", nil, "")
+	return
 }
 
-func (a *App) GetChatbotAnalytics(r *fastglue.Request) error {
-	return r.SendErrorEnvelope(fasthttp.StatusNotImplemented, "Not implemented yet", nil, "")
+func (a *App) GetChatbotAnalytics(w http.ResponseWriter, r *http.Request) {
+	SendErrorEnvelope(w, http.StatusNotImplemented, "Not implemented yet", nil, "")
+	return
 }

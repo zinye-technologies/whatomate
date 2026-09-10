@@ -625,8 +625,7 @@ func TestApp_GetMessages(t *testing.T) {
 		testutil.SetPathParam(req, "id", contact.ID.String())
 		testutil.SetQueryParam(req, "limit", 50)
 
-		err := app.GetMessages(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.GetMessages, req)
 		assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 		var resp struct {
@@ -654,8 +653,7 @@ func TestApp_GetMessages(t *testing.T) {
 		testutil.SetAuthContext(req, org.ID, user.ID)
 		testutil.SetPathParam(req, "id", contact.ID.String())
 
-		err := app.GetMessages(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.GetMessages, req)
 		assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 		var resp struct {
@@ -680,8 +678,7 @@ func TestApp_GetMessages(t *testing.T) {
 		testutil.SetAuthContext(req, org.ID, user.ID)
 		testutil.SetPathParam(req, "id", uuid.New().String())
 
-		err := app.GetMessages(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.GetMessages, req)
 		assert.Equal(t, fasthttp.StatusNotFound, testutil.GetResponseStatusCode(req))
 	})
 
@@ -696,8 +693,7 @@ func TestApp_GetMessages(t *testing.T) {
 		testutil.SetAuthContext(req, org.ID, user.ID)
 		testutil.SetPathParam(req, "id", "not-a-uuid")
 
-		err := app.GetMessages(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.GetMessages, req)
 		assert.Equal(t, fasthttp.StatusBadRequest, testutil.GetResponseStatusCode(req))
 	})
 
@@ -716,8 +712,7 @@ func TestApp_GetMessages(t *testing.T) {
 		testutil.SetAuthContext(req, org1.ID, user1.ID)
 		testutil.SetPathParam(req, "id", contact.ID.String())
 
-		err := app.GetMessages(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.GetMessages, req)
 		assert.Equal(t, fasthttp.StatusNotFound, testutil.GetResponseStatusCode(req))
 	})
 
@@ -734,8 +729,7 @@ func TestApp_GetMessages(t *testing.T) {
 		testutil.SetPathParam(req, "id", contact.ID.String())
 		// No limit set - should default to 50
 
-		err := app.GetMessages(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.GetMessages, req)
 		assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 		var resp struct {
@@ -785,8 +779,7 @@ func TestApp_GetMessages(t *testing.T) {
 		testutil.SetQueryParam(req, "before_id", msgIDs[3].String())
 		testutil.SetQueryParam(req, "limit", 2)
 
-		err := app.GetMessages(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.GetMessages, req)
 		assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 		var resp struct {
@@ -828,8 +821,7 @@ func TestApp_GetMessages(t *testing.T) {
 		testutil.SetAuthContext(req, org.ID, user.ID)
 		testutil.SetPathParam(req, "id", contact.ID.String())
 
-		err := app.GetMessages(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.GetMessages, req)
 		assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 		// Verify message was marked as read in the database
@@ -864,8 +856,7 @@ func TestApp_GetMessages(t *testing.T) {
 		testutil.SetAuthContext(req, org.ID, user.ID)
 		testutil.SetPathParam(req, "id", contact.ID.String())
 
-		err := app.GetMessages(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.GetMessages, req)
 		assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 		var resp struct {
@@ -912,8 +903,7 @@ func TestApp_SendMessage(t *testing.T) {
 		testutil.SetAuthContext(req, org.ID, user.ID)
 		testutil.SetPathParam(req, "id", contact.ID.String())
 
-		err := app.SendMessage(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.SendMessage, req)
 		assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 		var resp struct {
@@ -942,8 +932,7 @@ func TestApp_SendMessage(t *testing.T) {
 		testutil.SetAuthContext(req, org.ID, user.ID)
 		testutil.SetPathParam(req, "id", contact.ID.String())
 
-		err := app.SendMessage(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.SendMessage, req)
 		assert.Equal(t, fasthttp.StatusBadRequest, testutil.GetResponseStatusCode(req))
 	})
 
@@ -966,8 +955,7 @@ func TestApp_SendMessage(t *testing.T) {
 		testutil.SetAuthContext(req, org.ID, user.ID)
 		testutil.SetPathParam(req, "id", uuid.New().String())
 
-		err := app.SendMessage(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.SendMessage, req)
 		assert.Equal(t, fasthttp.StatusNotFound, testutil.GetResponseStatusCode(req))
 	})
 
@@ -987,8 +975,7 @@ func TestApp_SendMessage(t *testing.T) {
 		testutil.SetAuthContext(req, org.ID, user.ID)
 		testutil.SetPathParam(req, "id", "not-a-uuid")
 
-		err := app.SendMessage(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.SendMessage, req)
 		assert.Equal(t, fasthttp.StatusBadRequest, testutil.GetResponseStatusCode(req))
 	})
 
@@ -1015,8 +1002,7 @@ func TestApp_SendMessage(t *testing.T) {
 		testutil.SetAuthContext(req, org1.ID, user1.ID)
 		testutil.SetPathParam(req, "id", contact.ID.String())
 
-		err := app.SendMessage(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.SendMessage, req)
 		assert.Equal(t, fasthttp.StatusNotFound, testutil.GetResponseStatusCode(req))
 	})
 
@@ -1041,8 +1027,7 @@ func TestApp_SendMessage(t *testing.T) {
 		testutil.SetAuthContext(req, org.ID, user.ID)
 		testutil.SetPathParam(req, "id", contact.ID.String())
 
-		err := app.SendMessage(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.SendMessage, req)
 		assert.Equal(t, fasthttp.StatusBadRequest, testutil.GetResponseStatusCode(req))
 	})
 
@@ -1082,8 +1067,7 @@ func TestApp_SendMessage(t *testing.T) {
 		testutil.SetAuthContext(req, org.ID, user.ID)
 		testutil.SetPathParam(req, "id", contact.ID.String())
 
-		err := app.SendMessage(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.SendMessage, req)
 		assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 		var resp struct {
@@ -1130,8 +1114,7 @@ func TestApp_SendReaction(t *testing.T) {
 		testutil.SetPathParam(req, "id", contact.ID.String())
 		testutil.SetPathParam(req, "message_id", msg.ID.String())
 
-		err := app.SendReaction(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.SendReaction, req)
 		assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 		var resp struct {
@@ -1189,8 +1172,7 @@ func TestApp_SendReaction(t *testing.T) {
 		testutil.SetPathParam(req, "id", contact.ID.String())
 		testutil.SetPathParam(req, "message_id", msg.ID.String())
 
-		err := app.SendReaction(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.SendReaction, req)
 		assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 		var resp struct {
@@ -1217,8 +1199,7 @@ func TestApp_SendReaction(t *testing.T) {
 		testutil.SetPathParam(req, "id", uuid.New().String())
 		testutil.SetPathParam(req, "message_id", uuid.New().String())
 
-		err := app.SendReaction(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.SendReaction, req)
 		assert.Equal(t, fasthttp.StatusNotFound, testutil.GetResponseStatusCode(req))
 	})
 
@@ -1237,8 +1218,7 @@ func TestApp_SendReaction(t *testing.T) {
 		testutil.SetPathParam(req, "id", contact.ID.String())
 		testutil.SetPathParam(req, "message_id", uuid.New().String())
 
-		err := app.SendReaction(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.SendReaction, req)
 		assert.Equal(t, fasthttp.StatusNotFound, testutil.GetResponseStatusCode(req))
 	})
 
@@ -1256,8 +1236,7 @@ func TestApp_SendReaction(t *testing.T) {
 		testutil.SetPathParam(req, "id", "not-a-uuid")
 		testutil.SetPathParam(req, "message_id", uuid.New().String())
 
-		err := app.SendReaction(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.SendReaction, req)
 		assert.Equal(t, fasthttp.StatusBadRequest, testutil.GetResponseStatusCode(req))
 	})
 
@@ -1276,8 +1255,7 @@ func TestApp_SendReaction(t *testing.T) {
 		testutil.SetPathParam(req, "id", contact.ID.String())
 		testutil.SetPathParam(req, "message_id", "not-a-uuid")
 
-		err := app.SendReaction(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.SendReaction, req)
 		assert.Equal(t, fasthttp.StatusBadRequest, testutil.GetResponseStatusCode(req))
 	})
 
@@ -1312,8 +1290,7 @@ func TestApp_SendReaction(t *testing.T) {
 		testutil.SetPathParam(req, "id", contact.ID.String())
 		testutil.SetPathParam(req, "message_id", msg.ID.String())
 
-		err := app.SendReaction(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.SendReaction, req)
 		assert.Equal(t, fasthttp.StatusNotFound, testutil.GetResponseStatusCode(req))
 	})
 }
@@ -1435,7 +1412,7 @@ func TestApp_GetMessages_AssignedViaActiveTransfer(t *testing.T) {
 		req := testutil.NewGETRequest(t)
 		testutil.SetAuthContext(req, org.ID, agent.ID)
 		testutil.SetPathParam(req, "id", contact.ID.String())
-		require.NoError(t, app.GetMessages(req))
+		testutil.InvokeHTTP(t, app.GetMessages, req)
 		return testutil.GetResponseStatusCode(req)
 	}
 

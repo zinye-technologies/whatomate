@@ -58,8 +58,7 @@ func TestApp_SendTemplateMessage(t *testing.T) {
 		})
 		testutil.SetAuthContext(req, org.ID, user.ID)
 
-		err := app.SendTemplateMessage(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.SendTemplateMessage, req)
 		assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 		var resp struct {
@@ -123,8 +122,7 @@ func TestApp_SendTemplateMessage(t *testing.T) {
 		})
 		testutil.SetAuthContext(req, org.ID, user.ID)
 
-		err := app.SendTemplateMessage(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.SendTemplateMessage, req)
 		assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 		var resp struct {
@@ -160,8 +158,7 @@ func TestApp_SendTemplateMessage(t *testing.T) {
 		})
 		testutil.SetAuthContext(req, org.ID, user.ID)
 
-		err := app.SendTemplateMessage(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.SendTemplateMessage, req)
 		assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 		var resp struct {
@@ -199,8 +196,7 @@ func TestApp_SendTemplateMessage(t *testing.T) {
 		})
 		testutil.SetAuthContext(req, org.ID, user.ID)
 
-		err := app.SendTemplateMessage(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.SendTemplateMessage, req)
 		assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 		var resp struct {
@@ -222,8 +218,7 @@ func TestApp_SendTemplateMessage(t *testing.T) {
 		})
 		testutil.SetAuthContext(req, org.ID, user.ID)
 
-		err := app.SendTemplateMessage(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.SendTemplateMessage, req)
 		assert.Equal(t, fasthttp.StatusBadRequest, testutil.GetResponseStatusCode(req))
 	})
 
@@ -240,8 +235,7 @@ func TestApp_SendTemplateMessage(t *testing.T) {
 		})
 		testutil.SetAuthContext(req, org.ID, user.ID)
 
-		err := app.SendTemplateMessage(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.SendTemplateMessage, req)
 		assert.Equal(t, fasthttp.StatusBadRequest, testutil.GetResponseStatusCode(req))
 	})
 
@@ -259,8 +253,7 @@ func TestApp_SendTemplateMessage(t *testing.T) {
 		})
 		testutil.SetAuthContext(req, org.ID, user.ID)
 
-		err := app.SendTemplateMessage(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.SendTemplateMessage, req)
 		assert.Equal(t, fasthttp.StatusNotFound, testutil.GetResponseStatusCode(req))
 	})
 
@@ -289,8 +282,7 @@ func TestApp_SendTemplateMessage(t *testing.T) {
 		})
 		testutil.SetAuthContext(req, org.ID, user.ID)
 
-		err := app.SendTemplateMessage(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.SendTemplateMessage, req)
 		assert.Equal(t, fasthttp.StatusBadRequest, testutil.GetResponseStatusCode(req))
 	})
 
@@ -312,8 +304,7 @@ func TestApp_SendTemplateMessage(t *testing.T) {
 		})
 		testutil.SetAuthContext(req, org.ID, user.ID)
 
-		err := app.SendTemplateMessage(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.SendTemplateMessage, req)
 		assert.Equal(t, fasthttp.StatusNotFound, testutil.GetResponseStatusCode(req))
 	})
 
@@ -338,8 +329,7 @@ func TestApp_SendTemplateMessage(t *testing.T) {
 		})
 		testutil.SetAuthContext(req, org.ID, user.ID)
 
-		err := app.SendTemplateMessage(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.SendTemplateMessage, req)
 		assert.Equal(t, fasthttp.StatusBadRequest, testutil.GetResponseStatusCode(req))
 	})
 
@@ -357,8 +347,7 @@ func TestApp_SendTemplateMessage(t *testing.T) {
 		})
 		testutil.SetAuthContext(req, org.ID, user.ID)
 
-		err := app.SendTemplateMessage(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.SendTemplateMessage, req)
 		assert.Equal(t, fasthttp.StatusBadRequest, testutil.GetResponseStatusCode(req))
 	})
 
@@ -386,8 +375,7 @@ func TestApp_SendTemplateMessage(t *testing.T) {
 		})
 		testutil.SetAuthContext(req, org.ID, user.ID)
 
-		err := app.SendTemplateMessage(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.SendTemplateMessage, req)
 		assert.Equal(t, fasthttp.StatusBadRequest, testutil.GetResponseStatusCode(req))
 	})
 
@@ -418,8 +406,7 @@ func TestApp_SendTemplateMessage(t *testing.T) {
 		})
 		testutil.SetAuthContext(req, org1.ID, user.ID)
 
-		err := app.SendTemplateMessage(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.SendTemplateMessage, req)
 		assert.Equal(t, fasthttp.StatusNotFound, testutil.GetResponseStatusCode(req))
 	})
 
@@ -445,8 +432,7 @@ func TestApp_SendTemplateMessage(t *testing.T) {
 		})
 		testutil.SetAuthContext(req, org1.ID, user.ID)
 
-		err := app.SendTemplateMessage(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.SendTemplateMessage, req)
 		assert.Equal(t, fasthttp.StatusNotFound, testutil.GetResponseStatusCode(req))
 	})
 
@@ -476,8 +462,7 @@ func TestApp_SendTemplateMessage(t *testing.T) {
 		})
 		testutil.SetAuthContext(req, org.ID, user.ID)
 
-		err := app.SendTemplateMessage(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.SendTemplateMessage, req)
 		assert.Equal(t, fasthttp.StatusBadRequest, testutil.GetResponseStatusCode(req))
 	})
 
@@ -510,8 +495,7 @@ func TestApp_SendTemplateMessage(t *testing.T) {
 		})
 		testutil.SetAuthContext(req, org.ID, user.ID)
 
-		err := app.SendTemplateMessage(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.SendTemplateMessage, req)
 
 		// Verify the response has all MessageResponse fields
 		var raw map[string]any
@@ -563,8 +547,7 @@ func TestApp_SendTemplateMessage(t *testing.T) {
 		})
 		testutil.SetAuthContext(req, org.ID, user.ID)
 
-		err := app.SendTemplateMessage(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.SendTemplateMessage, req)
 		assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 		// Verify response includes interactive_data with buttons
@@ -643,8 +626,7 @@ func TestApp_SendTemplateMessage(t *testing.T) {
 		})
 		testutil.SetAuthContext(req, org.ID, user.ID)
 
-		err := app.SendTemplateMessage(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.SendTemplateMessage, req)
 		assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 		app.WaitForBackgroundTasks()
@@ -697,8 +679,7 @@ func TestApp_SendTemplateMessage(t *testing.T) {
 		})
 		testutil.SetAuthContext(req, org.ID, user.ID)
 
-		err := app.SendTemplateMessage(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.SendTemplateMessage, req)
 		assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 		app.WaitForBackgroundTasks()
@@ -741,8 +722,7 @@ func TestApp_SendTemplateMessage(t *testing.T) {
 		})
 		testutil.SetAuthContext(req, org.ID, user.ID)
 
-		err := app.SendTemplateMessage(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.SendTemplateMessage, req)
 		testutil.AssertErrorResponse(t, req, fasthttp.StatusBadRequest, "header parameter")
 	})
 
@@ -775,8 +755,7 @@ func TestApp_SendTemplateMessage(t *testing.T) {
 		})
 		testutil.SetAuthContext(req, org.ID, user.ID)
 
-		err := app.SendTemplateMessage(req)
-		require.NoError(t, err)
+		testutil.InvokeHTTP(t, app.SendTemplateMessage, req)
 		assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 		var raw map[string]any

@@ -18,8 +18,6 @@ import (
 	"github.com/shridarpatil/whatomate/internal/utils"
 	"github.com/shridarpatil/whatomate/internal/websocket"
 	"github.com/shridarpatil/whatomate/pkg/whatsapp"
-	"github.com/valyala/fasthttp"
-	"github.com/zerodha/fastglue"
 )
 
 // ============================================================================
@@ -656,10 +654,11 @@ type SendTemplateMessageRequest struct {
 
 // SendTemplateMessage sends a template message to a contact or phone number.
 // Accepts either JSON body or multipart/form-data (when a header media file is included).
-func (a *App) SendTemplateMessage(r *fastglue.Request) error {
-	orgID, userID, err := a.getOrgAndUserID(r)
+func (a *App) SendTemplateMessage(w http.ResponseWriter, r *http.Request) {
+	orgID, userID, err := a.getOrgAndUserIDHTTP(r)
 	if err != nil {
-		return r.SendErrorEnvelope(fasthttp.StatusUnauthorized, "Unauthorized", nil, "")
+		SendErrorEnvelope(w, http.StatusUnauthorized, "Unauthorized", nil, "")
+		return
 	}
 
 	var req SendTemplateMessageRequest
@@ -667,13 +666,14 @@ func (a *App) SendTemplateMessage(r *fastglue.Request) error {
 	var headerFileMimeType string
 	var headerFileFilename string
 
-	contentType := string(r.RequestCtx.Request.Header.ContentType())
+	contentType := r.Header.Get("Content-Type")
 	if strings.HasPrefix(contentType, "multipart/form-data") {
 		// Parse multipart form — used when template has a media header
-		form, err := r.RequestCtx.MultipartForm()
-		if err != nil {
-			return r.SendErrorEnvelope(fasthttp.StatusBadRequest, "Invalid multipart form", nil, "")
+		if err := r.ParseMultipartForm(32 << 20); err != nil {
+			SendErrorEnvelope(w, http.StatusBadRequest, "Invalid multipart form", nil, "")
+			return
 		}
+		form := r.MultipartForm
 		if v := form.Value["contact_id"]; len(v) > 0 {
 			req.ContactID = v[0]
 		}
@@ -692,19 +692,22 @@ func (a *App) SendTemplateMessage(r *fastglue.Request) error {
 		// Parse template_params from JSON string
 		if v := form.Value["template_params"]; len(v) > 0 && v[0] != "" {
 			if err := json.Unmarshal([]byte(v[0]), &req.TemplateParams); err != nil {
-				return r.SendErrorEnvelope(fasthttp.StatusBadRequest, "Invalid template_params JSON", nil, "")
+				SendErrorEnvelope(w, http.StatusBadRequest, "Invalid template_params JSON", nil, "")
+				return
 			}
 		}
 		// Parse button_params from JSON string
 		if v := form.Value["button_params"]; len(v) > 0 && v[0] != "" {
 			if err := json.Unmarshal([]byte(v[0]), &req.ButtonParams); err != nil {
-				return r.SendErrorEnvelope(fasthttp.StatusBadRequest, "Invalid button_params JSON", nil, "")
+				SendErrorEnvelope(w, http.StatusBadRequest, "Invalid button_params JSON", nil, "")
+				return
 			}
 		}
 		// Parse header_params from JSON string
 		if v := form.Value["header_params"]; len(v) > 0 && v[0] != "" {
 			if err := json.Unmarshal([]byte(v[0]), &req.HeaderParams); err != nil {
-				return r.SendErrorEnvelope(fasthttp.StatusBadRequest, "Invalid header_params JSON", nil, "")
+				SendErrorEnvelope(w, http.StatusBadRequest, "Invalid header_params JSON", nil, "")
+				return
 			}
 		}
 		// Read header media file
@@ -712,13 +715,15 @@ func (a *App) SendTemplateMessage(r *fastglue.Request) error {
 			fh := files[0]
 			f, err := fh.Open()
 			if err != nil {
-				return r.SendErrorEnvelope(fasthttp.StatusBadRequest, "Failed to read header file", nil, "")
+				SendErrorEnvelope(w, http.StatusBadRequest, "Failed to read header file", nil, "")
+				return
 			}
 			defer f.Close() //nolint:errcheck
 			headerFileData, err = io.ReadAll(f)
 			if err != nil {
 				a.Log.Error("Failed to read header file", "error", err)
-				return r.SendErrorEnvelope(fasthttp.StatusInternalServerError, "Failed to read header file", nil, "")
+				SendErrorEnvelope(w, http.StatusInternalServerError, "Failed to read header file", nil, "")
+				return
 			}
 			headerFileMimeType = fh.Header.Get("Content-Type")
 			if headerFileMimeType == "" {
@@ -730,19 +735,21 @@ func (a *App) SendTemplateMessage(r *fastglue.Request) error {
 			req.HeaderMediaFilename = v[0]
 		}
 	} else {
-		if err := a.decodeRequest(r, &req); err != nil {
-			return nil
+		if err := a.decodeRequestHTTP(w, r, &req); err != nil {
+			return
 		}
 	}
 
 	// Must have either contact_id or phone_number
 	if req.ContactID == "" && req.PhoneNumber == "" {
-		return r.SendErrorEnvelope(fasthttp.StatusBadRequest, "Either contact_id or phone_number is required", nil, "")
+		SendErrorEnvelope(w, http.StatusBadRequest, "Either contact_id or phone_number is required", nil, "")
+		return
 	}
 
 	// Must have either template_name or template_id
 	if req.TemplateName == "" && req.TemplateID == "" {
-		return r.SendErrorEnvelope(fasthttp.StatusBadRequest, "Either template_name or template_id is required", nil, "")
+		SendErrorEnvelope(w, http.StatusBadRequest, "Either template_name or template_id is required", nil, "")
+		return
 	}
 
 	// Get template
@@ -750,22 +757,25 @@ func (a *App) SendTemplateMessage(r *fastglue.Request) error {
 	if req.TemplateID != "" {
 		templateID, err := uuid.Parse(req.TemplateID)
 		if err != nil {
-			return r.SendErrorEnvelope(fasthttp.StatusBadRequest, "Invalid template_id", nil, "")
+			SendErrorEnvelope(w, http.StatusBadRequest, "Invalid template_id", nil, "")
+			return
 		}
-		t, err := findByIDAndOrg[models.Template](a.DB, r, templateID, orgID, "Template")
+		t, err := findByIDAndOrgHTTP[models.Template](a.DB, w, templateID, orgID, "Template")
 		if err != nil {
-			return nil
+			return
 		}
 		template = *t
 	} else {
 		if err := a.DB.Where("name = ? AND organization_id = ?", req.TemplateName, orgID).First(&template).Error; err != nil {
-			return r.SendErrorEnvelope(fasthttp.StatusNotFound, "Template not found", nil, "")
+			SendErrorEnvelope(w, http.StatusNotFound, "Template not found", nil, "")
+			return
 		}
 	}
 
 	// Check template is approved
 	if template.Status != "APPROVED" {
-		return r.SendErrorEnvelope(fasthttp.StatusBadRequest, fmt.Sprintf("Template is not approved (status: %s)", template.Status), nil, "")
+		SendErrorEnvelope(w, http.StatusBadRequest, fmt.Sprintf("Template is not approved (status: %s)", template.Status), nil, "")
+		return
 	}
 
 	// Get contact or use phone number directly
@@ -774,11 +784,12 @@ func (a *App) SendTemplateMessage(r *fastglue.Request) error {
 	if req.ContactID != "" {
 		cID, err := uuid.Parse(req.ContactID)
 		if err != nil {
-			return r.SendErrorEnvelope(fasthttp.StatusBadRequest, "Invalid contact_id", nil, "")
+			SendErrorEnvelope(w, http.StatusBadRequest, "Invalid contact_id", nil, "")
+			return
 		}
-		c, err := findByIDAndOrg[models.Contact](a.DB, r, cID, orgID, "Contact")
+		c, err := findByIDAndOrgHTTP[models.Contact](a.DB, w, cID, orgID, "Contact")
 		if err != nil {
-			return nil
+			return
 		}
 		contact = c
 	} else {
@@ -795,7 +806,8 @@ func (a *App) SendTemplateMessage(r *fastglue.Request) error {
 			}
 			if err := a.DB.Create(&c).Error; err != nil {
 				a.Log.Error("Failed to create contact", "error", err, "phone", phoneNumber)
-				return r.SendErrorEnvelope(fasthttp.StatusInternalServerError, "Failed to create contact", nil, "")
+				SendErrorEnvelope(w, http.StatusInternalServerError, "Failed to create contact", nil, "")
+				return
 			}
 			a.Log.Info("Contact created from API", "contact_id", c.ID, "phone", phoneNumber)
 		}
@@ -813,7 +825,8 @@ func (a *App) SendTemplateMessage(r *fastglue.Request) error {
 
 	account, err := a.resolveWhatsAppAccount(orgID, accountName)
 	if err != nil {
-		return r.SendErrorEnvelope(fasthttp.StatusBadRequest, err.Error(), nil, "")
+		SendErrorEnvelope(w, http.StatusBadRequest, err.Error(), nil, "")
+		return
 	}
 
 	// Extract parameter names and resolve values
@@ -829,9 +842,10 @@ func (a *App) SendTemplateMessage(r *fastglue.Request) error {
 			}
 		}
 		if len(missingParams) > 0 {
-			return r.SendErrorEnvelope(fasthttp.StatusBadRequest,
+			SendErrorEnvelope(w, http.StatusBadRequest,
 				fmt.Sprintf("Missing template parameters: %s. Expected parameters: %v", strings.Join(missingParams, ", "), paramNames),
 				nil, "")
+			return
 		}
 	}
 
@@ -840,16 +854,18 @@ func (a *App) SendTemplateMessage(r *fastglue.Request) error {
 	if template.HeaderType == "TEXT" {
 		headerNames := templateutil.ExtParamNames(template.HeaderContent)
 		if len(headerNames) > 1 {
-			return r.SendErrorEnvelope(fasthttp.StatusBadRequest,
+			SendErrorEnvelope(w, http.StatusBadRequest,
 				fmt.Sprintf("Template header text contains %d variables; Meta allows at most 1", len(headerNames)),
 				nil, "")
+			return
 		}
 		if len(headerNames) == 1 {
 			name := headerNames[0]
 			if req.HeaderParams[name] == "" && req.TemplateParams[name] == "" {
-				return r.SendErrorEnvelope(fasthttp.StatusBadRequest,
+				SendErrorEnvelope(w, http.StatusBadRequest,
 					fmt.Sprintf("Missing header parameter %q. Pass it in header_params or template_params.", name),
 					nil, "")
+				return
 			}
 		}
 	}
@@ -867,16 +883,19 @@ func (a *App) SendTemplateMessage(r *fastglue.Request) error {
 			// Option 2: Download from URL, then upload to WhatsApp
 			resp, err := http.Get(req.HeaderMediaURL)
 			if err != nil {
-				return r.SendErrorEnvelope(fasthttp.StatusBadRequest, "Failed to download header media from URL", nil, "")
+				SendErrorEnvelope(w, http.StatusBadRequest, "Failed to download header media from URL", nil, "")
+				return
 			}
 			defer resp.Body.Close() //nolint:errcheck
 			if resp.StatusCode != http.StatusOK {
-				return r.SendErrorEnvelope(fasthttp.StatusBadRequest, fmt.Sprintf("Header media URL returned status %d", resp.StatusCode), nil, "")
+				SendErrorEnvelope(w, http.StatusBadRequest, fmt.Sprintf("Header media URL returned status %d", resp.StatusCode), nil, "")
+				return
 			}
 			headerMediaData, err = io.ReadAll(resp.Body)
 			if err != nil {
 				a.Log.Error("Failed to read header media from URL", "error", err)
-				return r.SendErrorEnvelope(fasthttp.StatusInternalServerError, "Failed to read header media from URL", nil, "")
+				SendErrorEnvelope(w, http.StatusInternalServerError, "Failed to read header media from URL", nil, "")
+				return
 			}
 			headerMimeType = resp.Header.Get("Content-Type")
 			if headerMimeType == "" {
@@ -894,7 +913,8 @@ func (a *App) SendTemplateMessage(r *fastglue.Request) error {
 			mediaID, err := a.WhatsApp.UploadMedia(context.Background(), waAcct, headerMediaData, headerMimeType, "header")
 			if err != nil {
 				a.Log.Error("Failed to upload template header media", "error", err)
-				return r.SendErrorEnvelope(fasthttp.StatusInternalServerError, "Failed to upload header media to WhatsApp", nil, "")
+				SendErrorEnvelope(w, http.StatusInternalServerError, "Failed to upload header media to WhatsApp", nil, "")
+				return
 			}
 			headerMediaID = mediaID
 		}
@@ -914,7 +934,8 @@ func (a *App) SendTemplateMessage(r *fastglue.Request) error {
 
 	// Check marketing opt-out
 	if contact.MarketingOptOut && strings.EqualFold(template.Category, "MARKETING") {
-		return r.SendErrorEnvelope(fasthttp.StatusBadRequest, "Contact has opted out of marketing messages", nil, "")
+		SendErrorEnvelope(w, http.StatusBadRequest, "Contact has opted out of marketing messages", nil, "")
+		return
 	}
 
 	// For authentication templates with OTP COPY_CODE buttons, Meta expects
@@ -975,7 +996,8 @@ func (a *App) SendTemplateMessage(r *fastglue.Request) error {
 	message, err := a.SendOutgoingMessage(ctx, msgReq, opts)
 	if err != nil {
 		a.Log.Error("Failed to send template message", "error", err)
-		return r.SendErrorEnvelope(fasthttp.StatusInternalServerError, "Failed to send template message", nil, "")
+		SendErrorEnvelope(w, http.StatusInternalServerError, "Failed to send template message", nil, "")
+		return
 	}
 
 	// Build full message response (same shape as SendMessage)
@@ -995,5 +1017,6 @@ func (a *App) SendTemplateMessage(r *fastglue.Request) error {
 		CreatedAt:       message.CreatedAt,
 		UpdatedAt:       message.UpdatedAt,
 	}
-	return r.SendEnvelope(response)
+	SendEnvelope(w, response)
+	return
 }

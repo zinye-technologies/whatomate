@@ -24,7 +24,7 @@ Calling / IVR features are **not** in scope for deletion; they keep working thro
 
 1. **`internal/httpapi`** owns the chi router and route mounting.
 2. **`httpapi.Wrap`** adapts remaining fastglue handlers → `http.Handler`.
-3. **Native slices** (no Wrap): health/ready, auth session, `/api/me*`, current org, users CRUD, roles, API keys, accounts, contacts (+ tags/notes), WebSocket, SPA.
+3. **Native slices** (no Wrap): health/ready, auth session, `/api/me*`, current org, users CRUD, roles, API keys, accounts, contacts (+ tags/notes/messages), media serve, templates, WhatsApp flows, WebSocket, SPA.
 
 ## Progress
 
@@ -87,16 +87,40 @@ Chi edge, Wrap shim, stdlib middleware, native WebSocket + SPA.
 | `GET/POST /api/tags`, `PUT/DELETE /api/tags/{name}` | `ListTags`, `CreateTag`, `UpdateTag`, `DeleteTag` | **native** |
 | `GET/POST /api/contacts/{id}/notes`, `PUT/DELETE .../notes/{note_id}` | `ListConversationNotes`, `CreateConversationNote`, `UpdateConversationNote`, `DeleteConversationNote` | **native** |
 
+### Phase 2 batch 4 — native (no Wrap)
+
+| Route(s) | Handler | Status |
+|----------|---------|--------|
+| `GET/POST /api/contacts/{id}/messages`, `POST .../reaction` | `GetMessages`, `SendMessage`, `SendReaction` | **native** |
+| `POST /api/contacts/{id}/mark-read` | `MarkContactRead` | **native** |
+| `POST /api/messages`, `POST /api/messages/template`, `POST /api/messages/media` | `SendMessage`, `SendTemplateMessage`, `SendMediaMessage` | **native** |
+| `PUT /api/messages/{id}/read` | `MarkMessageRead` (stub) | **native** |
+| `GET /api/media/{message_id}` | `ServeMedia` | **native** |
+| `GET/POST /api/templates`, `GET/PUT/DELETE /api/templates/{id}` | `ListTemplates`, `CreateTemplate`, `GetTemplate`, `UpdateTemplate`, `DeleteTemplate` | **native** |
+| `POST /api/templates/sync`, `POST .../{id}/publish`, `POST .../upload-media` | `SyncTemplates`, `SubmitTemplate`, `UploadTemplateMedia` | **native** |
+| `GET/POST /api/flows`, `GET/PUT/DELETE /api/flows/{id}` | `ListFlows`, `CreateFlow`, `GetFlow`, `UpdateFlow`, `DeleteFlow` | **native** |
+| `POST /api/flows/{id}/{save-to-meta,publish,deprecate,duplicate}`, `POST /api/flows/sync` | `SaveFlowToMeta`, `PublishFlow`, `DeprecateFlow`, `DuplicateFlow`, `SyncFlows` | **native** |
+| `GET /api/analytics/messages`, `GET /api/analytics/chatbot` | `GetMessageAnalytics`, `GetChatbotAnalytics` (stubs) | **native** |
+
 ### Leftovers (still Wrap)
 
 - **SSO**: `GetPublicSSOProviders`, `InitSSO`, `CallbackSSO` (still use fasthttp `setAuthCookies`).
 - **Org admin CRUD**: `ListOrganizations`, `CreateOrganization`, members, settings, audio upload.
-- Contact message endpoints still Wrap (`GetMessages`, `SendMessage`, `MarkContactRead`, `SendReaction`, media send).
-- All other API groups (messages, campaigns, templates, flows, calling/IVR, …).
+- Campaigns, chatbot (settings/keywords/flows/AI/transfers/sessions), teams, audit logs, canned responses.
+- Analytics (dashboard/agents/meta), widgets, webhooks, custom actions, catalog.
+- Import/export, Meta webhook verify/handler, embedded signup config.
+- Calling / IVR / call-logs / call-transfers / outgoing calls (last).
+
+### Counts (batch 4)
+
+- Native `http.HandlerFunc` handlers: **87**
+- Remaining `func(*fastglue.Request) error` handlers: **141**
+- Chi routes without Wrap: **88**
+- Chi routes still using Wrap: **138**
 
 ### Next
 
-Batch 4: messages / templates / media → … → calling/IVR last → Phase 3 delete Wrap.
+Batch 5: campaigns / chatbot / teams → org admin + SSO → calling/IVR last → Phase 3 delete Wrap.
 
 ## Non-goals / constraints
 

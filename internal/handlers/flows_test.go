@@ -46,8 +46,7 @@ func TestApp_ListFlows_Success(t *testing.T) {
 	req := testutil.NewGETRequest(t)
 	testutil.SetAuthContext(req, org.ID, user.ID)
 
-	err := app.ListFlows(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.ListFlows, req)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	var resp struct {
@@ -55,7 +54,7 @@ func TestApp_ListFlows_Success(t *testing.T) {
 			Flows []handlers.FlowResponse `json:"flows"`
 		} `json:"data"`
 	}
-	err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+	err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 	require.NoError(t, err)
 	assert.Len(t, resp.Data.Flows, 2)
 }
@@ -70,8 +69,7 @@ func TestApp_ListFlows_EmptyList(t *testing.T) {
 	req := testutil.NewGETRequest(t)
 	testutil.SetAuthContext(req, org.ID, user.ID)
 
-	err := app.ListFlows(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.ListFlows, req)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	var resp struct {
@@ -79,7 +77,7 @@ func TestApp_ListFlows_EmptyList(t *testing.T) {
 			Flows []handlers.FlowResponse `json:"flows"`
 		} `json:"data"`
 	}
-	err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+	err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 	require.NoError(t, err)
 	assert.Len(t, resp.Data.Flows, 0)
 }
@@ -101,8 +99,7 @@ func TestApp_ListFlows_FilterByAccount(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, user.ID)
 	testutil.SetQueryParam(req, "account", account1.Name)
 
-	err := app.ListFlows(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.ListFlows, req)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	var resp struct {
@@ -110,7 +107,7 @@ func TestApp_ListFlows_FilterByAccount(t *testing.T) {
 			Flows []handlers.FlowResponse `json:"flows"`
 		} `json:"data"`
 	}
-	err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+	err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 	require.NoError(t, err)
 	assert.Len(t, resp.Data.Flows, 2)
 	for _, f := range resp.Data.Flows {
@@ -126,8 +123,7 @@ func TestApp_ListFlows_Unauthorized(t *testing.T) {
 	req := testutil.NewGETRequest(t)
 	// No auth context set
 
-	err := app.ListFlows(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.ListFlows, req)
 	assert.Equal(t, fasthttp.StatusUnauthorized, testutil.GetResponseStatusCode(req))
 }
 
@@ -149,8 +145,7 @@ func TestApp_CreateFlow_Success(t *testing.T) {
 	})
 	testutil.SetAuthContext(req, org.ID, user.ID)
 
-	err := app.CreateFlow(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.CreateFlow, req)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	var resp struct {
@@ -158,7 +153,7 @@ func TestApp_CreateFlow_Success(t *testing.T) {
 			Flow handlers.FlowResponse `json:"flow"`
 		} `json:"data"`
 	}
-	err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+	err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 	require.NoError(t, err)
 	assert.Equal(t, "My New Flow", resp.Data.Flow.Name)
 	assert.Equal(t, account.Name, resp.Data.Flow.WhatsAppAccount)
@@ -182,8 +177,7 @@ func TestApp_CreateFlow_DefaultJSONVersion(t *testing.T) {
 	})
 	testutil.SetAuthContext(req, org.ID, user.ID)
 
-	err := app.CreateFlow(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.CreateFlow, req)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	var resp struct {
@@ -191,7 +185,7 @@ func TestApp_CreateFlow_DefaultJSONVersion(t *testing.T) {
 			Flow handlers.FlowResponse `json:"flow"`
 		} `json:"data"`
 	}
-	err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+	err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 	require.NoError(t, err)
 	assert.Equal(t, "6.0", resp.Data.Flow.JSONVersion)
 }
@@ -209,8 +203,7 @@ func TestApp_CreateFlow_MissingName(t *testing.T) {
 	})
 	testutil.SetAuthContext(req, org.ID, user.ID)
 
-	err := app.CreateFlow(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.CreateFlow, req)
 	assert.Equal(t, fasthttp.StatusBadRequest, testutil.GetResponseStatusCode(req))
 }
 
@@ -226,8 +219,7 @@ func TestApp_CreateFlow_MissingWhatsAppAccount(t *testing.T) {
 	})
 	testutil.SetAuthContext(req, org.ID, user.ID)
 
-	err := app.CreateFlow(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.CreateFlow, req)
 	assert.Equal(t, fasthttp.StatusBadRequest, testutil.GetResponseStatusCode(req))
 }
 
@@ -244,8 +236,7 @@ func TestApp_CreateFlow_AccountNotFound(t *testing.T) {
 	})
 	testutil.SetAuthContext(req, org.ID, user.ID)
 
-	err := app.CreateFlow(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.CreateFlow, req)
 	assert.Equal(t, fasthttp.StatusBadRequest, testutil.GetResponseStatusCode(req))
 }
 
@@ -260,8 +251,7 @@ func TestApp_CreateFlow_Unauthorized(t *testing.T) {
 	})
 	// No auth context
 
-	err := app.CreateFlow(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.CreateFlow, req)
 	assert.Equal(t, fasthttp.StatusUnauthorized, testutil.GetResponseStatusCode(req))
 }
 
@@ -280,8 +270,7 @@ func TestApp_GetFlow_Success(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, user.ID)
 	testutil.SetPathParam(req, "id", flow.ID.String())
 
-	err := app.GetFlow(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.GetFlow, req)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	var resp struct {
@@ -289,7 +278,7 @@ func TestApp_GetFlow_Success(t *testing.T) {
 			Flow handlers.FlowResponse `json:"flow"`
 		} `json:"data"`
 	}
-	err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+	err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 	require.NoError(t, err)
 	assert.Equal(t, flow.ID, resp.Data.Flow.ID)
 	assert.Equal(t, "Test Flow", resp.Data.Flow.Name)
@@ -308,8 +297,7 @@ func TestApp_GetFlow_NotFound(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, user.ID)
 	testutil.SetPathParam(req, "id", uuid.New().String())
 
-	err := app.GetFlow(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.GetFlow, req)
 	assert.Equal(t, fasthttp.StatusNotFound, testutil.GetResponseStatusCode(req))
 }
 
@@ -324,8 +312,7 @@ func TestApp_GetFlow_InvalidID(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, user.ID)
 	testutil.SetPathParam(req, "id", "not-a-uuid")
 
-	err := app.GetFlow(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.GetFlow, req)
 	assert.Equal(t, fasthttp.StatusBadRequest, testutil.GetResponseStatusCode(req))
 }
 
@@ -344,8 +331,7 @@ func TestApp_GetFlow_CrossOrgIsolation(t *testing.T) {
 	testutil.SetAuthContext(req, org2.ID, user2.ID)
 	testutil.SetPathParam(req, "id", flow.ID.String())
 
-	err := app.GetFlow(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.GetFlow, req)
 	assert.Equal(t, fasthttp.StatusNotFound, testutil.GetResponseStatusCode(req))
 }
 
@@ -367,8 +353,7 @@ func TestApp_UpdateFlow_Success(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, user.ID)
 	testutil.SetPathParam(req, "id", flow.ID.String())
 
-	err := app.UpdateFlow(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.UpdateFlow, req)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	var resp struct {
@@ -376,7 +361,7 @@ func TestApp_UpdateFlow_Success(t *testing.T) {
 			Flow handlers.FlowResponse `json:"flow"`
 		} `json:"data"`
 	}
-	err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+	err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 	require.NoError(t, err)
 	assert.Equal(t, flow.ID, resp.Data.Flow.ID)
 	assert.Equal(t, "Updated Flow", resp.Data.Flow.Name)
@@ -397,8 +382,7 @@ func TestApp_UpdateFlow_NotFound(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, user.ID)
 	testutil.SetPathParam(req, "id", uuid.New().String())
 
-	err := app.UpdateFlow(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.UpdateFlow, req)
 	assert.Equal(t, fasthttp.StatusNotFound, testutil.GetResponseStatusCode(req))
 }
 
@@ -415,8 +399,7 @@ func TestApp_UpdateFlow_InvalidID(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, user.ID)
 	testutil.SetPathParam(req, "id", "not-a-uuid")
 
-	err := app.UpdateFlow(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.UpdateFlow, req)
 	assert.Equal(t, fasthttp.StatusBadRequest, testutil.GetResponseStatusCode(req))
 }
 
@@ -431,8 +414,7 @@ func TestApp_UpdateFlow_Unauthorized(t *testing.T) {
 	// No auth context
 	testutil.SetPathParam(req, "id", uuid.New().String())
 
-	err := app.UpdateFlow(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.UpdateFlow, req)
 	assert.Equal(t, fasthttp.StatusUnauthorized, testutil.GetResponseStatusCode(req))
 }
 
@@ -451,8 +433,7 @@ func TestApp_DeleteFlow_Success(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, user.ID)
 	testutil.SetPathParam(req, "id", flow.ID.String())
 
-	err := app.DeleteFlow(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.DeleteFlow, req)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	var resp struct {
@@ -460,7 +441,7 @@ func TestApp_DeleteFlow_Success(t *testing.T) {
 			Message string `json:"message"`
 		} `json:"data"`
 	}
-	err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+	err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 	require.NoError(t, err)
 	assert.Contains(t, resp.Data.Message, "deleted")
 
@@ -481,8 +462,7 @@ func TestApp_DeleteFlow_NotFound(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, user.ID)
 	testutil.SetPathParam(req, "id", uuid.New().String())
 
-	err := app.DeleteFlow(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.DeleteFlow, req)
 	assert.Equal(t, fasthttp.StatusNotFound, testutil.GetResponseStatusCode(req))
 }
 
@@ -497,8 +477,7 @@ func TestApp_DeleteFlow_InvalidID(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, user.ID)
 	testutil.SetPathParam(req, "id", "not-a-uuid")
 
-	err := app.DeleteFlow(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.DeleteFlow, req)
 	assert.Equal(t, fasthttp.StatusBadRequest, testutil.GetResponseStatusCode(req))
 }
 
@@ -517,8 +496,7 @@ func TestApp_DeleteFlow_CrossOrgIsolation(t *testing.T) {
 	testutil.SetAuthContext(req, org2.ID, user2.ID)
 	testutil.SetPathParam(req, "id", flow.ID.String())
 
-	err := app.DeleteFlow(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.DeleteFlow, req)
 	assert.Equal(t, fasthttp.StatusNotFound, testutil.GetResponseStatusCode(req))
 
 	// Flow should still exist
@@ -536,8 +514,7 @@ func TestApp_DeleteFlow_Unauthorized(t *testing.T) {
 	// No auth context
 	testutil.SetPathParam(req, "id", uuid.New().String())
 
-	err := app.DeleteFlow(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.DeleteFlow, req)
 	assert.Equal(t, fasthttp.StatusUnauthorized, testutil.GetResponseStatusCode(req))
 }
 
@@ -556,8 +533,7 @@ func TestApp_DuplicateFlow_Success(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, user.ID)
 	testutil.SetPathParam(req, "id", flow.ID.String())
 
-	err := app.DuplicateFlow(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.DuplicateFlow, req)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	var resp struct {
@@ -566,7 +542,7 @@ func TestApp_DuplicateFlow_Success(t *testing.T) {
 			Message string                `json:"message"`
 		} `json:"data"`
 	}
-	err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+	err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 	require.NoError(t, err)
 
 	// Duplicated flow should have a different ID
@@ -603,8 +579,7 @@ func TestApp_DuplicateFlow_NotFound(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, user.ID)
 	testutil.SetPathParam(req, "id", uuid.New().String())
 
-	err := app.DuplicateFlow(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.DuplicateFlow, req)
 	assert.Equal(t, fasthttp.StatusNotFound, testutil.GetResponseStatusCode(req))
 }
 
@@ -619,8 +594,7 @@ func TestApp_DuplicateFlow_InvalidID(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, user.ID)
 	testutil.SetPathParam(req, "id", "not-a-uuid")
 
-	err := app.DuplicateFlow(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.DuplicateFlow, req)
 	assert.Equal(t, fasthttp.StatusBadRequest, testutil.GetResponseStatusCode(req))
 }
 
@@ -639,8 +613,7 @@ func TestApp_DuplicateFlow_CrossOrgIsolation(t *testing.T) {
 	testutil.SetAuthContext(req, org2.ID, user2.ID)
 	testutil.SetPathParam(req, "id", flow.ID.String())
 
-	err := app.DuplicateFlow(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.DuplicateFlow, req)
 	assert.Equal(t, fasthttp.StatusNotFound, testutil.GetResponseStatusCode(req))
 }
 
@@ -653,8 +626,7 @@ func TestApp_DuplicateFlow_Unauthorized(t *testing.T) {
 	// No auth context
 	testutil.SetPathParam(req, "id", uuid.New().String())
 
-	err := app.DuplicateFlow(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.DuplicateFlow, req)
 	assert.Equal(t, fasthttp.StatusUnauthorized, testutil.GetResponseStatusCode(req))
 }
 
@@ -690,8 +662,7 @@ func TestApp_DuplicateFlow_PreservesFlowJSON(t *testing.T) {
 	testutil.SetAuthContext(req, org.ID, user.ID)
 	testutil.SetPathParam(req, "id", flow.ID.String())
 
-	err := app.DuplicateFlow(req)
-	require.NoError(t, err)
+	testutil.InvokeHTTP(t, app.DuplicateFlow, req)
 	assert.Equal(t, fasthttp.StatusOK, testutil.GetResponseStatusCode(req))
 
 	var resp struct {
@@ -699,7 +670,7 @@ func TestApp_DuplicateFlow_PreservesFlowJSON(t *testing.T) {
 			Flow handlers.FlowResponse `json:"flow"`
 		} `json:"data"`
 	}
-	err = json.Unmarshal(testutil.GetResponseBody(req), &resp)
+	err := json.Unmarshal(testutil.GetResponseBody(req), &resp)
 	require.NoError(t, err)
 
 	// Duplicate should preserve screens
