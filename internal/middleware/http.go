@@ -11,7 +11,6 @@ import (
 
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
-	"github.com/valyala/fasthttp"
 	"github.com/zerodha/logf"
 	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
@@ -19,8 +18,7 @@ import (
 	"github.com/shridarpatil/whatomate/internal/models"
 )
 
-// Typed context keys for net/http middleware. String UserValue keys remain
-// ContextKey* for fasthttp handlers reached through httpapi.Wrap.
+// Typed context keys for net/http middleware.
 type ctxKey int
 
 const (
@@ -135,8 +133,7 @@ func CSRFProtectionHTTP(next http.Handler) http.Handler {
 }
 
 // AuthHTTP validates JWT (Bearer or whm_access cookie) and optional API keys.
-// On success it stores identity on the request context (and httpapi.Wrap copies
-// those values into fasthttp UserValues for legacy handlers).
+// On success it stores identity on the request context.
 func AuthHTTP(secret string, db *gorm.DB) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -314,33 +311,6 @@ func extractClientIPHTTP(r *http.Request, trustProxy bool) string {
 		return r.RemoteAddr
 	}
 	return host
-}
-
-// CopyHTTPContextToUserValues bridges stdlib auth context into fasthttp UserValues
-// so legacy fastglue handlers keep reading the same keys.
-func CopyHTTPContextToUserValues(r *http.Request, ctx *fasthttp.RequestCtx) {
-	c := r.Context()
-	if v := c.Value(ctxKeyUserID); v != nil {
-		ctx.SetUserValue(ContextKeyUserID, v)
-	}
-	if v := c.Value(ctxKeyOrganizationID); v != nil {
-		ctx.SetUserValue(ContextKeyOrganizationID, v)
-	}
-	if v := c.Value(ctxKeyEmail); v != nil {
-		ctx.SetUserValue(ContextKeyEmail, v)
-	}
-	if v := c.Value(ctxKeyRoleID); v != nil {
-		ctx.SetUserValue(ContextKeyRoleID, v)
-	}
-	if v := c.Value(ctxKeyIsSuperAdmin); v != nil {
-		ctx.SetUserValue(ContextKeyIsSuperAdmin, v)
-	}
-	if v := c.Value(ctxKeyUser); v != nil {
-		ctx.SetUserValue(ContextKeyUser, v)
-	}
-	if v := c.Value(ctxKeyOrganization); v != nil {
-		ctx.SetUserValue(ContextKeyOrganization, v)
-	}
 }
 
 func writeJSONError(w http.ResponseWriter, status int, message string) {

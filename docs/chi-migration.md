@@ -149,23 +149,32 @@ Chi edge, Wrap shim, stdlib middleware, native WebSocket + SPA.
 | Catalogs / products | catalog + product CRUD + sync | **native** |
 | `GET /api/embedded-signup/config` | `GetEmbeddedSignupConfig` | **native** |
 
-### Leftovers (intentional)
+### Phase 3 cleanup (partial) — after batch 7
 
-- **`httpapi.Wrap`**: still defined in `adapt.go` but **0** chi mounts use it.
-- **Legacy fasthttp helpers**: `getOrgID` / `requireAuth` / `decodeRequest` / `parsePathUUID` / cookie helpers in `app.go` / `helpers.go` / `cookies.go` — unused by routes; keep until Phase 3 cleanup + test harness migration.
-- **`WebSocketHandler` (fastglue)**: unused; routes use native `WebSocketHTTP`.
-- **Tests**: many still build `fasthttp.RequestCtx` and bridge via `testutil.InvokeHTTP`.
+Deleted unused fasthttp production leftovers (tests still bridge via `testutil`):
 
-### Counts (batch 7)
+- **`httpapi.Wrap`** + `adapt.go` / `adapt_test.go` — removed (0 mounts).
+- **fasthttp cookie helpers** (`setAuthCookies` / `clearAuthCookies`) — removed; HTTP variants remain.
+- **`WebSocketHandler`** + fasthttp upgrader — removed; routes use `WebSocketHTTP`.
+- **`getOrgID` / `getOrgAndUserID` / `requirePermission` / `requireAuth` / `decodeRequest`** (fasthttp) — removed from `app.go`.
+- **`CopyHTTPContextToUserValues`** — removed (only used by Wrap).
 
-- Native exported `http.HandlerFunc` handlers: **224**
-- Remaining exported `func(*fastglue.Request) error` handlers: **1** (`WebSocketHandler`, unused on chi)
-- Chi routes without Wrap: **228**
-- Chi routes still using Wrap: **0**
+Still present (test / parallel middleware):
+
+- **`helpers.go` fasthttp parsers** + `helpers_test.go` (used by unit tests).
+- **fasthttp middleware** in `middleware.go` / `csrf.go` / `ratelimit.go` + tests.
+- **`testutil` fasthttp request builders** + `InvokeHTTP` bridge.
+- **`fastglue` / `fasthttp` in `go.mod`** — still required by the above.
+
+### Counts (post Phase 3 partial)
+
+- Chi routes using Wrap: **0**
+- Exported `func(*fastglue.Request) error` handlers: **0**
+- Usage meter: `GET /api/usage` and `GET /api/billing/usage` (native)
 
 ### Next
 
-Phase 3: delete `Wrap` + unused fasthttp helpers/cookies/`WebSocketHandler`; migrate `testutil` off fasthttp; drop `fastglue` from `go.mod` when `go mod why` is clean.
+Migrate `testutil` + fasthttp middleware/helpers off fasthttp; then `go mod tidy` can drop `fastglue`.
 
 ## Non-goals / constraints
 

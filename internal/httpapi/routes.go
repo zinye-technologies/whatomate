@@ -10,8 +10,7 @@ import (
 )
 
 // mountRoutes registers public and authenticated routes on the chi router.
-// All mounted handlers are native net/http (+ chi). Wrap remains defined for
-// residual adapters but is unused on these routes.
+// All mounted handlers are native net/http (+ chi).
 func mountRoutes(r chi.Router, d Deps) {
 	app := d.App
 	lo := d.Log

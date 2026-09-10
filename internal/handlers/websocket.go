@@ -8,21 +8,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/shridarpatil/whatomate/internal/middleware"
 	ws "github.com/shridarpatil/whatomate/internal/websocket"
-	"github.com/valyala/fasthttp"
-	"github.com/zerodha/fastglue"
 )
-
-// newUpgrader creates a fasthttp WebSocket upgrader (legacy path).
-func newUpgrader(allowedOrigins map[string]bool) websocket.FastHTTPUpgrader {
-	return websocket.FastHTTPUpgrader{
-		ReadBufferSize:  1024,
-		WriteBufferSize: 1024,
-		CheckOrigin: func(ctx *fasthttp.RequestCtx) bool {
-			origin := string(ctx.Request.Header.Peek("Origin"))
-			return middleware.IsOriginAllowed(origin, allowedOrigins)
-		},
-	}
-}
 
 // newHTTPUpgrader creates a net/http WebSocket upgrader for the chi stack.
 func newHTTPUpgrader(allowedOrigins map[string]bool) websocket.Upgrader {
@@ -35,30 +21,9 @@ func newHTTPUpgrader(allowedOrigins map[string]bool) websocket.Upgrader {
 	}
 }
 
-func (a *App) wsUpgrader() websocket.FastHTTPUpgrader {
-	allowedOrigins := middleware.ParseAllowedOrigins(a.Config.Server.AllowedOrigins)
-	return newUpgrader(allowedOrigins)
-}
-
 func (a *App) wsHTTPUpgrader() websocket.Upgrader {
 	allowedOrigins := middleware.ParseAllowedOrigins(a.Config.Server.AllowedOrigins)
 	return newHTTPUpgrader(allowedOrigins)
-}
-
-// WebSocketHandler handles WebSocket connections (fasthttp/fastglue path).
-// Authentication is performed via message-based auth after the upgrade.
-func (a *App) WebSocketHandler(r *fastglue.Request) error {
-	up := a.wsUpgrader()
-	err := up.Upgrade(r.RequestCtx, func(conn *websocket.Conn) {
-		client := ws.NewUnauthenticatedClient(a.WSHub, conn, a.validateWSTokenFn())
-		go client.WritePump()
-		client.ReadPump()
-	})
-	if err != nil {
-		a.Log.Error("WebSocket upgrade failed", "error", err)
-		return r.SendErrorEnvelope(fasthttp.StatusInternalServerError, "WebSocket upgrade failed", nil, "")
-	}
-	return nil
 }
 
 // WebSocketHTTP handles WebSocket connections on the net/http + chi stack.
